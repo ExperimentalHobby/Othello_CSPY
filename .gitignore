@@ -1,0 +1,64 @@
+# ===== Visual Studio / .NET =====
+.vs/
+.idea/
+
+# VS Code: ユーザー個人設定のみ除外（tasks.json / settings.json / extensions.json はコミット対象）
+.vscode/launch.json
+.vscode/*.code-snippets
+*.user
+*.suo
+*.rsuser
+
+# NuGet
+*.nupkg
+*.snupkg
+project.lock.json
+project.assets.json
+
+# ビルド成果物
+[Dd]ebug/
+[Rr]elease/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# コンパイル済みバイナリ
+*.dll
+*.exe
+*.pdb
+
+# テスト結果
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# 仮想環境
+.venv/
+venv/
+env/
+
+# パッケージ配布物
+*.egg-info/
+dist/
+build/
+
+# document
+docs/
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+*.lnk
+
+# ===== 環境変数・秘匿情報 =====
+.env
+.env.local
+.env.*.local
