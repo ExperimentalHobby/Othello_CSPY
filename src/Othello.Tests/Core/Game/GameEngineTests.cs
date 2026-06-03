@@ -5,6 +5,10 @@ using Technopro.Othello.Core.Models;
 
 public class GameEngineTests
 {
+    /// <summary>
+    /// Initialize() 後のゲーム状態が正しいことを確認する。
+    /// パス条件: GameState が BlackTurn、黒・白ともに石数が 2 であること。
+    /// </summary>
     [Fact]
     public void Initialize_StartsGame_WithCorrectState()
     {
@@ -15,6 +19,10 @@ public class GameEngineTests
         Assert.Equal(2, engine.WhiteScore);
     }
 
+    /// <summary>
+    /// 有効な手を打つと着手成功かつターンが相手に移ることを確認する。
+    /// パス条件: MakeMove の戻り値が IsSuccess = true、かつ GameState が WhiteTurn に変わること。
+    /// </summary>
     [Fact]
     public void MakeMove_ValidMove_ChangesGameState()
     {
@@ -25,6 +33,10 @@ public class GameEngineTests
         Assert.Equal(GameState.WhiteTurn, engine.GameState);
     }
 
+    /// <summary>
+    /// 石を置けない位置（隅など）への着手は失敗を返すことを確認する。
+    /// パス条件: MakeMove の戻り値が IsSuccess = false であること。
+    /// </summary>
     [Fact]
     public void MakeMove_InvalidMove_ReturnsFalse()
     {
@@ -34,6 +46,10 @@ public class GameEngineTests
         Assert.False(result.IsSuccess);
     }
 
+    /// <summary>
+    /// 初期盤面における黒の有効手が 4 件であることを確認する。
+    /// パス条件: GetValidMoves の結果が空でなく、件数が 4 であること。
+    /// </summary>
     [Fact]
     public void GetValidMoves_ReturnsAvailableMoves()
     {
@@ -44,6 +60,10 @@ public class GameEngineTests
         Assert.Equal(4, moves.Count);
     }
 
+    /// <summary>
+    /// 初期盤面では勝者が決まっていないことを確認する。
+    /// パス条件: winner が null、黒・白ともに石数が 2 であること。
+    /// </summary>
     [Fact]
     public void GetResult_InitialBoard_ReturnsNullWinner()
     {
@@ -57,21 +77,10 @@ public class GameEngineTests
 
     // --- Pass ---
 
-    [Fact]
-    public void Pass_WhenNoValidMoves_AdvancesToNextPlayer()
-    {
-        // 黒に有効手がない状況を人工的に作る: 初期盤面から白だけが有効手を持つ局面に設定
-        // 簡易的に: 黒の有効手が0になるよう OthelloRules.CanPass が true な状態をセットアップする
-        // ここでは実際の盤面操作の代わりにリフレクションで _board を差し替える
-        // → より現実的な方法: 黒が全手打ち終わって白のみ打てる局面を手順で作る
-
-        // 以下は Pass() の事前条件違反テスト（有効手がある場合は例外）
-        var engine = new GameEngine();
-        engine.Initialize();
-        // 初期盤面では黒に有効手があるためパス不可
-        Assert.Throws<InvalidOperationException>(() => engine.Pass());
-    }
-
+    /// <summary>
+    /// 有効手がある状態で Pass() を呼ぶと例外が投げられることを確認する。
+    /// パス条件: InvalidOperationException がスローされること。
+    /// </summary>
     [Fact]
     public void Pass_WhenValidMovesExist_ThrowsInvalidOperationException()
     {
@@ -81,6 +90,10 @@ public class GameEngineTests
         Assert.Throws<InvalidOperationException>(() => engine.Pass());
     }
 
+    /// <summary>
+    /// ゲームが開始されていない状態（Initialize 前）で Pass() を呼ぶと例外が投げられることを確認する。
+    /// パス条件: InvalidOperationException がスローされること。
+    /// </summary>
     [Fact]
     public void Pass_AfterGameOver_ThrowsInvalidOperationException()
     {
@@ -91,6 +104,10 @@ public class GameEngineTests
 
     // --- Undo ---
 
+    /// <summary>
+    /// 1 手打った後に Undo() すると、盤面・スコア・ターンが着手前の状態に戻ることを確認する。
+    /// パス条件: Undo の戻り値が true、GameState が BlackTurn、黒・白ともに石数が 2 に戻ること。
+    /// </summary>
     [Fact]
     public void Undo_AfterOneMove_RestoresPreviousState()
     {
@@ -108,6 +125,10 @@ public class GameEngineTests
         Assert.Equal(2, engine.WhiteScore);
     }
 
+    /// <summary>
+    /// 1 手も打っていない初期状態では Undo() が失敗することを確認する。
+    /// パス条件: Undo の戻り値が false であること。
+    /// </summary>
     [Fact]
     public void Undo_AtInitialState_ReturnsFalse()
     {
@@ -117,6 +138,10 @@ public class GameEngineTests
         Assert.False(engine.Undo());
     }
 
+    /// <summary>
+    /// 2 手打った後に Undo() を 2 回繰り返すと初期状態に戻ることを確認する。
+    /// パス条件: GameState が BlackTurn、黒・白ともに石数が 2 に戻ること。
+    /// </summary>
     [Fact]
     public void Undo_MultipleTimes_RestoresEarlierState()
     {
