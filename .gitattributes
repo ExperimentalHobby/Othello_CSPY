@@ -1,0 +1,5 @@
+# デフォルト: テキストファイルは CRLF に統一
+* text=auto eol=crlf
+
+# Python は LF のまま
+*.py text eol=lf

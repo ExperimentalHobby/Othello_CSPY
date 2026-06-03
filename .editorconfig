@@ -1,0 +1,46 @@
+root = true
+
+# デフォルト: タブインデント・CRLF
+[*]
+charset = utf-8
+end_of_line = crlf
+indent_style = tab
+indent_size = 4
+tab_width = 4
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+# C#
+[*.cs]
+end_of_line = crlf
+indent_style = tab
+indent_size = 4
+
+# XAML
+[*.xaml]
+end_of_line = crlf
+indent_style = tab
+indent_size = 4
+
+# XML 系（csproj / runsettings）
+[*.{csproj,props,targets,runsettings}]
+end_of_line = crlf
+indent_style = tab
+indent_size = 4
+
+# Python: スペースインデント・LF
+[*.py]
+end_of_line = lf
+indent_style = space
+indent_size = 4
+
+# JSON / YAML
+[*.{json,yml,yaml}]
+end_of_line = crlf
+indent_style = tab
+indent_size = 4
+
+# Markdown
+[*.md]
+end_of_line = crlf
+trim_trailing_whitespace = false
