@@ -14,7 +14,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\Othello.Python\**\*.py">
+    <!-- テストファイル（test_*.py）は実行時に不要なため出力にコピーしない -->
+    <Content Include="..\Othello.Python\**\*.py" Exclude="..\Othello.Python\**\test_*.py">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>Othello.Python\%(RecursiveDir)%(Filename)%(Extension)</Link>
     </Content>

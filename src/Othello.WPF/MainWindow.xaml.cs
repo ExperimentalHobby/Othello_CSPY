@@ -9,5 +9,8 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = new GameViewModel();
+
+        // ウィンドウ閉鎖時に ViewModel を破棄し、Python プロセスを確実に終了させる
+        Closed += (_, _) => (DataContext as IDisposable)?.Dispose();
     }
 }

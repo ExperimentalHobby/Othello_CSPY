@@ -35,9 +35,17 @@ dotnet test --settings .runsettings
 | `ParallelizeAssembly / TestClasses` | true | アセンブリ・クラス単位の並列化 |
 | `CodeCoverage → ModulePath` | `Othello.Core` | カバレッジ収集対象を Core に限定 |
 
-## Python AI の単体確認
+## Python AI のテスト
 
-C# のテストには含まれない Python AI の動作確認は以下のコマンドで行う。
+C# のテストには含まれない Python AI（board / evaluator / alpha_beta）は、
+標準ライブラリ `unittest` による単体テスト（`src/Othello.Python/test_othello.py`）で検証する。
+
+```bash
+# Python 単体テスト（12 テスト）をリポジトリルートから実行
+py -m unittest discover -s src/Othello.Python -p "test_*.py"
+```
+
+stdin/stdout の IPC を直接確認したい場合は以下のコマンドを使う。
 
 ```bash
 echo '{"board":[[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],[0,0,0,2,1,0,0,0],[0,0,0,1,2,0,0,0],[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0]],"player":1,"depth":5}' | py src/Othello.Python/ai.py

@@ -25,12 +25,12 @@
 {"row": 2, "col": 3}
 ```
 
-Python プロセスのライフサイクル: `StartNewGame()` で起動 → `EndGame()` / Dispose で停止。
+Python プロセスのライフサイクル: `StartNewGame()` で起動 → `EndGame()` / `GameViewModel.Dispose()`（ウィンドウ閉鎖時）で停止。
 
 ## 主要な設計ポイント
 
 - `PythonSubprocessAI.FindPythonExecutable()`: Windows では `py` → `python3` → `python` の順で自動検索
-- Python ファイルは `Othello.WPF.csproj` / `Othello.Console.csproj` の Content ビルドアクションで出力ディレクトリ（`Othello.Python/`）にコピーされる
+- Python ファイルは `Othello.WPF.csproj` / `Othello.Console.csproj` の Content ビルドアクションで出力ディレクトリ（`Othello.Python/`）にコピーされる（`test_*.py` は除外）
 - `HumanColorIndex` / `DifficultyIndex`: ComboBox と ViewModel を繋ぐ int ヘルパープロパティ
 - `OnUndo()`: AI ターンになった場合はさらに1回 Undo して人間のターンに戻す
 - 有効手ハイライト: 人間のターン時のみ黄色でハイライト（`RefreshBoardDisplay` 内）

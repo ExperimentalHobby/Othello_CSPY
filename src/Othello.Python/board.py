@@ -7,6 +7,9 @@ board.py - オセロ盤面操作ユーティリティ
 このモジュールの関数は盤面を直接変更せず、新しい配列を返す（副作用なし）。
 """
 
+# 盤面の一辺のサイズ（オセロは常に 8×8）
+BOARD_SIZE = 8
+
 # セルの状態を表す定数（C# の PlayerColor enum と同じ int 値）
 EMPTY, BLACK, WHITE = 0, 1, 2
 
@@ -57,13 +60,13 @@ def get_flips(board, r, c, player):
         nr, nc = r + dr, c + dc
 
         # 相手色の連続する石を末端に向かってスキャンする
-        while 0 <= nr < 8 and 0 <= nc < 8 and board[nr][nc] == opp:
+        while 0 <= nr < BOARD_SIZE and 0 <= nc < BOARD_SIZE and board[nr][nc] == opp:
             line.append((nr, nc))
             nr += dr
             nc += dc
 
         # 連続した相手石の先に自分の石があれば反転確定
-        if line and 0 <= nr < 8 and 0 <= nc < 8 and board[nr][nc] == player:
+        if line and 0 <= nr < BOARD_SIZE and 0 <= nc < BOARD_SIZE and board[nr][nc] == player:
             flips.extend(line)
         # 盤端に到達、または空きマスで途切れた場合は反転なし
 
@@ -83,8 +86,8 @@ def get_valid_moves(board, player):
         list[tuple[int, int]]: 有効な着手先 (row, col) のリスト
     """
     moves = []
-    for r in range(8):
-        for c in range(8):
+    for r in range(BOARD_SIZE):
+        for c in range(BOARD_SIZE):
             # 空きマスかつ 1 枚以上反転できる場合のみ有効手とする
             if board[r][c] == EMPTY and get_flips(board, r, c, player):
                 moves.append((r, c))

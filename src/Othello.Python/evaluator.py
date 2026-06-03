@@ -10,7 +10,7 @@ alpha_beta.py の探索木でリーフノードの評価値を算出するため
     - 終局評価: 石数差で最終的な勝敗を大きな値で表現する
 """
 
-from board import get_valid_moves, opponent
+from board import get_valid_moves, opponent, BOARD_SIZE
 
 # 盤面の位置重みテーブル（8×8）
 # コーナー（0,0 等）: +100  取られると取り返せないため最優先
@@ -49,8 +49,8 @@ def evaluate(board, player):
     score = 0
 
     # 1. 位置重みの合計差を計算する
-    for r in range(8):
-        for c in range(8):
+    for r in range(BOARD_SIZE):
+        for c in range(BOARD_SIZE):
             if board[r][c] == player:
                 score += WEIGHTS[r][c]   # 自分の石は加算
             elif board[r][c] == opp:
@@ -79,8 +79,8 @@ def evaluate_final(board, player):
     opp = opponent(player)
 
     # 盤面全体の石数を数える
-    my_count  = sum(1 for r in range(8) for c in range(8) if board[r][c] == player)
-    opp_count = sum(1 for r in range(8) for c in range(8) if board[r][c] == opp)
+    my_count  = sum(1 for r in range(BOARD_SIZE) for c in range(BOARD_SIZE) if board[r][c] == player)
+    opp_count = sum(1 for r in range(BOARD_SIZE) for c in range(BOARD_SIZE) if board[r][c] == opp)
 
     if my_count > opp_count:
         return 10000   # 石数が多い → 勝利

@@ -76,15 +76,16 @@ class AlphaBetaAI:
         Returns:
             float: この局面の評価値
         """
+        # 深さ 0 に達した場合は評価関数で現在の盤面を評価する
+        # get_valid_moves より前に判定することで、リーフノードでの無駄な手生成を回避する
+        if depth == 0:
+            return evaluate(board, ai_player)
+
         # 現在のターンのプレイヤーを決定する
         current = ai_player if is_maximizing else opponent(ai_player)
         opp     = opponent(current)  # current の相手色を一度だけ計算して再利用
         moves    = get_valid_moves(board, current)
         opp_moves = get_valid_moves(board, opp)
-
-        # 深さ 0 に達した場合は評価関数で現在の盤面を評価する
-        if depth == 0:
-            return evaluate(board, ai_player)
 
         # 両者ともに有効手がない場合は終局 → 終局評価を返す
         if not moves and not opp_moves:

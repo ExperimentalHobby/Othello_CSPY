@@ -16,7 +16,7 @@ namespace Technopro.Othello.WPF.ViewModels;
 ///   StartNewGame → 人間のクリック（SquareClicked）→ CheckAndProcessNextTurn
 ///                → AI ターンなら ProcessAIMove → ループ
 /// </summary>
-public class GameViewModel : ViewModelBase
+public class GameViewModel : ViewModelBase, IDisposable
 {
     /// <summary>ゲームロジックエンジン（盤面・ターン・Undo 管理）</summary>
     private readonly GameEngine _engine = new();
@@ -505,5 +505,21 @@ public class GameViewModel : ViewModelBase
             string winnerName = winner == HumanColor ? "あなた" : "AI";
             StatusMessage = $"{winnerName} の勝利 (黒: {blackCount}, 白: {whiteCount})";
         }
+    }
+
+    /// <summary>
+    /// 保持しているリソースを解放する。
+    /// ウィンドウ閉鎖時に呼ばれ、進行中の AI 処理を止めて Python プロセスを確実に終了させる。
+    /// </summary>
+    public void Dispose()
+    {
+        // 進行中の非同期処理をキャンセルする
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = null;
+
+        // Python プロセスを終了する（対局中にウィンドウを閉じてもリークしないように）
+        _pythonAI?.Dispose();
+        _pythonAI = null;
     }
 }
