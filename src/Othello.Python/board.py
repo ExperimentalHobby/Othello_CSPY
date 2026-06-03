@@ -24,8 +24,15 @@ def opponent(player):
 
     Returns:
         int: 相手の色（BLACK → WHITE, WHITE → BLACK）
+
+    Raises:
+        ValueError: player が BLACK / WHITE 以外の場合
     """
-    return WHITE if player == BLACK else BLACK
+    if player == BLACK:
+        return WHITE
+    if player == WHITE:
+        return BLACK
+    raise ValueError(f"Invalid player value: {player}. Must be BLACK({BLACK}) or WHITE({WHITE}).")
 
 
 def get_flips(board, r, c, player):

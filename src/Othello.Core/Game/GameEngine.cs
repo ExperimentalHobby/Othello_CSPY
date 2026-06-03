@@ -25,12 +25,6 @@ public class GameEngine
     /// </summary>
     private List<Board> _history = new();
 
-    /// <summary>
-    /// 連続パスのカウンター。
-    /// 両プレイヤーが連続で 2 回パスするとゲーム終了となる。
-    /// 石を置いた際は 0 にリセットする。
-    /// </summary>
-    private int _passCount = 0;
 
     /// <summary>現在の盤面（読み取り専用）</summary>
     public Board CurrentBoard => _board;
@@ -57,7 +51,6 @@ public class GameEngine
         _gameState = GameState.BlackTurn;
         _currentPlayer = PlayerColor.Black;
         _history.Clear();
-        _passCount = 0;
         // 初期盤面を履歴の先頭として保存する（Undo の下限）
         _history.Add(_board.Clone());
     }
@@ -82,8 +75,6 @@ public class GameEngine
         var flipped = FlipCalculator.GetFlippablePieces(_board, position, _currentPlayer);
         OthelloRules.MakeMove(_board, position, _currentPlayer);
 
-        // 石を置いたのでパスカウントをリセット
-        _passCount = 0;
         // 着手後の盤面を履歴に保存する
         _history.Add(_board.Clone());
 
@@ -93,7 +84,7 @@ public class GameEngine
 
     /// <summary>
     /// 現在のプレイヤーがパスする（有効手がない場合のみ呼び出し可能）。
-    /// パスカウントが 2 に達した場合は両者パス扱いでゲームを終了する。
+    /// 両者ともに有効手がない場合は AdvanceTurn 内でゲームを終了する。
     /// </summary>
     /// <exception cref="InvalidOperationException">ゲームが進行中でない、またはパス不可能な場合</exception>
     public void Pass()
@@ -106,12 +97,7 @@ public class GameEngine
         if (!OthelloRules.CanPass(_board, _currentPlayer))
             throw new InvalidOperationException("パスはできません");
 
-        _passCount++;
         AdvanceTurn();
-
-        // 両者が連続でパスした場合はゲーム終了
-        if (_passCount >= 2)
-            EndGame();
     }
 
     /// <summary>
@@ -129,9 +115,6 @@ public class GameEngine
         _history.RemoveAt(_history.Count - 1);
         _board = _history[^1].Clone();
 
-        // パスカウントをリセットして、Undo 後のパス判定に影響が出ないようにする
-        _passCount = 0;
-
         // ターンを 1 手前のプレイヤーに戻す
         _currentPlayer = _currentPlayer.Opponent();
         if (!_gameState.IsGameOver())
@@ -142,7 +125,7 @@ public class GameEngine
 
     /// <summary>
     /// 着手またはパスの後にターンを次のプレイヤーへ進める。
-    /// 次のプレイヤーに有効手がない場合、自動的にパス（スキップ）する。
+    /// 次のプレイヤーに有効手がない場合、自動的にスキップして元のプレイヤーへ戻す。
     /// 両者ともに有効手がなければゲームを終了する。
     /// </summary>
     private void AdvanceTurn()
@@ -153,16 +136,13 @@ public class GameEngine
         // 次のプレイヤーが着手できない場合を処理する
         if (!HasValidMoves(_currentPlayer))
         {
-            if (OthelloRules.CanPass(_board, _currentPlayer))
+            // 次のプレイヤーもパス → さらに前のプレイヤーへ戻す
+            _currentPlayer = _currentPlayer.Opponent();
+            if (!HasValidMoves(_currentPlayer))
             {
-                // 次のプレイヤーもパス → さらに前のプレイヤーへ戻す
-                _currentPlayer = _currentPlayer.Opponent();
-                if (!HasValidMoves(_currentPlayer))
-                {
-                    // 両者ともに有効手なし → ゲーム終了
-                    EndGame();
-                    return;
-                }
+                // 両者ともに有効手なし → ゲーム終了
+                EndGame();
+                return;
             }
         }
 

@@ -20,8 +20,20 @@ public class BoardSquareViewModel : ViewModelBase
     /// <summary>このマスが有効な着手位置かどうか（黄色ハイライト表示に使用）</summary>
     private bool _isValidMove;
 
+    /// <summary>石色ごとに使い回す静的ブラシ（Freeze 済みなので UI スレッド以外からも安全に参照できる）</summary>
+    private static readonly SolidColorBrush BlackBrush       = CreateFrozen(Colors.Black);
+    private static readonly SolidColorBrush WhiteBrush       = CreateFrozen(Colors.White);
+    private static readonly SolidColorBrush TransparentBrush = CreateFrozen(Colors.Transparent);
+
+    private static SolidColorBrush CreateFrozen(Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
+    }
+
     /// <summary>このマスの石を表示するブラシ色</summary>
-    private SolidColorBrush _pieceColor = new(Colors.Transparent);
+    private SolidColorBrush _pieceColor = TransparentBrush;
 
     /// <summary>石が存在するかどうか（Ellipse の Visibility 制御に使用）</summary>
     private bool _hasPiece;
@@ -64,12 +76,12 @@ public class BoardSquareViewModel : ViewModelBase
         // Empty でなければ石が存在する
         HasPiece = piece != PlayerColor.Empty;
 
-        // 石の色に応じてブラシを切り替える（Empty は透明で石を非表示にする）
+        // 石の色に応じてキャッシュ済みブラシを切り替える（Empty は透明で石を非表示にする）
         PieceColor = piece switch
         {
-            PlayerColor.Black => new SolidColorBrush(Colors.Black),
-            PlayerColor.White => new SolidColorBrush(Colors.White),
-            _                 => new SolidColorBrush(Colors.Transparent) // Empty
+            PlayerColor.Black => BlackBrush,
+            PlayerColor.White => WhiteBrush,
+            _                 => TransparentBrush // Empty
         };
     }
 }

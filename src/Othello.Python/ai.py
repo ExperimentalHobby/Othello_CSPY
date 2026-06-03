@@ -46,6 +46,10 @@ def main():
         try:
             # JSON リクエストを解析してパラメータを取り出す
             req    = json.loads(line)
+            # 必須フィールドの存在チェック（KeyError より明確なエラーを返す）
+            if 'board' not in req or 'player' not in req or 'depth' not in req:
+                missing = [k for k in ('board', 'player', 'depth') if k not in req]
+                raise ValueError(f"Missing required fields: {missing}")
             board  = req['board']   # 8×8 の int 配列
             player = req['player']  # 1=Black, 2=White
             depth  = req['depth']   # 探索深さ

@@ -29,6 +29,42 @@
 | .NET | .NET 10 SDK |
 | Python | 3.8 以上（標準ライブラリのみ、追加インストール不要） |
 
+## 開発環境
+
+以下のいずれかの IDE / エディタを使用してください。
+
+### Visual Studio 2026
+
+**インストール時に必要なワークロード（Visual Studio Installer で選択）:**
+
+| ワークロード | 用途 |
+|---|---|
+| .NET デスクトップ開発 | WPF・コンソール・テストのビルドに必要 |
+
+> .NET 10 SDK が含まれていない場合は「個別のコンポーネント」タブで `.NET 10.0 Runtime` を追加インストールしてください。
+
+### Visual Studio Code
+
+**推奨拡張機能:**
+
+| 拡張機能 | ID | 用途 |
+|---|---|---|
+| C# Dev Kit | `ms-dotnettools.csdevkit` | C# の開発・デバッグ |
+| Python | `ms-python.python` | Python の実行・デバッグ |
+| Pylance | `ms-python.vscode-pylance` | Python 言語サーバー（補完・型チェック） |
+
+> `Othello_CSharpPython.code-workspace` を開くと推奨拡張機能のインストールが自動的に促されます。
+
+### Python
+
+| 項目 | 要件 |
+|---|---|
+| バージョン | 3.8 以上 |
+| パッケージ | 標準ライブラリのみ（追加インストール不要） |
+| Windows | Python Launcher（`py`）の使用を推奨 |
+
+---
+
 ## セットアップ
 
 ### 1. リポジトリのクローン
@@ -57,14 +93,6 @@ dotnet run --project src/Othello.Console/Othello.Console.csproj
 ---
 
 #### Visual Studio 2026
-
-**インストール時に必要なワークロード（Visual Studio Installer で選択）:**
-
-| ワークロード | 用途 |
-|---|---|
-| .NET デスクトップ開発 | WPF・コンソール・テストのビルドに必要 |
-
-> **.NET 10 SDK** が含まれていない場合は、「個別のコンポーネント」タブで `.NET 10.0 Runtime` を追加インストールしてください。
 
 1. `Othello.sln` をダブルクリックして Visual Studio で開く
 2. メニュー **ビルド → ソリューションのビルド**（`Ctrl+Shift+B`）

@@ -29,11 +29,10 @@ public class GameViewModel : ViewModelBase
     private PythonSubprocessAI? _pythonAI;
 
     /// <summary>
-    /// ゲーム世代番号。StartNewGame のたびにインクリメントする。
-    /// async void メソッド（ProcessAIMove, CheckAndProcessNextTurn）が
-    /// 旧ゲームの継続処理で新ゲームの状態を上書きしないよう識別に使う。
+    /// 非同期処理のキャンセル制御。StartNewGame のたびに前のトークンをキャンセルして新しいものを生成する。
+    /// ProcessAIMoveAsync / CheckAndProcessNextTurnAsync が旧ゲームの継続で状態を上書きしないよう制御する。
     /// </summary>
-    private int _gameId;
+    private CancellationTokenSource? _cts;
 
     // --- バッキングフィールド ---
     private int    _blackScore;
@@ -168,10 +167,10 @@ public class GameViewModel : ViewModelBase
     /// </summary>
     public void StartNewGame()
     {
-        // 世代番号を進めて、進行中の async 処理（ProcessAIMove 等）を旧世代とみなす
-        _gameId++;
-        // 旧世代の ProcessAIMove が finally で IsAIThinking を false にする前に
-        // 新ゲームが設定するため、ここで明示的にリセットしておく
+        // 進行中の非同期処理をキャンセルして新しいトークンを生成する
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
         IsAIThinking = false;
 
         // 前のゲームの Python プロセスを終了する
@@ -203,7 +202,7 @@ public class GameViewModel : ViewModelBase
 
         // AI が黒（先手）の場合、ゲーム開始直後に AI ターンを処理する
         if (AiColor == PlayerColor.Black)
-            ProcessAIMove();
+            _ = ProcessAIMoveAsync(_cts.Token);
     }
 
     /// <summary>
@@ -240,16 +239,15 @@ public class GameViewModel : ViewModelBase
         }
 
         RefreshBoardDisplay();
-        CheckAndProcessNextTurn();
+        _ = CheckAndProcessNextTurnAsync(_cts!.Token);
     }
 
     /// <summary>
     /// 着手後の次のターン処理を確認し、AI ターンであれば AI 移動を非同期で開始する。
     /// ゲームが終了していれば EndGame を呼び出す。
     /// </summary>
-    private async void CheckAndProcessNextTurn()
+    private async Task CheckAndProcessNextTurnAsync(CancellationToken ct)
     {
-        var gameId = _gameId; // 呼び出し時点の世代を記録
         try
         {
             UpdateScoreBoardState();
@@ -264,17 +262,17 @@ public class GameViewModel : ViewModelBase
             // AI のターンの場合は少し待ってから AI 移動を処理する
             if (_engine.CurrentPlayer == AiColor)
             {
-                await Task.Delay(500); // UI の更新を視覚的に見やすくするための短い待機
-                // await 後に新規ゲームが開始されていた場合は旧世代の処理を破棄する
-                if (_gameId != gameId) return;
-                ProcessAIMove();
+                await Task.Delay(500, ct); // UI の更新を視覚的に見やすくするための短い待機
+                await ProcessAIMoveAsync(ct);
             }
             // 人間のターンの場合はクリック待ち状態になる（何もしない）
         }
+        catch (OperationCanceledException)
+        {
+            // 新規ゲーム開始による正常なキャンセル
+        }
         catch (Exception ex)
         {
-            // async void から例外が漏れるとアプリがクラッシュするため、ここで必ず捕捉する
-            if (_gameId != gameId) return; // 新規ゲーム開始後の旧世代エラーは無視する
             StatusMessage = $"ターン処理エラー: {ex.Message}";
         }
     }
@@ -283,11 +281,10 @@ public class GameViewModel : ViewModelBase
     /// AI ターンの移動を非同期で処理する。
     /// AI の計算はスレッドプールで実行し、UI スレッドをブロックしない。
     /// 計算中は IsAIThinking = true に設定してボードをロックする。
+    /// ct がキャンセルされた場合（新規ゲーム開始）は OperationCanceledException で正常終了する。
     /// </summary>
-    private async void ProcessAIMove()
+    private async Task ProcessAIMoveAsync(CancellationToken ct)
     {
-        var gameId = _gameId; // 呼び出し時点の世代を記録
-
         // ゲームが既に終了している場合は処理しない
         if (!_engine.GameState.IsGameInProgress())
             return;
@@ -314,15 +311,16 @@ public class GameViewModel : ViewModelBase
         try
         {
             // 短い待機を挟むことで AI 思考中の表示を視覚的に確認できるようにする
-            await Task.Delay(300);
-            if (_gameId != gameId) return; // await 後に新規ゲームが開始されていた場合は破棄
+            // ct がキャンセルされると OperationCanceledException がスローされる
+            await Task.Delay(300, ct);
 
             // AI の計算はスレッドプールで実行（UI スレッドをブロックしない）
-            var aiColor = AiColor;
+            var aiColor  = AiColor;
             var pythonAI = _pythonAI; // ローカルに保持してスレッド間の null 化を防ぐ
-            // GetBestMove は失敗時に例外を投げる。Position は struct なので常に有効な値が返る
-            var bestMove = await Task.Run(() => pythonAI.GetBestMove(_engine.CurrentBoard, aiColor));
-            if (_gameId != gameId) return; // バックグラウンド処理中に新規ゲームが開始された場合は破棄
+            var bestMove = await Task.Run(() => pythonAI.GetBestMove(_engine.CurrentBoard, aiColor), ct);
+
+            // GetBestMove 実行中にキャンセルされていた場合はここで止まる
+            ct.ThrowIfCancellationRequested();
 
             _engine.MakeMove(bestMove);
             RefreshBoardDisplay();
@@ -333,9 +331,8 @@ public class GameViewModel : ViewModelBase
                 if (_engine.CurrentPlayer == AiColor)
                 {
                     // 相手（人間）がパスしたため AI が連続してターンを持つ場合
-                    await Task.Delay(500);
-                    if (_gameId != gameId) return;
-                    ProcessAIMove();
+                    await Task.Delay(500, ct);
+                    await ProcessAIMoveAsync(ct);
                 }
                 else
                 {
@@ -349,10 +346,12 @@ public class GameViewModel : ViewModelBase
                 EndGame();
             }
         }
+        catch (OperationCanceledException)
+        {
+            // 新規ゲーム開始による正常なキャンセル。状態は StartNewGame が管理するため何もしない。
+        }
         catch (Exception ex)
         {
-            // 新規ゲーム開始による旧世代の例外（Python プロセス強制終了など）は無視する
-            if (_gameId != gameId) return;
             // Python プロセス異常・JSON 解析失敗・その他の予期しないエラーを UI に表示する
             StatusMessage = $"AI エラー: {ex.Message}";
             IsGameInProgress = false;
@@ -361,9 +360,9 @@ public class GameViewModel : ViewModelBase
         }
         finally
         {
-            // 同じ世代のときのみ IsAIThinking を解除する。
-            // 新規ゲームが開始された場合は StartNewGame が既に false にリセット済みのため上書きしない。
-            if (_gameId == gameId)
+            // キャンセルされていない場合のみ IsAIThinking をリセットする。
+            // キャンセル時は StartNewGame が既に false を設定済みで新ゲームが使用中のため上書きしない。
+            if (!ct.IsCancellationRequested)
                 IsAIThinking = false;
         }
     }
@@ -391,7 +390,7 @@ public class GameViewModel : ViewModelBase
         {
             // パス後に AI のターンになった場合は AI 移動を処理する
             if (_engine.CurrentPlayer == AiColor)
-                ProcessAIMove();
+                _ = ProcessAIMoveAsync(_cts!.Token);
         }
         else
         {
@@ -436,12 +435,13 @@ public class GameViewModel : ViewModelBase
         }
 
         // 人間のターンのみ有効手をハイライトする（AI のターン中は表示しない）
-        var validMoves = _engine.CurrentPlayer == HumanColor
-            ? _engine.GetValidMoves(HumanColor)
-            : new List<Position>();
+        // HashSet で O(1) ルックアップにして 64 マス分の線形探索を回避する
+        var validSet = _engine.CurrentPlayer == HumanColor
+            ? new HashSet<Position>(_engine.GetValidMoves(HumanColor))
+            : new HashSet<Position>();
 
         foreach (var square in BoardSquares)
-            square.IsValidMove = validMoves.Contains(square.Position);
+            square.IsValidMove = validSet.Contains(square.Position);
 
         UpdateCurrentPlayerDisplay();
     }

@@ -77,9 +77,10 @@ class AlphaBetaAI:
             float: この局面の評価値
         """
         # 現在のターンのプレイヤーを決定する
-        current  = ai_player if is_maximizing else opponent(ai_player)
+        current = ai_player if is_maximizing else opponent(ai_player)
+        opp     = opponent(current)  # current の相手色を一度だけ計算して再利用
         moves    = get_valid_moves(board, current)
-        opp_moves = get_valid_moves(board, opponent(current))
+        opp_moves = get_valid_moves(board, opp)
 
         # 深さ 0 に達した場合は評価関数で現在の盤面を評価する
         if depth == 0:
@@ -93,6 +94,9 @@ class AlphaBetaAI:
             # 現在のプレイヤーに有効手がない → パス（相手にターンを渡す）
             # 深さは減らさず、is_maximizing を反転してパスを表現する
             return self._alpha_beta(board, depth - 1, alpha, beta, not is_maximizing, ai_player)
+
+        # ムーブオーダリング: 再帰内でも位置重みで手をソートして枝刈り効率を向上させる
+        moves.sort(key=lambda m: WEIGHTS[m[0]][m[1]], reverse=True)
 
         if is_maximizing:
             # 最大化プレイヤー（AI）のターン: できるだけ高い評価値を選ぶ

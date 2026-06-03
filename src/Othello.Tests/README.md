@@ -21,7 +21,7 @@ dotnet test --settings .runsettings
 |---------|---------|------|
 | Models | 11 | Board (4), Position (5), PlayerColor (3) の動作 |
 | Rules | 8 | OthelloRules (6), FlipCalculator (2) の判定ロジック |
-| Game | 5 | GameEngine の着手・Undo・終局処理 |
+| Game | 11 | GameEngine の着手・Pass・Undo・終局処理 |
 | AI テスト | — | Python AI は Python スクリプト単体で確認（下記参照） |
 
 ## テスト設定（.runsettings）

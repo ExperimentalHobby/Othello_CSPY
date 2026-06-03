@@ -54,6 +54,11 @@ public class PositionTests
     {
         Assert.Throws<ArgumentException>(() => new Position(8, 5));
         Assert.Throws<ArgumentException>(() => new Position(-1, 3));
+        // 行が有効・列が無効
+        Assert.Throws<ArgumentException>(() => new Position(0, 8));
+        Assert.Throws<ArgumentException>(() => new Position(3, -1));
+        // 両方無効
+        Assert.Throws<ArgumentException>(() => new Position(8, 8));
     }
 
     [Fact]
