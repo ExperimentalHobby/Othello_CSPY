@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <RunConfiguration>
+    <TestSessionTimeout>30000</TestSessionTimeout>
+    <MaxCpuCount>0</MaxCpuCount>
+    <ParallelizeAssembly>true</ParallelizeAssembly>
+    <ParallelizeTestClasses>true</ParallelizeTestClasses>
+  </RunConfiguration>
+  <xUnit>
+    <DiagnosticMessages>true</DiagnosticMessages>
+    <AppDomain>denied</AppDomain>
+  </xUnit>
+  <CodeCoverage>
+    <ModulePaths>
+      <ModulePath>.*Othello\.Core.*</ModulePath>
+    </ModulePaths>
+    <UseVerifiableInstrumentation>true</UseVerifiableInstrumentation>
+    <AllowLowIntegrityProcesses>true</AllowLowIntegrityProcesses>
+    <CollectFromChildProcesses>true</CollectFromChildProcesses>
+    <CollectAspDotNet>false</CollectAspDotNet>
+  </CodeCoverage>
+</RunSettings>

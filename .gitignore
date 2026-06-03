@@ -53,6 +53,9 @@ build/
 # document
 docs/
 
+# local
+*local*
+
 # ===== OS =====
 .DS_Store
 Thumbs.db

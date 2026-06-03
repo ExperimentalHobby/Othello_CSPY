@@ -1,0 +1,173 @@
+<Window x:Class="Technopro.Othello.WPF.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:conv="clr-namespace:Technopro.Othello.WPF.Converters"
+        Title="Othello (オセロ) - Python AI" Height="1000" Width="1350"
+        Background="#2d5016" Foreground="White"
+        WindowStartupLocation="CenterScreen" ResizeMode="CanResize">
+
+    <Window.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVisConverter"/>
+        <conv:BoolToVisibilityConverterInverted x:Key="BoolToVisConverterInv"/>
+
+        <Style x:Key="MenuComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="Background" Value="#4a7c2f"/>
+            <Setter Property="Foreground" Value="Black"/>
+            <Setter Property="BorderBrush" Value="#2a5a1f"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+        </Style>
+
+        <Style x:Key="MenuComboBoxItemStyle" TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="Black"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border Background="{TemplateBinding Background}" Padding="5">
+                            <TextBlock Text="{TemplateBinding Content}" Foreground="Black"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter Property="Background" Value="#e8f5e9"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- メニューバー -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Background="#1a3010" Height="50">
+            <Button Content="新規ゲーム" Command="{Binding NewGameCommand}"
+                    Padding="10,5" Margin="5" VerticalAlignment="Center"
+                    Background="#4a7c2f" Foreground="White" FontSize="12"/>
+            <Button Content="パス" Command="{Binding PassCommand}"
+                    Padding="10,5" Margin="5" VerticalAlignment="Center"
+                    Background="#4a7c2f" Foreground="White" FontSize="12"/>
+            <Button Content="戻す" Command="{Binding UndoCommand}"
+                    Padding="10,5" Margin="5" VerticalAlignment="Center"
+                    Background="#4a7c2f" Foreground="White" FontSize="12"/>
+
+            <Separator Width="2" Background="#666" Margin="10,0"/>
+
+            <TextBlock Text="難易度:" VerticalAlignment="Center" Margin="10,0" FontSize="12"/>
+            <ComboBox Width="110" Margin="5" VerticalAlignment="Center" FontSize="12"
+                      Style="{StaticResource MenuComboBoxStyle}"
+                      ItemContainerStyle="{StaticResource MenuComboBoxItemStyle}"
+                      SelectedIndex="{Binding DifficultyIndex}"
+                      IsEnabled="{Binding IsSettingsEditable}">
+                <ComboBoxItem Content="イージー"/>
+                <ComboBoxItem Content="ノーマル"/>
+                <ComboBoxItem Content="ハード"/>
+            </ComboBox>
+
+            <Separator Width="2" Background="#666" Margin="10,0"/>
+
+            <TextBlock Text="あなたの色:" VerticalAlignment="Center" Margin="10,0" FontSize="12"/>
+            <ComboBox Width="110" Margin="5" VerticalAlignment="Center" FontSize="12"
+                      Style="{StaticResource MenuComboBoxStyle}"
+                      ItemContainerStyle="{StaticResource MenuComboBoxItemStyle}"
+                      SelectedIndex="{Binding HumanColorIndex}"
+                      IsEnabled="{Binding IsSettingsEditable}">
+                <ComboBoxItem Content="黒（先手）"/>
+                <ComboBoxItem Content="白（後手）"/>
+            </ComboBox>
+        </StackPanel>
+
+        <!-- メインコンテンツ -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="220"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- ボード -->
+            <Border Grid.Column="0" Margin="40" BorderBrush="Black" BorderThickness="4"
+                    Background="#4a7c2f" Padding="0">
+                <ItemsControl ItemsSource="{Binding BoardSquares}"
+                              IsHitTestVisible="{Binding IsAIThinking, Converter={StaticResource BoolToVisConverterInv}}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Columns="8" Rows="8" Margin="0"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Button Margin="0" Background="#4a7c2f" BorderBrush="Black" BorderThickness="1"
+                                    Padding="0" VerticalContentAlignment="Top" HorizontalContentAlignment="Center"
+                                    Command="{Binding RelativeSource={RelativeSource AncestorType=ItemsControl}, Path=DataContext.SquareClickedCommand}"
+                                    CommandParameter="{Binding Position}"
+                                    MinWidth="110" MinHeight="110">
+                                <Grid Background="#4a7c2f" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,8,0,0">
+                                    <Ellipse Fill="Yellow" Opacity="0.6" Width="60" Height="60"
+                                             Visibility="{Binding IsValidMove, Converter={StaticResource BoolToVisConverter}}"/>
+                                    <Ellipse Fill="{Binding PieceColor}" Stroke="#2a2a2a" StrokeThickness="2"
+                                             Width="85" Height="85"
+                                             Visibility="{Binding HasPiece, Converter={StaticResource BoolToVisConverter}}"/>
+                                </Grid>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Border>
+
+            <!-- サイドパネル -->
+            <ScrollViewer Grid.Column="1" Margin="10">
+                <StackPanel>
+                    <!-- ゲーム状態 -->
+                    <Border Background="#1a3010" CornerRadius="5" Margin="0,0,0,10">
+                        <StackPanel Margin="10">
+                            <TextBlock Text="ゲーム状態" FontSize="14" FontWeight="Bold" Margin="0,0,0,10"/>
+                            <TextBlock Text="{Binding CurrentPlayerDisplay}" FontSize="13" Margin="0,0,0,5" TextWrapping="Wrap"/>
+                            <TextBlock Text="AI が考え中..." FontSize="11" Foreground="Yellow"
+                                       Visibility="{Binding IsAIThinking, Converter={StaticResource BoolToVisConverter}}"
+                                       Margin="0,10"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- スコア -->
+                    <Border Background="#1a3010" CornerRadius="5" Margin="0,0,0,10">
+                        <StackPanel Margin="10">
+                            <TextBlock Text="スコア" FontSize="14" FontWeight="Bold" Margin="0,0,0,10"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                <Ellipse Fill="Black" Width="15" Height="15" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding BlackScore}" FontSize="13" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Fill="White" Width="15" Height="15" Margin="0,0,10,0"
+                                         VerticalAlignment="Center" Stroke="Black" StrokeThickness="1"/>
+                                <TextBlock Text="{Binding WhiteScore}" FontSize="13" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ルール説明 -->
+                    <Border Background="#1a3010" CornerRadius="5">
+                        <StackPanel Margin="10">
+                            <TextBlock Text="ルール" FontSize="13" FontWeight="Bold" Margin="0,0,0,8"/>
+                            <TextBlock Text="• 黒と白が交互に石を置きます" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,3"/>
+                            <TextBlock Text="• 敵の石を自分の石ではさむと反転します" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,3"/>
+                            <TextBlock Text="• 置ける場所がない場合→パスします" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,3"/>
+                            <TextBlock Text="• 両プレイヤーが連続でパス→ゲーム終了" TextWrapping="Wrap" FontSize="11"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- ステータスバー -->
+        <StackPanel Grid.Row="2" Background="#1a3010" Height="40">
+            <TextBlock Text="{Binding StatusMessage}" Foreground="White"
+                       FontSize="12" VerticalAlignment="Center" Margin="10,0"/>
+        </StackPanel>
+    </Grid>
+</Window>

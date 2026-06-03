@@ -1,0 +1,77 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "build",
+			"type": "shell",
+			"command": "dotnet build Othello.sln",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			},
+			"problemMatcher": "$msCompile"
+		},
+		{
+			"label": "rebuild",
+			"type": "shell",
+			"command": "dotnet build Othello.sln --no-incremental",
+			"group": "build",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			},
+			"problemMatcher": "$msCompile"
+		},
+		{
+			"label": "clean",
+			"type": "shell",
+			"command": "dotnet clean Othello.sln",
+			"group": "build",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			},
+			"problemMatcher": "$msCompile"
+		},
+		{
+			"label": "test",
+			"type": "shell",
+			"command": "dotnet test Othello.sln",
+			"group": {
+				"kind": "test",
+				"isDefault": true
+			},
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			},
+			"problemMatcher": "$msCompile"
+		},
+		{
+			"label": "run: WPF",
+			"type": "shell",
+			"command": "dotnet run --project src/Othello.WPF/Othello.WPF.csproj",
+			"group": "none",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "run: Console",
+			"type": "shell",
+			"command": "dotnet run --project src/Othello.Console/Othello.Console.csproj",
+			"group": "none",
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated"
+			},
+			"problemMatcher": []
+		}
+	]
+}
