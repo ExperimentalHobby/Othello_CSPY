@@ -1,0 +1,22 @@
+[package]
+name = "othello_ai_rust"
+version = "0.1.0"
+edition = "2021"
+description = "Othello alpha-beta AI implemented in Rust, exposed to Python via PyO3"
+
+[lib]
+# cdylib: maturin/PyO3 が Python 拡張モジュール(.pyd/.so)を生成するために必要
+# rlib  : `cargo test`（--no-default-features）で純 Rust ロジックを単体テストするために必要
+name = "othello_ai_rust"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# default(python): PyO3 バインディングを含む拡張モジュールをビルドする
+# テスト時は `--no-default-features` で pyo3 を切り離し、Python 連携なしに純ロジックを検証する
+default = ["python"]
+python = ["dep:pyo3"]
+
+[dependencies]
+# extension-module: 実行時に Python 本体がシンボルを提供する前提でビルド（libpython を静的リンクしない）
+# abi3-py38       : Python 3.8 以上で共通利用できる安定 ABI 拡張を生成（C# が自動検出する Python バージョン差を吸収）
+pyo3 = { version = "0.27", features = ["extension-module", "abi3-py38"], optional = true }

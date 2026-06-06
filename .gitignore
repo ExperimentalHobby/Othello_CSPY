@@ -50,6 +50,13 @@ env/
 dist/
 build/
 
+# ===== Rust =====
+# Cargo のビルド成果物（src/Othello.Rust/target 等）
+target/
+# Linux/macOS 向け Python 拡張（Windows の *.pyd は上記 Python セクションで除外済み）
+*.so
+*.abi3.so
+
 # document
 docs/
 

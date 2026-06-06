@@ -1,0 +1,19 @@
+# maturin によるビルド設定。
+# `maturin build --release` で abi3 拡張モジュール(othello_ai_rust.pyd / .abi3.so)を生成する。
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "othello_ai_rust"
+description = "Othello alpha-beta AI (Rust + PyO3)"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+dynamic = ["version"]
+
+[tool.maturin]
+# abi3 ホイールとして 1 バイナリで Python 3.8+ をサポートする
+features = ["pyo3/extension-module"]
