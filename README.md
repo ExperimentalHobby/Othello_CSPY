@@ -15,13 +15,14 @@
 - 人間の担当色を選択可能（黒＝先手 / 白＝後手）
 - 難易度 3 段階（イージー / ノーマル / ハード）
 - 有効手のハイライト表示（WPF・WinUI3 版：黄色、コンソール版：`*`）
-- パス・1手戻す（Undo）機能
+- 有効手がない場合は自動パス（画面にメッセージ通知）・1手戻す（Undo）機能
 - 最初の一手が置かれるまで難易度・担当色を変更可能
 
 ### AI
 - Python によるアルファベータ探索（Alpha-Beta Pruning）
 - ムーブオーダリング（位置重みによる事前ソート）で探索効率を向上
 - 難易度別探索深さ: イージー=2、ノーマル=5、ハード=10
+- 終局評価に残り探索深さを加味し、早い勝ちを選好・長引く負けを回避
 
 ## システム要件
 
@@ -151,9 +152,10 @@ dotnet run --project src/Othello.Console/Othello.Console.csproj
 | 黄色のマスをクリック | 石を置く |
 | 新規ゲーム ボタン | ゲームを最初からやり直す |
 | 戻す ボタン | 直前の手を 1 手取り消す |
-| パス ボタン | パスする（置ける場所がない場合のみ有効） |
 | 難易度 コンボボックス | AI の強さを変更（最初の一手が置かれるまで変更可能） |
 | あなたの色 コンボボックス | 担当色を変更（最初の一手が置かれるまで変更可能） |
+
+> **パスについて**: 有効手がない場合はゲームエンジンが自動的にスキップし、画面にメッセージを表示します。手動でのパス操作は不要です。
 
 ### コンソール版
 
@@ -189,7 +191,7 @@ Othello_CSPY/
 │   │   └── GameViewModel.cs
 │   │
 │   ├── Othello.WPF/           # WPF UI 層（.NET 10、Windows 専用）
-│   │   ├── Converters/        # BoolToVisibilityConverter, PlayerColorToBrushConverter
+│   │   ├── Converters/        # BoolToVisibilityConverter, InverseBooleanConverter, PlayerColorToBrushConverter
 │   │   └── MainWindow.xaml
 │   │
 │   ├── Othello.WinUI3/        # WinUI3 UI 層（.NET 10、Windows 専用）
@@ -204,8 +206,8 @@ Othello_CSPY/
 │   ├── Othello.Python/        # Python AI
 │   │   ├── ai.py              # エントリポイント（stdin/stdout ループ）
 │   │   ├── alpha_beta.py      # アルファベータ探索
-│   │   ├── evaluator.py       # 盤面評価関数
-│   │   └── board.py           # 盤面操作ユーティリティ
+│   │   ├── evaluator.py       # 盤面評価関数（位置重み + Mobility + 終局 depth 評価）
+│   │   └── board.py           # 盤面操作ユーティリティ（has_any_flip / count_valid_moves 含む）
 │   │
 │   └── Othello.Tests/         # xUnit テスト（.NET 10）
 │
