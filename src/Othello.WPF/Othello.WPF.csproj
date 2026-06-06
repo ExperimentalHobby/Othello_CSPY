@@ -7,11 +7,14 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <DefineConstants>$(DefineConstants);WPF</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Othello.Core\Othello.Core.csproj" />
   </ItemGroup>
+
+  <Import Project="..\Othello.ViewModels\Othello.ViewModels.projitems" Label="Shared" />
 
   <ItemGroup>
     <!-- テストファイル（test_*.py）は実行時に不要なため出力にコピーしない -->

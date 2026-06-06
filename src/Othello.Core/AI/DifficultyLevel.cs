@@ -35,20 +35,6 @@ public static class DifficultyLevelExtensions
     };
 
     /// <summary>
-    /// 難易度に応じた計算時間の上限（ミリ秒）を返す。
-    /// タイムアウト管理に使用することを想定している（現時点では参照用）。
-    /// </summary>
-    /// <param name="difficulty">難易度</param>
-    /// <returns>最大計算時間（ミリ秒）</returns>
-    public static int GetMaxTimeMs(this DifficultyLevel difficulty) => difficulty switch
-    {
-        DifficultyLevel.Easy   => 100,
-        DifficultyLevel.Medium => 2000,
-        DifficultyLevel.Hard   => 5000,
-        _                      => 2000
-    };
-
-    /// <summary>
     /// 難易度を日本語の表示文字列に変換する。
     /// </summary>
     /// <param name="difficulty">変換対象の難易度</param>

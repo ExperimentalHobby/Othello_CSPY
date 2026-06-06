@@ -116,19 +116,6 @@ public class Board
     }
 
     /// <summary>
-    /// 指定した色の石が置かれている全座標をイテレートして返す。
-    /// </summary>
-    /// <param name="color">対象の色</param>
-    /// <returns>その色の石の Position の列挙</returns>
-    public IEnumerable<Position> GetAllPieces(PlayerColor color)
-    {
-        for (int i = 0; i < BoardSize; i++)
-            for (int j = 0; j < BoardSize; j++)
-                if (_board[i, j] == color)
-                    yield return new Position(i, j);
-    }
-
-    /// <summary>
     /// 石が置かれていない（Empty の）全マスの座標をイテレートして返す。
     /// 有効手の探索起点として OthelloRules から使われる。
     /// </summary>
@@ -140,11 +127,6 @@ public class Board
                 if (_board[i, j] == PlayerColor.Empty)
                     yield return new Position(i, j);
     }
-
-    /// <summary>
-    /// 盤面を初期配置に戻す。GameEngine.Initialize から呼ばれる。
-    /// </summary>
-    public void Reset() => InitializeBoard();
 
     /// <summary>
     /// デバッグ用に盤面を文字列で表現して返す。

@@ -9,6 +9,7 @@
     <Window.Resources>
         <conv:BoolToVisibilityConverter x:Key="BoolToVisConverter"/>
         <conv:BoolToVisibilityConverterInverted x:Key="BoolToVisConverterInv"/>
+        <conv:PlayerColorToBrushConverter x:Key="PlayerColorToBrushConverter"/>
 
         <Style x:Key="MenuComboBoxStyle" TargetType="ComboBox">
             <Setter Property="Background" Value="#4a7c2f"/>
@@ -62,7 +63,7 @@
             <ComboBox Width="110" Margin="5" VerticalAlignment="Center" FontSize="12"
                       Style="{StaticResource MenuComboBoxStyle}"
                       ItemContainerStyle="{StaticResource MenuComboBoxItemStyle}"
-                      SelectedIndex="{Binding DifficultyIndex}"
+                      SelectedIndex="{Binding DifficultyIndex, Mode=TwoWay}"
                       IsEnabled="{Binding IsSettingsEditable}">
                 <ComboBoxItem Content="イージー"/>
                 <ComboBoxItem Content="ノーマル"/>
@@ -75,7 +76,7 @@
             <ComboBox Width="110" Margin="5" VerticalAlignment="Center" FontSize="12"
                       Style="{StaticResource MenuComboBoxStyle}"
                       ItemContainerStyle="{StaticResource MenuComboBoxItemStyle}"
-                      SelectedIndex="{Binding HumanColorIndex}"
+                      SelectedIndex="{Binding HumanColorIndex, Mode=TwoWay}"
                       IsEnabled="{Binding IsSettingsEditable}">
                 <ComboBoxItem Content="黒（先手）"/>
                 <ComboBoxItem Content="白（後手）"/>
@@ -110,7 +111,7 @@
                                 <Grid Background="#4a7c2f" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,8,0,0">
                                     <Ellipse Fill="Yellow" Opacity="0.6" Width="60" Height="60"
                                              Visibility="{Binding IsValidMove, Converter={StaticResource BoolToVisConverter}}"/>
-                                    <Ellipse Fill="{Binding PieceColor}" Stroke="#2a2a2a" StrokeThickness="2"
+                                    <Ellipse Fill="{Binding Piece, Converter={StaticResource PlayerColorToBrushConverter}}" Stroke="#2a2a2a" StrokeThickness="2"
                                              Width="85" Height="85"
                                              Visibility="{Binding HasPiece, Converter={StaticResource BoolToVisConverter}}"/>
                                 </Grid>

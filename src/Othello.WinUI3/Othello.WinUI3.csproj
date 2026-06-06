@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RootNamespace>Technopro.Othello.WinUI3</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <!-- Program.cs の明示的な Bootstrap 初期化を使用するため自動生成を無効化 -->
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+    <!-- 自動 Bootstrap 初期化を無効化（Program.cs で明示的に TryInitialize を呼ぶ） -->
+    <WindowsAppSdkBootstrapInitialize>false</WindowsAppSdkBootstrapInitialize>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.0.1" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.1839" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Othello.Core\Othello.Core.csproj" />
+  </ItemGroup>
+
+  <Import Project="..\Othello.ViewModels\Othello.ViewModels.projitems" Label="Shared" />
+
+  <ItemGroup>
+    <!-- テストファイル（test_*.py）は実行時に不要なため出力にコピーしない -->
+    <Content Include="..\Othello.Python\**\*.py" Exclude="..\Othello.Python\**\test_*.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>Othello.Python\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Content>
+  </ItemGroup>
+
+  <!-- XBF（コンパイル済み XAML）と PRI（リソースインデックス）を publish 出力に含める -->
+  <!-- dotnet publish は既定でこれらを含まないが WinUI3 unpackaged の起動に必須 -->
+  <Target Name="CopyWinUI3GeneratedFilesToPublish" AfterTargets="Publish">
+    <ItemGroup>
+      <_XbfFiles Include="$(OutDir)*.xbf" />
+      <_PriFiles Include="$(OutDir)*.pri" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_XbfFiles)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_PriFiles)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

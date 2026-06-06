@@ -1,0 +1,44 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{A1000001-0000-0000-0000-000000000001}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Othello.Core", "src\Othello.Core\Othello.Core.csproj", "{A1000002-0000-0000-0000-000000000002}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Othello.WinUI3", "src\Othello.WinUI3\Othello.WinUI3.csproj", "{A1000007-0000-0000-0000-000000000007}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Othello.Tests", "src\Othello.Tests\Othello.Tests.csproj", "{A1000005-0000-0000-0000-000000000005}"
+EndProject
+Project("{D954291E-2A0B-460D-934E-DC6B0785DB48}") = "Othello.ViewModels", "src\Othello.ViewModels\Othello.ViewModels.shproj", "{B1000006-0000-0000-0000-000000000006}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A1000002-0000-0000-0000-000000000002}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A1000002-0000-0000-0000-000000000002}.Debug|x64.Build.0 = Debug|Any CPU
+		{A1000002-0000-0000-0000-000000000002}.Release|x64.ActiveCfg = Release|Any CPU
+		{A1000002-0000-0000-0000-000000000002}.Release|x64.Build.0 = Release|Any CPU
+		{A1000007-0000-0000-0000-000000000007}.Debug|x64.ActiveCfg = Debug|x64
+		{A1000007-0000-0000-0000-000000000007}.Debug|x64.Build.0 = Debug|x64
+		{A1000007-0000-0000-0000-000000000007}.Release|x64.ActiveCfg = Release|x64
+		{A1000007-0000-0000-0000-000000000007}.Release|x64.Build.0 = Release|x64
+		{A1000005-0000-0000-0000-000000000005}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A1000005-0000-0000-0000-000000000005}.Debug|x64.Build.0 = Debug|Any CPU
+		{A1000005-0000-0000-0000-000000000005}.Release|x64.ActiveCfg = Release|Any CPU
+		{A1000005-0000-0000-0000-000000000005}.Release|x64.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{A1000002-0000-0000-0000-000000000002} = {A1000001-0000-0000-0000-000000000001}
+		{A1000007-0000-0000-0000-000000000007} = {A1000001-0000-0000-0000-000000000001}
+		{A1000005-0000-0000-0000-000000000005} = {A1000001-0000-0000-0000-000000000001}
+		{B1000006-0000-0000-0000-000000000006} = {A1000001-0000-0000-0000-000000000001}
+	EndGlobalSection
+EndGlobal

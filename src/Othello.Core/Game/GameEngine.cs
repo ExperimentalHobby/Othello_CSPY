@@ -29,6 +29,9 @@ public class GameEngine
     /// <summary>現在の盤面（読み取り専用）</summary>
     public Board CurrentBoard => _board;
 
+    /// <summary>まだ一手も打たれていない初期盤面状態か（設定変更可否の判定に使用）</summary>
+    public bool IsInitialState => _history.Count <= 1;
+
     /// <summary>現在のゲーム進行状態</summary>
     public GameState GameState => _gameState;
 

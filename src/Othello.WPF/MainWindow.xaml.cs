@@ -1,5 +1,5 @@
 using System.Windows;
-using Technopro.Othello.WPF.ViewModels;
+using Technopro.Othello.ViewModels;
 
 namespace Technopro.Othello.WPF;
 

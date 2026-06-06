@@ -2,9 +2,9 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "build",
+			"label": "build: WPF",
 			"type": "shell",
-			"command": "dotnet build Othello.sln",
+			"command": "dotnet build Othello.WPF.sln",
 			"group": {
 				"kind": "build",
 				"isDefault": true
@@ -16,9 +16,9 @@
 			"problemMatcher": "$msCompile"
 		},
 		{
-			"label": "rebuild",
+			"label": "build: WinUI3",
 			"type": "shell",
-			"command": "dotnet build Othello.sln --no-incremental",
+			"command": "dotnet build Othello.WinUI3.sln",
 			"group": "build",
 			"presentation": {
 				"reveal": "always",
@@ -27,9 +27,42 @@
 			"problemMatcher": "$msCompile"
 		},
 		{
-			"label": "clean",
+			"label": "rebuild: WPF",
 			"type": "shell",
-			"command": "dotnet clean Othello.sln",
+			"command": "dotnet build Othello.WPF.sln --no-incremental",
+			"group": "build",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			},
+			"problemMatcher": "$msCompile"
+		},
+		{
+			"label": "rebuild: WinUI3",
+			"type": "shell",
+			"command": "dotnet build Othello.WinUI3.sln --no-incremental",
+			"group": "build",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			},
+			"problemMatcher": "$msCompile"
+		},
+		{
+			"label": "clean: WPF",
+			"type": "shell",
+			"command": "dotnet clean Othello.WPF.sln",
+			"group": "build",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			},
+			"problemMatcher": "$msCompile"
+		},
+		{
+			"label": "clean: WinUI3",
+			"type": "shell",
+			"command": "dotnet clean Othello.WinUI3.sln",
 			"group": "build",
 			"presentation": {
 				"reveal": "always",
@@ -40,7 +73,7 @@
 		{
 			"label": "test",
 			"type": "shell",
-			"command": "dotnet test Othello.sln",
+			"command": "dotnet test Othello.WPF.sln",
 			"group": {
 				"kind": "test",
 				"isDefault": true
@@ -52,9 +85,56 @@
 			"problemMatcher": "$msCompile"
 		},
 		{
+			"label": "publish: WPF → dist/WPF",
+			"type": "shell",
+			"command": "dotnet publish src/Othello.WPF/Othello.WPF.csproj -c Release -o dist/WPF",
+			"group": "none",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			},
+			"problemMatcher": "$msCompile"
+		},
+		{
+			"label": "publish: WinUI3 → dist/WinUI3",
+			"type": "shell",
+			"command": "dotnet publish src/Othello.WinUI3/Othello.WinUI3.csproj -c Release -o dist/WinUI3",
+			"group": "none",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			},
+			"problemMatcher": "$msCompile"
+		},
+		{
+			"label": "publish: all → dist",
+			"dependsOn": [
+				"publish: WPF → dist/WPF",
+				"publish: WinUI3 → dist/WinUI3"
+			],
+			"dependsOrder": "sequence",
+			"group": "none",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			},
+			"problemMatcher": []
+		},
+		{
 			"label": "run: WPF",
 			"type": "shell",
 			"command": "dotnet run --project src/Othello.WPF/Othello.WPF.csproj",
+			"group": "none",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "run: WinUI3",
+			"type": "shell",
+			"command": "dotnet run --project src/Othello.WinUI3/Othello.WinUI3.csproj",
 			"group": "none",
 			"presentation": {
 				"reveal": "always",
