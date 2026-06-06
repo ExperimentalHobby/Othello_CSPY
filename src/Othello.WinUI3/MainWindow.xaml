@@ -40,8 +40,6 @@
         <StackPanel Grid.Row="0" Orientation="Horizontal" Background="#1a3010" Height="50" Spacing="0">
             <Button Content="新規ゲーム" Command="{Binding NewGameCommand}"
                     Style="{StaticResource MenuButtonStyle}"/>
-            <Button Content="パス" Command="{Binding PassCommand}"
-                    Style="{StaticResource MenuButtonStyle}"/>
             <Button Content="戻す" Command="{Binding UndoCommand}"
                     Style="{StaticResource MenuButtonStyle}"/>
 

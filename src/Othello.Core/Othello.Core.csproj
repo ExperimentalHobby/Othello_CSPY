@@ -7,4 +7,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- テストから内部の検証用シーム（GameEngine.LoadStateForTest 等）にアクセスできるようにする -->
+    <InternalsVisibleTo Include="Othello.Tests" />
+  </ItemGroup>
+
 </Project>

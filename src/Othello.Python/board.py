@@ -73,6 +73,42 @@ def get_flips(board, r, c, player):
     return flips
 
 
+def has_any_flip(board, r, c, player):
+    """
+    指定した座標 (r, c) に player が着手したとき、1 方向でも相手石を挟めるかを返す。
+
+    get_flips と異なり反転リストを構築せず、最初に挟める方向を見つけた時点で True を返す
+    （短絡評価）。有効手の「有無」だけ知りたい有効手生成・mobility 計算で用いることで、
+    リスト構築コストを避けて探索を高速化する。
+
+    Args:
+        board (list[list[int]]): 現在の盤面（変更しない）
+        r (int): 着手する行（0-7）
+        c (int): 着手する列（0-7）
+        player (int): 着手するプレイヤーの色
+
+    Returns:
+        bool: 1 方向以上挟めれば True
+    """
+    opp = opponent(player)
+
+    for dr, dc in DIRS:
+        nr, nc = r + dr, c + dc
+        seen_opp = False
+
+        # 相手色の連続をスキャンする
+        while 0 <= nr < BOARD_SIZE and 0 <= nc < BOARD_SIZE and board[nr][nc] == opp:
+            seen_opp = True
+            nr += dr
+            nc += dc
+
+        # 相手石を 1 枚以上挟んだ先に自分の石があれば挟める
+        if seen_opp and 0 <= nr < BOARD_SIZE and 0 <= nc < BOARD_SIZE and board[nr][nc] == player:
+            return True
+
+    return False
+
+
 def get_valid_moves(board, player):
     """
     指定したプレイヤーが着手できる全有効座標のリストを返す。
@@ -88,10 +124,30 @@ def get_valid_moves(board, player):
     moves = []
     for r in range(BOARD_SIZE):
         for c in range(BOARD_SIZE):
-            # 空きマスかつ 1 枚以上反転できる場合のみ有効手とする
-            if board[r][c] == EMPTY and get_flips(board, r, c, player):
+            # 空きマスかつ 1 枚以上反転できる場合のみ有効手とする（短絡判定で高速化）
+            if board[r][c] == EMPTY and has_any_flip(board, r, c, player):
                 moves.append((r, c))
     return moves
+
+
+def count_valid_moves(board, player):
+    """
+    指定したプレイヤーの有効手数のみを数えて返す（座標リストは構築しない）。
+    mobility 評価のように件数だけ必要な場面で get_valid_moves より高速。
+
+    Args:
+        board (list[list[int]]): 現在の盤面
+        player (int): 対象プレイヤーの色
+
+    Returns:
+        int: 有効な着手先の数
+    """
+    count = 0
+    for r in range(BOARD_SIZE):
+        for c in range(BOARD_SIZE):
+            if board[r][c] == EMPTY and has_any_flip(board, r, c, player):
+                count += 1
+    return count
 
 
 def make_move(board, r, c, player):

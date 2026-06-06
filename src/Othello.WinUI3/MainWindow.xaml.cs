@@ -8,6 +8,12 @@ namespace Technopro.Othello.WinUI3;
 
 public sealed partial class MainWindow : Window
 {
+    /// <summary>初期ウィンドウ幅（px）</summary>
+    private const int WindowWidth = 1350;
+
+    /// <summary>初期ウィンドウ高さ（px）</summary>
+    private const int WindowHeight = 1000;
+
     private readonly GameViewModel _viewModel;
 
     public MainWindow()
@@ -20,7 +26,7 @@ public sealed partial class MainWindow : Window
             root.DataContext = _viewModel;
 
         // ウィンドウサイズ・位置を設定
-        AppWindow.Resize(new Windows.Graphics.SizeInt32(1350, 1000));
+        AppWindow.Resize(new Windows.Graphics.SizeInt32(WindowWidth, WindowHeight));
         CenterWindow();
 
         this.Closed += (_, _) => _viewModel.Dispose();
@@ -30,8 +36,8 @@ public sealed partial class MainWindow : Window
     {
         var displayArea = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest);
         AppWindow.Move(new Windows.Graphics.PointInt32(
-            (displayArea.WorkArea.Width  - 1350) / 2,
-            (displayArea.WorkArea.Height - 1000) / 2));
+            (displayArea.WorkArea.Width  - WindowWidth)  / 2,
+            (displayArea.WorkArea.Height - WindowHeight) / 2));
     }
 
     /// <summary>

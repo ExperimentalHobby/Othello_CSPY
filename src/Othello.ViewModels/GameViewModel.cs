@@ -16,7 +16,12 @@ namespace Technopro.Othello.ViewModels;
 public class GameViewModel : ViewModelBase, IDisposable
 {
     private readonly GameEngine _engine = new();
-    private PythonSubprocessAI? _pythonAI;
+
+    /// <summary>難易度から AI 実装を生成するファクトリ（テスト時はモックを注入できる）。</summary>
+    private readonly Func<DifficultyLevel, IAIStrategy> _aiFactory;
+
+    /// <summary>現在のゲームで使用している AI（IDisposable なら破棄時に Dispose する）。</summary>
+    private IAIStrategy? _ai;
     private CancellationTokenSource? _cts;
 
     // --- バッキングフィールド ---
@@ -29,8 +34,7 @@ public class GameViewModel : ViewModelBase, IDisposable
     private bool   _isAIThinking;
     private PlayerColor _humanColor = PlayerColor.Black;
 
-    // Pass/Undo は RaiseCanExecuteChanged を呼べるよう RelayCommand 型で保持する
-    private readonly RelayCommand _passCommand;
+    // Undo は RaiseCanExecuteChanged を呼べるよう RelayCommand 型で保持する
     private readonly RelayCommand _undoCommand;
 
     public ObservableCollection<BoardSquareViewModel> BoardSquares { get; } = new();
@@ -39,7 +43,12 @@ public class GameViewModel : ViewModelBase, IDisposable
     public int WhiteScore { get => _whiteScore; set => SetProperty(ref _whiteScore, value); }
     public string CurrentPlayerDisplay { get => _currentPlayerDisplay; set => SetProperty(ref _currentPlayerDisplay, value); }
     public string StatusMessage { get => _statusMessage; set => SetProperty(ref _statusMessage, value); }
-    public DifficultyLevel Difficulty { get => _difficulty; set => SetProperty(ref _difficulty, value); }
+    public DifficultyLevel Difficulty
+    {
+        get => _difficulty;
+        // 初手前（設定変更可能な間）に難易度を変えたら、新しい難易度で AI を作り直すため再起動する
+        set { if (SetProperty(ref _difficulty, value)) RestartIfConfiguringBeforeFirstMove(); }
+    }
 
     public bool IsGameInProgress
     {
@@ -59,7 +68,19 @@ public class GameViewModel : ViewModelBase, IDisposable
     public PlayerColor HumanColor
     {
         get => _humanColor;
-        set => SetProperty(ref _humanColor, value);
+        // 初手前に色を変えたら、手番割り当てが整合するようゲームを再起動する
+        // （再起動しないと CurrentPlayer と HumanColor が食い違いソフトロックする）
+        set { if (SetProperty(ref _humanColor, value)) RestartIfConfiguringBeforeFirstMove(); }
+    }
+
+    /// <summary>
+    /// 進行中かつ初手前（IsInitialState）であれば、現在の設定でゲームを再起動する。
+    /// 難易度・色の変更を即座に反映し、設定と実ゲーム状態の不整合を防ぐ。
+    /// </summary>
+    private void RestartIfConfiguringBeforeFirstMove()
+    {
+        if (IsGameInProgress && _engine.IsInitialState)
+            StartNewGame();
     }
 
     public int DifficultyIndex
@@ -78,19 +99,21 @@ public class GameViewModel : ViewModelBase, IDisposable
 
     public ICommand NewGameCommand { get; }
     public ICommand SquareClickedCommand { get; }
-    public ICommand PassCommand => _passCommand;
     public ICommand UndoCommand => _undoCommand;
 
-    public GameViewModel()
+    /// <summary>既定のコンストラクタ。実際の Python AI を使用する。</summary>
+    public GameViewModel() : this(null) { }
+
+    /// <summary>
+    /// AI ファクトリを注入できるコンストラクタ（テスト用にモック AI を差し込める）。
+    /// </summary>
+    /// <param name="aiFactory">難易度から IAIStrategy を生成するファクトリ。null の場合は Python AI を使う。</param>
+    public GameViewModel(Func<DifficultyLevel, IAIStrategy>? aiFactory)
     {
+        _aiFactory = aiFactory ?? CreateDefaultAI;
+
         NewGameCommand       = new RelayCommand(StartNewGame);
         SquareClickedCommand = new RelayCommand<Position>(SquareClicked);
-
-        _passCommand = new RelayCommand(OnPass, () =>
-            _engine.GameState.IsGameInProgress() &&
-            !IsAIThinking &&
-            _engine.CurrentPlayer == HumanColor &&
-            _engine.GetValidMoves(HumanColor).Count == 0);
 
         _undoCommand = new RelayCommand(OnUndo, () =>
             _engine.GameState.IsGameInProgress() && !IsAIThinking);
@@ -100,17 +123,24 @@ public class GameViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    /// IsAIThinking / IsGameInProgress 変更時に Pass・Undo の CanExecute を再評価する。
+    /// 既定の AI 実装（Python サブプロセス）を生成する。
+    /// 出力ディレクトリにコピーされた Othello.Python/ai.py を使用する。
+    /// </summary>
+    private static IAIStrategy CreateDefaultAI(DifficultyLevel difficulty)
+    {
+        string scriptPath = Path.Combine(AppContext.BaseDirectory, "Othello.Python", "ai.py");
+        return new PythonSubprocessAI(difficulty, scriptPath);
+    }
+
+    /// <summary>
+    /// IsAIThinking / IsGameInProgress 変更時に Undo の CanExecute を再評価する。
     /// WPF では CommandManager が担うが WinUI3 では手動通知が必要。
     /// </summary>
     protected override void OnPropertyChanged(string? propertyName = null)
     {
         base.OnPropertyChanged(propertyName);
         if (propertyName is nameof(IsAIThinking) or nameof(IsGameInProgress))
-        {
-            _passCommand?.RaiseCanExecuteChanged();
             _undoCommand?.RaiseCanExecuteChanged();
-        }
     }
 
     private void InitializeBoard()
@@ -128,13 +158,12 @@ public class GameViewModel : ViewModelBase, IDisposable
         _cts = new CancellationTokenSource();
         IsAIThinking = false;
 
-        _pythonAI?.Dispose();
-        _pythonAI = null;
+        (_ai as IDisposable)?.Dispose();
+        _ai = null;
 
         try
         {
-            string scriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Othello.Python", "ai.py");
-            _pythonAI = new PythonSubprocessAI(Difficulty, scriptPath);
+            _ai = _aiFactory(Difficulty);
         }
         catch (Exception ex)
         {
@@ -177,6 +206,7 @@ public class GameViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        NotifyIfPassed();
         OnPropertyChanged(nameof(IsSettingsEditable));
         RefreshBoardDisplay();
         _ = CheckAndProcessNextTurnAsync(_cts!.Token);
@@ -203,23 +233,20 @@ public class GameViewModel : ViewModelBase, IDisposable
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
+            // 新規ゲーム等でキャンセルされた後の例外は無視する（古いタスクが新ゲームを壊さないため）
+            if (ct.IsCancellationRequested) return;
             StatusMessage = $"ターン処理エラー: {ex.Message}";
         }
     }
 
     private async Task ProcessAIMoveAsync(CancellationToken ct)
     {
+        // エンジンが手番のないプレイヤーを CurrentPlayer に残さない（AdvanceTurn が自動スキップ）ため、
+        // ここに来た時点で AI には必ず有効手がある。明示的なパス処理は不要。
         if (!_engine.GameState.IsGameInProgress())
             return;
 
-        var validMoves = _engine.GetValidMoves(_engine.CurrentPlayer);
-        if (validMoves.Count == 0)
-        {
-            OnPass();
-            return;
-        }
-
-        if (_pythonAI == null)
+        if (_ai == null)
         {
             StatusMessage = "AI が初期化されていません。新規ゲームを開始してください。";
             IsGameInProgress = false;
@@ -233,13 +260,14 @@ public class GameViewModel : ViewModelBase, IDisposable
         {
             await Task.Delay(300, ct);
 
-            var aiColor  = AiColor;
-            var pythonAI = _pythonAI;
-            var bestMove = await Task.Run(() => pythonAI.GetBestMove(_engine.CurrentBoard, aiColor), ct);
+            var aiColor = AiColor;
+            var ai      = _ai;
+            var bestMove = await Task.Run(() => ai.GetBestMove(_engine.CurrentBoard, aiColor), ct);
 
             ct.ThrowIfCancellationRequested();
 
             _engine.MakeMove(bestMove);
+            NotifyIfPassed();
             OnPropertyChanged(nameof(IsSettingsEditable));
             RefreshBoardDisplay();
             UpdateScoreBoardState();
@@ -251,8 +279,9 @@ public class GameViewModel : ViewModelBase, IDisposable
                     await Task.Delay(500, ct);
                     await ProcessAIMoveAsync(ct);
                 }
-                else
+                else if (_engine.LastPassedPlayer != HumanColor)
                 {
+                    // 人間がパスで飛ばされていない通常時のみ手番案内で上書きする
                     StatusMessage = $"あなたの番です（{HumanColor.ToDisplayString()}）";
                 }
             }
@@ -264,10 +293,12 @@ public class GameViewModel : ViewModelBase, IDisposable
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
+            // 新規ゲーム等でキャンセルされた後の例外は無視する（古いタスクが新ゲームを壊さないため）
+            if (ct.IsCancellationRequested) return;
             StatusMessage = $"AI エラー: {ex.Message}";
             IsGameInProgress = false;
-            _pythonAI?.Dispose();
-            _pythonAI = null;
+            (_ai as IDisposable)?.Dispose();
+            _ai = null;
         }
         finally
         {
@@ -276,29 +307,18 @@ public class GameViewModel : ViewModelBase, IDisposable
         }
     }
 
-    private void OnPass()
+    /// <summary>
+    /// 直前のターン遷移で強制パスが発生していたら、その旨をステータスに表示する。
+    /// </summary>
+    private void NotifyIfPassed()
     {
-        try
-        {
-            _engine.Pass();
-        }
-        catch (InvalidOperationException ex)
-        {
-            StatusMessage = ex.Message;
+        if (_engine.LastPassedPlayer is not { } passed)
             return;
-        }
-        RefreshBoardDisplay();
-        UpdateScoreBoardState();
 
-        if (_engine.GameState.IsGameInProgress())
-        {
-            if (_engine.CurrentPlayer == AiColor)
-                _ = ProcessAIMoveAsync(_cts!.Token);
-        }
-        else
-        {
-            EndGame();
-        }
+        string who = passed == HumanColor
+            ? $"あなた（{passed.ToDisplayString()}）"
+            : $"AI（{passed.ToDisplayString()}）";
+        StatusMessage = $"{who} は打てる場所がないためパスしました";
     }
 
     private void OnUndo()
@@ -366,8 +386,8 @@ public class GameViewModel : ViewModelBase, IDisposable
     {
         IsGameInProgress = false;
 
-        _pythonAI?.Dispose();
-        _pythonAI = null;
+        (_ai as IDisposable)?.Dispose();
+        _ai = null;
 
         var (winner, blackCount, whiteCount) = _engine.GetResult();
         if (winner == null)
@@ -387,7 +407,7 @@ public class GameViewModel : ViewModelBase, IDisposable
         _cts?.Dispose();
         _cts = null;
 
-        _pythonAI?.Dispose();
-        _pythonAI = null;
+        (_ai as IDisposable)?.Dispose();
+        _ai = null;
     }
 }

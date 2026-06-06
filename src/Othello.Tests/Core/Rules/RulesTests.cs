@@ -77,6 +77,37 @@ public class OthelloRulesTests
         var board = new Board();
         Assert.False(OthelloRules.IsGameOver(board));
     }
+
+    /// <summary>
+    /// 盤面が完全に埋まっている場合、両者ともに有効手がなく IsGameOver = true になることを確認する。
+    /// パス条件: 全マス黒の盤面で IsGameOver が true であること。
+    /// </summary>
+    [Fact]
+    public void IsGameOver_FullBoard_ReturnsTrue()
+    {
+        var board = new Board();
+        for (int r = 0; r < 8; r++)
+            for (int c = 0; c < 8; c++)
+                board.SetPiece(r, c, PlayerColor.Black);
+
+        Assert.True(OthelloRules.IsGameOver(board));
+    }
+
+    /// <summary>
+    /// 自分の石を 1 枚も持たないプレイヤーは有効手がなく CanPass = true になることを確認する。
+    /// パス条件: 全マス黒の盤面で白の CanPass が true、IsGameOver も true であること。
+    /// </summary>
+    [Fact]
+    public void CanPass_WhenNoValidMoves_ReturnsTrue()
+    {
+        var board = new Board();
+        for (int r = 0; r < 8; r++)
+            for (int c = 0; c < 8; c++)
+                board.SetPiece(r, c, PlayerColor.Black);
+
+        Assert.True(OthelloRules.CanPass(board, PlayerColor.White));
+        Assert.True(OthelloRules.IsGameOver(board));
+    }
 }
 
 public class FlipCalculatorTests

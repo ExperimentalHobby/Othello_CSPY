@@ -88,8 +88,9 @@ class AlphaBetaAI:
         opp_moves = get_valid_moves(board, opp)
 
         # 両者ともに有効手がない場合は終局 → 終局評価を返す
+        # 残り depth を渡して「早い決着」を選好させる
         if not moves and not opp_moves:
-            return evaluate_final(board, ai_player)
+            return evaluate_final(board, ai_player, depth)
 
         if not moves:
             # 現在のプレイヤーに有効手がない → パス（相手にターンを渡す）

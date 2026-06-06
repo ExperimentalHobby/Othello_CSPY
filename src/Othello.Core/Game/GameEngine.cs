@@ -20,10 +20,24 @@ public class GameEngine
     private PlayerColor _currentPlayer = PlayerColor.Black;
 
     /// <summary>
-    /// Undo 用の盤面スナップショット履歴。
-    /// 各着手後に Board.Clone() を積んでいく。Initialize 時の初期盤面も含む。
+    /// 直前のターン遷移で「有効手がなく強制パスになった」プレイヤー。
+    /// パスがなかった場合は null。UI/コンソールでのパス通知に使用する（Undo / Initialize でリセット）。
     /// </summary>
-    private List<Board> _history = new();
+    private PlayerColor? _lastPassedPlayer;
+
+    /// <summary>
+    /// Undo 用の状態スナップショット履歴。
+    /// 各着手後に「盤面・手番・ゲーム状態」を一括で積む。Initialize 時の初期状態も含む。
+    /// 手番を単純反転するのではなくスナップショットを直接復元することで、
+    /// パスをまたぐ Undo でも手番・状態が正しく戻る。
+    /// </summary>
+    private readonly List<Snapshot> _history = new();
+
+    /// <summary>
+    /// Undo 用に保存する 1 時点の完全な状態（盤面・手番・ゲーム状態）。
+    /// 盤面は復元のたびに Clone するため、履歴内のスナップショットは不変に保たれる。
+    /// </summary>
+    private readonly record struct Snapshot(Board Board, PlayerColor Player, GameState State);
 
 
     /// <summary>現在の盤面（読み取り専用）</summary>
@@ -37,6 +51,12 @@ public class GameEngine
 
     /// <summary>現在着手すべきプレイヤーの色</summary>
     public PlayerColor CurrentPlayer => _currentPlayer;
+
+    /// <summary>
+    /// 直前のターン遷移で強制パスになったプレイヤー（パスがなければ null）。
+    /// 自動スキップされたパスを UI 側で通知するために参照する。
+    /// </summary>
+    public PlayerColor? LastPassedPlayer => _lastPassedPlayer;
 
     /// <summary>黒の現在の石数</summary>
     public int BlackScore => _board.CountPieces(PlayerColor.Black);
@@ -53,10 +73,18 @@ public class GameEngine
         _board = new();
         _gameState = GameState.BlackTurn;
         _currentPlayer = PlayerColor.Black;
+        _lastPassedPlayer = null;
         _history.Clear();
-        // 初期盤面を履歴の先頭として保存する（Undo の下限）
-        _history.Add(_board.Clone());
+        // 初期状態を履歴の先頭として保存する（Undo の下限）
+        PushSnapshot();
     }
+
+    /// <summary>
+    /// 現在の状態（盤面・手番・ゲーム状態）をスナップショットとして履歴に積む。
+    /// 盤面は Clone して保存するため、以後の盤面変更が履歴に波及しない。
+    /// 常に履歴の末尾＝現在の状態となる不変条件を維持する。
+    /// </summary>
+    private void PushSnapshot() => _history.Add(new Snapshot(_board.Clone(), _currentPlayer, _gameState));
 
     /// <summary>
     /// 現在のプレイヤーが指定した position に石を置く。
@@ -78,10 +106,10 @@ public class GameEngine
         var flipped = FlipCalculator.GetFlippablePieces(_board, position, _currentPlayer);
         OthelloRules.MakeMove(_board, position, _currentPlayer);
 
-        // 着手後の盤面を履歴に保存する
-        _history.Add(_board.Clone());
-
+        // 手番・状態を進めてから、その結果を 1 つのスナップショットとして履歴に積む
+        // （履歴の末尾＝現在の状態という不変条件を保つ）
         AdvanceTurn();
+        PushSnapshot();
         return MoveResult.Success("移動に成功しました", flipped);
     }
 
@@ -101,6 +129,8 @@ public class GameEngine
             throw new InvalidOperationException("パスはできません");
 
         AdvanceTurn();
+        // 履歴の末尾＝現在の状態という不変条件を保つため、パス後もスナップショットを積む
+        PushSnapshot();
     }
 
     /// <summary>
@@ -110,18 +140,19 @@ public class GameEngine
     /// <returns>Undo が成功したら true、履歴がなければ false</returns>
     public bool Undo()
     {
-        // 初期盤面（履歴の 1 件目）よりも戻ることはできない
+        // 初期状態（履歴の 1 件目）よりも戻ることはできない
         if (_history.Count <= 1)
             return false;
 
-        // 最新の履歴を取り除き、その前の盤面に戻す
+        // 最新のスナップショットを取り除き、その前の状態を丸ごと復元する。
+        // 手番・ゲーム状態もスナップショットから直接戻すため、
+        // パスをまたぐ Undo や終局後の Undo でも整合性が保たれる。
         _history.RemoveAt(_history.Count - 1);
-        _board = _history[^1].Clone();
-
-        // ターンを 1 手前のプレイヤーに戻す
-        _currentPlayer = _currentPlayer.Opponent();
-        if (!_gameState.IsGameOver())
-            UpdateGameState();
+        var prev = _history[^1];
+        _board = prev.Board.Clone();
+        _currentPlayer = prev.Player;
+        _gameState = prev.State;
+        _lastPassedPlayer = null;
 
         return true;
     }
@@ -133,13 +164,17 @@ public class GameEngine
     /// </summary>
     private void AdvanceTurn()
     {
+        // 今回の遷移でのパス記録をリセットしてから判定する
+        _lastPassedPlayer = null;
+
         // まず次のプレイヤーへターンを移す
         _currentPlayer = _currentPlayer.Opponent();
 
         // 次のプレイヤーが着手できない場合を処理する
         if (!HasValidMoves(_currentPlayer))
         {
-            // 次のプレイヤーもパス → さらに前のプレイヤーへ戻す
+            // 次のプレイヤーは有効手なし → 強制パス（通知用に記録）
+            _lastPassedPlayer = _currentPlayer;
             _currentPlayer = _currentPlayer.Opponent();
             if (!HasValidMoves(_currentPlayer))
             {
@@ -209,4 +244,21 @@ public class GameEngine
     /// <returns>（勝者の色 or null, 黒の石数, 白の石数）のタプル</returns>
     public (PlayerColor? Winner, int BlackScore, int WhiteScore) GetResult() =>
         OthelloRules.GetGameResult(_board);
+
+    /// <summary>
+    /// テスト専用: 任意の盤面・手番からゲームを進行状態にセットアップする。
+    /// 強制パス・終局・パスをまたぐ Undo などの境界シナリオを再現するために使用する。
+    /// 与えた currentPlayer に有効手があることは呼び出し側が保証すること。
+    /// </summary>
+    /// <param name="board">開始盤面（Clone して取り込む）</param>
+    /// <param name="currentPlayer">手番のプレイヤー（Black または White）</param>
+    internal void LoadStateForTest(Board board, PlayerColor currentPlayer)
+    {
+        _board = board.Clone();
+        _currentPlayer = currentPlayer;
+        _lastPassedPlayer = null;
+        _gameState = currentPlayer == PlayerColor.White ? GameState.WhiteTurn : GameState.BlackTurn;
+        _history.Clear();
+        PushSnapshot();
+    }
 }

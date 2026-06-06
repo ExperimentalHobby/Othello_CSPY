@@ -45,14 +45,9 @@ while (engine.GameState.IsGameInProgress())
     if (engine.CurrentPlayer == humanColor)
     {
         // --- 人間のターン ---
+        // GameEngine は有効手のないプレイヤーを手番に残さず自動でスキップするため、
+        // ここでは humanColor に必ず有効手がある（明示的なパス処理は不要）。
         var validMoves = engine.GetValidMoves(humanColor);
-        if (validMoves.Count == 0)
-        {
-            // 有効手がない → 強制パス
-            Console.WriteLine("有効な手がないためパスします...");
-            engine.Pass();
-            continue;
-        }
 
         // 人間の入力を受け取り着手する（入力エラー時は再入力を促す）
         Position? move = GetHumanMove(engine, humanColor, validMoves);
@@ -61,25 +56,20 @@ while (engine.GameState.IsGameInProgress())
             var result = engine.MakeMove(move.Value);
             if (!result.IsSuccess)
                 Console.WriteLine($"無効な手: {result.Message}");
+            else
+                PrintPassNoticeIfAny(engine);
         }
     }
     else
     {
         // --- AI のターン ---
         Console.Write($"AI（{aiColor.ToDisplayString()}）が考え中...");
-        var validMoves = engine.GetValidMoves(aiColor);
-        if (validMoves.Count == 0)
-        {
-            // AI に有効手がない → パス
-            Console.WriteLine("パス");
-            engine.Pass();
-            continue;
-        }
 
         // Python AI に盤面を送信して最善手を受け取る
         var bestMove = ai.GetBestMove(engine.CurrentBoard, aiColor);
         Console.WriteLine($" → {ColChar(bestMove.Column)}{bestMove.Row + 1}");
         engine.MakeMove(bestMove);
+        PrintPassNoticeIfAny(engine);
     }
 }
 
@@ -138,6 +128,17 @@ static PlayerColor SelectHumanColor()
         "2" => PlayerColor.White,
         _   => PlayerColor.Black  // 1 または不正入力は黒に統一する
     };
+}
+
+/// <summary>
+/// 直前のターン遷移で強制パスが発生していたら、その旨を表示する。
+/// GameEngine が自動スキップしたパスをプレイヤーに通知するために使用する。
+/// </summary>
+/// <param name="engine">パス情報を取得するゲームエンジン</param>
+static void PrintPassNoticeIfAny(GameEngine engine)
+{
+    if (engine.LastPassedPlayer is { } passed)
+        Console.WriteLine($"{passed.ToDisplayString()} は打てる場所がないためパスしました");
 }
 
 /// <summary>

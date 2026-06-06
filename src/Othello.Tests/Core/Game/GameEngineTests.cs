@@ -156,4 +156,90 @@ public class GameEngineTests
         Assert.Equal(2, engine.BlackScore);
         Assert.Equal(2, engine.WhiteScore);
     }
+
+    // --- 自動パス（AdvanceTurn のスキップ）/ パスをまたぐ Undo / 終局検出 ---
+
+    /// <summary>
+    /// 全マスを Black で埋め、指定座標のみ別の状態にしたテスト用盤面を生成する。
+    /// </summary>
+    private static Board BuildBoard(params (int row, int col, PlayerColor color)[] overrides)
+    {
+        var board = new Board();
+        for (int r = 0; r < 8; r++)
+            for (int c = 0; c < 8; c++)
+                board.SetPiece(r, c, PlayerColor.Black);
+        foreach (var (row, col, color) in overrides)
+            board.SetPiece(row, col, color);
+        return board;
+    }
+
+    /// <summary>
+    /// 着手後に相手が有効手を持たない場合、AdvanceTurn が相手を自動スキップし
+    /// 手番が元のプレイヤーに戻る（強制パスが LastPassedPlayer に記録される）ことを確認する。
+    /// パス条件: 黒の着手後も CurrentPlayer が黒のまま、LastPassedPlayer が白、GameState が BlackTurn であること。
+    /// </summary>
+    [Fact]
+    public void MakeMove_OpponentHasNoMoves_SkipsOpponentAndRecordsPass()
+    {
+        // (0,0)/(7,7) が空き、(0,1)/(7,6) が白、その他すべて黒。
+        // 白は石を挟めず有効手なし。黒は (0,0)・(7,7) に着手できる。
+        var board = BuildBoard(
+            (0, 0, PlayerColor.Empty), (0, 1, PlayerColor.White),
+            (7, 7, PlayerColor.Empty), (7, 6, PlayerColor.White));
+
+        var engine = new GameEngine();
+        engine.LoadStateForTest(board, PlayerColor.Black);
+
+        var result = engine.MakeMove(new Position(0, 0)); // 黒が着手。白は依然パス、黒に (7,7) が残る
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(PlayerColor.Black, engine.CurrentPlayer);      // 白はスキップされ黒のまま
+        Assert.Equal(PlayerColor.White, engine.LastPassedPlayer);   // 白が強制パスしたと記録
+        Assert.Equal(GameState.BlackTurn, engine.GameState);
+    }
+
+    /// <summary>
+    /// 相手がパスでスキップされた着手を Undo すると、手番が単純反転ではなく
+    /// 正しく元のプレイヤーに戻ることを確認する（パスをまたぐ Undo の回帰テスト）。
+    /// パス条件: Undo 後に CurrentPlayer が黒、(0,0) が空き・(0,1) が白に戻り、LastPassedPlayer が null であること。
+    /// </summary>
+    [Fact]
+    public void Undo_AcrossOpponentPass_RestoresCorrectTurn()
+    {
+        var board = BuildBoard(
+            (0, 0, PlayerColor.Empty), (0, 1, PlayerColor.White),
+            (7, 7, PlayerColor.Empty), (7, 6, PlayerColor.White));
+
+        var engine = new GameEngine();
+        engine.LoadStateForTest(board, PlayerColor.Black);
+        engine.MakeMove(new Position(0, 0)); // 白スキップ → 黒の手番のまま
+
+        bool undone = engine.Undo();
+
+        Assert.True(undone);
+        Assert.Equal(PlayerColor.Black, engine.CurrentPlayer);              // 白に戻さず黒のまま
+        Assert.Equal(PlayerColor.Empty, engine.CurrentBoard.GetPiece(0, 0));
+        Assert.Equal(PlayerColor.White, engine.CurrentBoard.GetPiece(0, 1));
+        Assert.Null(engine.LastPassedPlayer);
+    }
+
+    /// <summary>
+    /// 盤面を埋める最後の一手で両者が着手不能になり、石数に応じて終局状態になることを確認する。
+    /// パス条件: 黒が最後のマスに着手後、GameState が BlackWon になること。
+    /// </summary>
+    [Fact]
+    public void MakeMove_FillingLastCell_EndsGameWithWinner()
+    {
+        // (0,0) のみ空き、(0,1) が白、その他すべて黒。黒が (0,0) に置くと盤面が黒で埋まる。
+        var board = BuildBoard(
+            (0, 0, PlayerColor.Empty), (0, 1, PlayerColor.White));
+
+        var engine = new GameEngine();
+        engine.LoadStateForTest(board, PlayerColor.Black);
+
+        engine.MakeMove(new Position(0, 0));
+
+        Assert.True(engine.GameState.IsGameOver());
+        Assert.Equal(GameState.BlackWon, engine.GameState);
+    }
 }

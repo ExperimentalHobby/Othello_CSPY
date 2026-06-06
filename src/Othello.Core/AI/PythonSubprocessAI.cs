@@ -23,6 +23,12 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
     /// <summary>起動した Python プロセスの参照</summary>
     private readonly Process _process;
 
+    /// <summary>
+    /// Python プロセスの標準エラー出力を非同期で蓄積するバッファ。
+    /// 稼働中に stderr をドレインし続けることでパイプ詰まりによるデッドロックを防ぐ。
+    /// </summary>
+    private readonly StringBuilder _stderrBuffer = new();
+
     /// <summary>Dispose 後の多重呼び出しを防ぐフラグ</summary>
     private bool _disposed;
 
@@ -77,7 +83,18 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
         startInfo.EnvironmentVariables["PYTHONIOENCODING"] = "utf-8";
 
         _process = new Process { StartInfo = startInfo };
+
+        // stderr を非同期で読み続けてバッファに蓄積する。
+        // 同期 ReadToEnd と異なり、稼働中でもパイプを詰まらせずにエラー出力を回収できる。
+        _process.ErrorDataReceived += (_, e) =>
+        {
+            if (e.Data == null) return;
+            lock (_stderrBuffer)
+                _stderrBuffer.AppendLine(e.Data);
+        };
+
         _process.Start();
+        _process.BeginErrorReadLine();
     }
 
     /// <summary>
@@ -137,19 +154,23 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
     /// <exception cref="TimeoutException">指定時間内に応答がなかった場合</exception>
     private string? ReadLineWithTimeout(int timeoutMs)
     {
-        string? result = null;
-        Exception? thrownException = null;
+        // ReadLineAsync を使い、専用スレッドを生成せずにタイムアウトを掛ける。
+        // この呼び出し自体は Task.Run 上のスレッドプールスレッドで実行されるため、Wait によるブロックは許容する。
+        var readTask = _process.StandardOutput.ReadLineAsync();
 
-        // ReadLine() はブロッキング呼び出しのため、別スレッドで実行してタイムアウトを掛ける
-        var thread = new Thread(() =>
+        bool completed;
+        try
         {
-            try { result = _process.StandardOutput.ReadLine(); }
-            catch (Exception ex) { thrownException = ex; }
-        });
-        thread.IsBackground = true; // アプリ終了時にスレッドが残らないようにする
-        thread.Start();
+            completed = readTask.Wait(timeoutMs);
+        }
+        catch (AggregateException ae)
+        {
+            // 読み取り中に発生した例外は元のスタックトレースを保持して再スローする
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ae.InnerException ?? ae).Throw();
+            throw; // 到達しない（コンパイラの確定代入を満たすため）
+        }
 
-        if (!thread.Join(timeoutMs))
+        if (!completed)
         {
             // タイムアウト: Python プロセスを強制終了する
             try { if (!_process.HasExited) _process.Kill(); } catch { }
@@ -157,33 +178,24 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
                 $"Python AI が {timeoutMs / 1000} 秒以内に応答しませんでした。Hard 難易度では数秒かかる場合があります。");
         }
 
-        // 読み取り中に例外が発生していた場合は元のスタックトレースを保持して再スローする
-        if (thrownException != null)
-            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(thrownException).Throw();
-
-        return result;
+        return readTask.Result;
     }
 
     /// <summary>
-    /// Python プロセスの標準エラー出力を読み取り、エラーメッセージに付加する。
-    /// プロセス終了直後のみ確実に動作する（実行中は ReadToEnd がブロックする場合がある）。
+    /// 非同期で蓄積した標準エラー出力をエラーメッセージに付加する。
+    /// BeginErrorReadLine により稼働中・終了後を問わず安全に内容を参照できる。
     /// </summary>
     /// <param name="baseMessage">基本エラーメッセージ</param>
     /// <returns>stderr の内容を付加したエラーメッセージ文字列</returns>
     private string ReadProcessError(string baseMessage)
     {
-        try
-        {
-            // プロセスが終了済みであれば stderr を即座に読める
-            if (_process.HasExited)
-            {
-                string stderr = _process.StandardError.ReadToEnd().Trim();
-                if (!string.IsNullOrEmpty(stderr))
-                    return $"{baseMessage}\n--- Python エラー ---\n{stderr}";
-            }
-        }
-        catch { /* 読み取り失敗は無視 */ }
-        return baseMessage;
+        string stderr;
+        lock (_stderrBuffer)
+            stderr = _stderrBuffer.ToString().Trim();
+
+        return string.IsNullOrEmpty(stderr)
+            ? baseMessage
+            : $"{baseMessage}\n--- Python エラー ---\n{stderr}";
     }
 
     /// <summary>

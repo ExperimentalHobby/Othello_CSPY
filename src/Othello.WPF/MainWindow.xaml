@@ -8,7 +8,7 @@
 
     <Window.Resources>
         <conv:BoolToVisibilityConverter x:Key="BoolToVisConverter"/>
-        <conv:BoolToVisibilityConverterInverted x:Key="BoolToVisConverterInv"/>
+        <conv:InverseBooleanConverter x:Key="InverseBoolConverter"/>
         <conv:PlayerColorToBrushConverter x:Key="PlayerColorToBrushConverter"/>
 
         <Style x:Key="MenuComboBoxStyle" TargetType="ComboBox">
@@ -48,9 +48,6 @@
         <!-- メニューバー -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Background="#1a3010" Height="50">
             <Button Content="新規ゲーム" Command="{Binding NewGameCommand}"
-                    Padding="10,5" Margin="5" VerticalAlignment="Center"
-                    Background="#4a7c2f" Foreground="White" FontSize="12"/>
-            <Button Content="パス" Command="{Binding PassCommand}"
                     Padding="10,5" Margin="5" VerticalAlignment="Center"
                     Background="#4a7c2f" Foreground="White" FontSize="12"/>
             <Button Content="戻す" Command="{Binding UndoCommand}"
@@ -94,7 +91,7 @@
             <Border Grid.Column="0" Margin="40" BorderBrush="Black" BorderThickness="4"
                     Background="#4a7c2f" Padding="0">
                 <ItemsControl ItemsSource="{Binding BoardSquares}"
-                              IsHitTestVisible="{Binding IsAIThinking, Converter={StaticResource BoolToVisConverterInv}}">
+                              IsHitTestVisible="{Binding IsAIThinking, Converter={StaticResource InverseBoolConverter}}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <UniformGrid Columns="8" Rows="8" Margin="0"/>

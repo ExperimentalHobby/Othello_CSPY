@@ -31,4 +31,8 @@
     <ProjectReference Include="..\Othello.Core\Othello.Core.csproj" />
   </ItemGroup>
 
+  <!-- 共有 ViewModels プロジェクトを取り込み、GameViewModel を単体/結合テスト可能にする。
+       WPF 定数は付与しないため RelayCommand は手動 CanExecute 通知パスでコンパイルされる。 -->
+  <Import Project="..\Othello.ViewModels\Othello.ViewModels.projitems" Label="Shared" />
+
 </Project>
