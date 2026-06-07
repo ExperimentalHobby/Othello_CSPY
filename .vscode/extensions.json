@@ -2,6 +2,9 @@
 	"recommendations": [
 		"ms-dotnettools.csdevkit",
 		"ms-python.python",
-		"ms-python.vscode-pylance"
+		"ms-python.vscode-pylance",
+		"rust-lang.rust-analyzer",
+		"jebbs.plantuml",
+		"tamasfe.even-better-toml"
 	]
 }

@@ -108,6 +108,81 @@ public class OthelloRulesTests
         Assert.True(OthelloRules.CanPass(board, PlayerColor.White));
         Assert.True(OthelloRules.IsGameOver(board));
     }
+
+    /// <summary>
+    /// 有効でない位置への MakeMove は InvalidOperationException を投げることを確認する。
+    /// パス条件: 初期盤面の (0,0) に黒で打つと InvalidOperationException がスローされること。
+    /// </summary>
+    [Fact]
+    public void MakeMove_InvalidPosition_ThrowsInvalidOperationException()
+    {
+        var board = new Board();
+        Assert.Throws<InvalidOperationException>(
+            () => OthelloRules.MakeMove(board, new Position(0, 0), PlayerColor.Black));
+    }
+}
+
+public class GetGameResultTests
+{
+    /// <summary>
+    /// 黒の石数が多い盤面では黒が勝者として返ることを確認する。
+    /// パス条件: winner が Black、blackScore=63、whiteScore=1 であること。
+    /// </summary>
+    [Fact]
+    public void GetGameResult_BlackMajority_ReturnsBlackWinner()
+    {
+        var board = new Board();
+        for (int r = 0; r < 8; r++)
+            for (int c = 0; c < 8; c++)
+                board.SetPiece(r, c, PlayerColor.Black);
+        board.SetPiece(0, 0, PlayerColor.White); // White=1, Black=63
+
+        var (winner, blackScore, whiteScore) = OthelloRules.GetGameResult(board);
+
+        Assert.Equal(PlayerColor.Black, winner);
+        Assert.Equal(63, blackScore);
+        Assert.Equal(1, whiteScore);
+    }
+
+    /// <summary>
+    /// 白の石数が多い盤面では白が勝者として返ることを確認する。
+    /// パス条件: winner が White、blackScore=1、whiteScore=63 であること。
+    /// </summary>
+    [Fact]
+    public void GetGameResult_WhiteMajority_ReturnsWhiteWinner()
+    {
+        var board = new Board();
+        for (int r = 0; r < 8; r++)
+            for (int c = 0; c < 8; c++)
+                board.SetPiece(r, c, PlayerColor.White);
+        board.SetPiece(0, 0, PlayerColor.Black); // Black=1, White=63
+
+        var (winner, blackScore, whiteScore) = OthelloRules.GetGameResult(board);
+
+        Assert.Equal(PlayerColor.White, winner);
+        Assert.Equal(1, blackScore);
+        Assert.Equal(63, whiteScore);
+    }
+
+    /// <summary>
+    /// 黒白が同数の盤面では winner が null（引き分け）として返ることを確認する。
+    /// パス条件: winner が null、blackScore=32、whiteScore=32 であること。
+    /// </summary>
+    [Fact]
+    public void GetGameResult_EqualScore_ReturnsNullWinner()
+    {
+        // 上半分 32 マスを黒、下半分 32 マスを白で埋める
+        var board = new Board();
+        for (int r = 0; r < 8; r++)
+            for (int c = 0; c < 8; c++)
+                board.SetPiece(r, c, r < 4 ? PlayerColor.Black : PlayerColor.White);
+
+        var (winner, blackScore, whiteScore) = OthelloRules.GetGameResult(board);
+
+        Assert.Null(winner);
+        Assert.Equal(32, blackScore);
+        Assert.Equal(32, whiteScore);
+    }
 }
 
 public class FlipCalculatorTests
@@ -135,5 +210,37 @@ public class FlipCalculatorTests
         var board = new Board();
         var flipped = FlipCalculator.GetFlippablePieces(board, new Position(0, 0), PlayerColor.Black);
         Assert.Empty(flipped);
+    }
+
+    /// <summary>
+    /// 複数方向で挟める座標への着手では、全方向の反転石が合計で返ることを確認する。
+    /// 盤面: (0,0)=黒, (1,1)=白, (2,2)=白, (3,0)=黒, (3,1)=白, (3,2)=白 → 黒が (3,3) に打つ。
+    ///   左方向:      (3,2)=白, (3,1)=白, (3,0)=黒 → (3,2)(3,1) を反転
+    ///   左斜め上方向: (2,2)=白, (1,1)=白, (0,0)=黒 → (2,2)(1,1) を反転
+    /// パス条件: 反転リストが 4 件で {(1,1),(2,2),(3,1),(3,2)} の座標をすべて含むこと。
+    /// </summary>
+    [Fact]
+    public void GetFlippablePieces_MultipleDirections_ReturnsAllFlipped()
+    {
+        var board = new Board();
+        // 全マスを空にしてから必要な石だけ配置する
+        for (int r = 0; r < 8; r++)
+            for (int c = 0; c < 8; c++)
+                board.SetPiece(r, c, PlayerColor.Empty);
+
+        board.SetPiece(0, 0, PlayerColor.Black);  // 左斜め上方向の終端
+        board.SetPiece(1, 1, PlayerColor.White);  // 左斜め上方向の反転候補
+        board.SetPiece(2, 2, PlayerColor.White);  // 左斜め上方向の反転候補
+        board.SetPiece(3, 0, PlayerColor.Black);  // 左方向の終端
+        board.SetPiece(3, 1, PlayerColor.White);  // 左方向の反転候補
+        board.SetPiece(3, 2, PlayerColor.White);  // 左方向の反転候補
+
+        var flipped = FlipCalculator.GetFlippablePieces(board, new Position(3, 3), PlayerColor.Black);
+
+        Assert.Equal(4, flipped.Count);
+        Assert.Contains(new Position(1, 1), flipped);
+        Assert.Contains(new Position(2, 2), flipped);
+        Assert.Contains(new Position(3, 1), flipped);
+        Assert.Contains(new Position(3, 2), flipped);
     }
 }

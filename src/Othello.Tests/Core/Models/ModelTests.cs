@@ -53,6 +53,33 @@ public class BoardTests
         Assert.Equal(PlayerColor.Empty, board1.GetPiece(0, 0));
         Assert.Equal(PlayerColor.White, board2.GetPiece(0, 0));
     }
+
+    /// <summary>
+    /// 初期盤面（中央 4 マス配置済み）の空きマスが 60 件であることを確認する。
+    /// パス条件: GetEmptySquares の列挙件数が 60 であること。
+    /// </summary>
+    [Fact]
+    public void GetEmptySquares_InitialBoard_Returns60Squares()
+    {
+        var board = new Board();
+        var empty = board.GetEmptySquares().ToList();
+        Assert.Equal(60, empty.Count);
+    }
+
+    /// <summary>
+    /// 全マスを黒で埋めると空きマスが 0 件になることを確認する。
+    /// パス条件: GetEmptySquares の列挙件数が 0 であること。
+    /// </summary>
+    [Fact]
+    public void GetEmptySquares_FullBoard_ReturnsEmpty()
+    {
+        var board = new Board();
+        for (int r = 0; r < 8; r++)
+            for (int c = 0; c < 8; c++)
+                board.SetPiece(r, c, PlayerColor.Black);
+
+        Assert.Empty(board.GetEmptySquares());
+    }
 }
 
 public class PositionTests
@@ -140,5 +167,76 @@ public class PlayerColorTests
     public void ToDisplayString_Black_ReturnsJapaneseText()
     {
         Assert.Equal("黒", PlayerColor.Black.ToDisplayString());
+    }
+
+    /// <summary>
+    /// White.ToDisplayString() が日本語の "白" を返すことを確認する。
+    /// パス条件: 戻り値が "白" であること。
+    /// </summary>
+    [Fact]
+    public void ToDisplayString_White_ReturnsJapaneseText()
+    {
+        Assert.Equal("白", PlayerColor.White.ToDisplayString());
+    }
+
+    /// <summary>
+    /// Empty.ToDisplayString() が日本語の "空" を返すことを確認する。
+    /// パス条件: 戻り値が "空" であること。
+    /// </summary>
+    [Fact]
+    public void ToDisplayString_Empty_ReturnsJapaneseText()
+    {
+        Assert.Equal("空", PlayerColor.Empty.ToDisplayString());
+    }
+}
+
+public class GameStateTests
+{
+    /// <summary>
+    /// GameState の全 7 状態について ToDisplayString() が期待の日本語文字列を返すことを確認する。
+    /// パス条件: 各状態に対応する日本語文字列が返ること（GameState.cs の switch 式と一致）。
+    /// </summary>
+    [Fact]
+    public void ToDisplayString_AllStates_ReturnExpectedJapaneseText()
+    {
+        Assert.Equal("初期化中",       GameState.Initialize.ToDisplayString());
+        Assert.Equal("黒のターン",     GameState.BlackTurn.ToDisplayString());
+        Assert.Equal("白のターン",     GameState.WhiteTurn.ToDisplayString());
+        Assert.Equal("ゲーム終了",     GameState.GameOver.ToDisplayString());
+        Assert.Equal("黒が勝ちました", GameState.BlackWon.ToDisplayString());
+        Assert.Equal("白が勝ちました", GameState.WhiteWon.ToDisplayString());
+        Assert.Equal("引き分け",       GameState.Draw.ToDisplayString());
+    }
+}
+
+public class MoveResultTests
+{
+    /// <summary>
+    /// MoveResult.Success に反転石リストを渡すと FlippedPieces にそのリストが格納されることを確認する。
+    /// パス条件: FlippedPieces の件数と座標が渡したリストと一致すること。
+    /// </summary>
+    [Fact]
+    public void Success_WithFlippedPieces_StoresFlippedPieces()
+    {
+        var flipped = new List<Position> { new(3, 3), new(4, 4) };
+        var result = MoveResult.Success("成功", flipped);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.FlippedPieces.Count);
+        Assert.Contains(new Position(3, 3), result.FlippedPieces);
+        Assert.Contains(new Position(4, 4), result.FlippedPieces);
+    }
+
+    /// <summary>
+    /// MoveResult.Failure は FlippedPieces が空リストであることを確認する。
+    /// パス条件: IsSuccess が false かつ FlippedPieces が空であること。
+    /// </summary>
+    [Fact]
+    public void Failure_HasEmptyFlippedPieces()
+    {
+        var result = MoveResult.Failure("無効な移動");
+
+        Assert.False(result.IsSuccess);
+        Assert.Empty(result.FlippedPieces);
     }
 }

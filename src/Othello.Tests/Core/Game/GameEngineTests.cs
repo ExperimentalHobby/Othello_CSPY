@@ -91,11 +91,11 @@ public class GameEngineTests
     }
 
     /// <summary>
-    /// ゲームが開始されていない状態（Initialize 前）で Pass() を呼ぶと例外が投げられることを確認する。
+    /// Initialize を呼ぶ前（GameState = Initialize の状態）で Pass() を呼ぶと例外が投げられることを確認する。
     /// パス条件: InvalidOperationException がスローされること。
     /// </summary>
     [Fact]
-    public void Pass_AfterGameOver_ThrowsInvalidOperationException()
+    public void Pass_BeforeInitialize_ThrowsInvalidOperationException()
     {
         var engine = new GameEngine();
         // Initialize せずに呼ぶ（GameState = Initialize → IsGameInProgress = false）
@@ -241,5 +241,88 @@ public class GameEngineTests
 
         Assert.True(engine.GameState.IsGameOver());
         Assert.Equal(GameState.BlackWon, engine.GameState);
+    }
+
+    // --- GetResult 勝敗ケース ---
+
+    /// <summary>
+    /// 終局後に黒が勝利している盤面で GetResult が黒勝者と正しいスコアを返すことを確認する。
+    /// パス条件: winner が Black かつ GameState が BlackWon であること。
+    /// </summary>
+    [Fact]
+    public void GetResult_AfterBlackWins_ReturnsBlackWinner()
+    {
+        // (0,0) のみ空き・(0,1) が白→黒が着手で黒だらけの盤面になり黒勝ち
+        var board = BuildBoard(
+            (0, 0, PlayerColor.Empty), (0, 1, PlayerColor.White));
+        var engine = new GameEngine();
+        engine.LoadStateForTest(board, PlayerColor.Black);
+        engine.MakeMove(new Position(0, 0));
+
+        var (winner, blackScore, whiteScore) = engine.GetResult();
+
+        Assert.Equal(PlayerColor.Black, winner);
+        Assert.True(blackScore > whiteScore);
+        Assert.Equal(GameState.BlackWon, engine.GameState);
+    }
+
+    /// <summary>
+    /// 全マスを白で埋めた盤面で GetResult が白勝者を返すことを確認する。
+    /// パス条件: winner が White、blackScore=0、whiteScore=64 であること。
+    /// </summary>
+    [Fact]
+    public void GetResult_AfterWhiteWins_ReturnsWhiteWinner()
+    {
+        var board = new Board();
+        for (int r = 0; r < 8; r++)
+            for (int c = 0; c < 8; c++)
+                board.SetPiece(r, c, PlayerColor.White);
+        var engine = new GameEngine();
+        engine.LoadStateForTest(board, PlayerColor.Black);
+
+        var (winner, blackScore, whiteScore) = engine.GetResult();
+
+        Assert.Equal(PlayerColor.White, winner);
+        Assert.Equal(0, blackScore);
+        Assert.Equal(64, whiteScore);
+    }
+
+    /// <summary>
+    /// 黒白が 32 枚ずつの盤面で GetResult が引き分け（winner = null）を返すことを確認する。
+    /// パス条件: winner が null、blackScore=32、whiteScore=32 であること。
+    /// </summary>
+    [Fact]
+    public void GetResult_AfterDraw_ReturnsNullWinner()
+    {
+        // 上半分（行 0-3）を黒、下半分（行 4-7）を白で埋めて 32-32 の引き分け盤面を作る
+        var board = new Board();
+        for (int r = 0; r < 8; r++)
+            for (int c = 0; c < 8; c++)
+                board.SetPiece(r, c, r < 4 ? PlayerColor.Black : PlayerColor.White);
+        var engine = new GameEngine();
+        engine.LoadStateForTest(board, PlayerColor.Black);
+
+        var (winner, blackScore, whiteScore) = engine.GetResult();
+
+        Assert.Null(winner);
+        Assert.Equal(32, blackScore);
+        Assert.Equal(32, whiteScore);
+    }
+
+    /// <summary>
+    /// MakeMove が成功したとき FlippedPieces に反転した石の座標が格納されることを確認する。
+    /// パス条件: 初期盤面で黒が (2,3) に打つと FlippedPieces に (3,3) が含まれること。
+    /// </summary>
+    [Fact]
+    public void MakeMove_ValidMove_PopulatesFlippedPieces()
+    {
+        var engine = new GameEngine();
+        engine.Initialize();
+
+        var result = engine.MakeMove(new Position(2, 3));
+
+        Assert.True(result.IsSuccess);
+        Assert.NotEmpty(result.FlippedPieces);
+        Assert.Contains(new Position(3, 3), result.FlippedPieces);
     }
 }

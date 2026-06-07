@@ -3,7 +3,8 @@
 		"**/bin": true,
 		"**/obj": true,
 		"**/__pycache__": true,
-		"**/*.pyc": true
+		"**/*.pyc": true,
+		"src/Othello.Rust/target": true
 	},
 	"python.defaultInterpreterPath": "py",
 	"editor.insertSpaces": false,
@@ -13,5 +14,7 @@
 	},
 	"[csharp]": {
 		"editor.tabSize": 4
-	}
+	},
+	"plantuml.server": "https://www.plantuml.com/plantuml",
+	"plantuml.render": "PlantUMLServer"
 }

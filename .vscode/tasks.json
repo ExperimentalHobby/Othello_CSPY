@@ -68,7 +68,7 @@
 				"reveal": "always",
 				"panel": "shared"
 			},
-			"problemMatcher": "$msCompile"
+			"problemMatcher": []
 		},
 		{
 			"label": "clean: WinUI3",
@@ -79,7 +79,7 @@
 				"reveal": "always",
 				"panel": "shared"
 			},
-			"problemMatcher": "$msCompile"
+			"problemMatcher": []
 		},
 		{
 			"label": "test",
@@ -145,17 +145,16 @@
 		},
 		{
 			"label": "publish: all → dist",
-			"dependsOn": [
-				"publish: WPF → dist/WPF",
-				"publish: WinUI3 → dist/WinUI3"
-			],
+			"dependsOn": ["build: Rust AI"],
 			"dependsOrder": "sequence",
+			"type": "shell",
+			"command": "dotnet publish src/Othello.WPF/Othello.WPF.csproj -c Release -o dist/WPF && dotnet publish src/Othello.WinUI3/Othello.WinUI3.csproj -c Release -o dist/WinUI3",
 			"group": "none",
 			"presentation": {
 				"reveal": "always",
 				"panel": "shared"
 			},
-			"problemMatcher": []
+			"problemMatcher": "$msCompile"
 		},
 		{
 			"label": "run: WPF",

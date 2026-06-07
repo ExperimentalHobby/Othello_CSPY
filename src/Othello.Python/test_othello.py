@@ -13,7 +13,7 @@ from board import (
     EMPTY, BLACK, WHITE, BOARD_SIZE,
     opponent, get_flips, has_any_flip, get_valid_moves, count_valid_moves, make_move,
 )
-from evaluator import evaluate, evaluate_final
+from evaluator import evaluate, evaluate_final, WEIGHTS
 from alpha_beta import AlphaBetaAI
 
 
@@ -196,6 +196,141 @@ class AlphaBetaTests(unittest.TestCase):
 
         move = self.ai.get_best_move(board, BLACK, depth=4)
         self.assertIn(move, [(0, 0), (7, 7)])
+
+
+class AiMainLoopTests(unittest.TestCase):
+    """ai.py のメインループ（stdin/stdout JSON IPC）の結合テスト。
+
+    実際に ai.py をサブプロセスとして起動し、JSON リクエストを送受信して
+    プロトコルが正しく機能することを確認する。
+    """
+
+    def _launch_ai(self):
+        """ai.py をサブプロセスとして起動する。"""
+        import subprocess
+        import sys
+        import os
+        script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai.py')
+        return subprocess.Popen(
+            [sys.executable, '-u', script],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding='utf-8',
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+        )
+
+    def _request(self, proc, board, player, depth=2):
+        """JSON リクエストを 1 件送信してレスポンスを返す。"""
+        import json
+        proc.stdin.write(json.dumps({'board': board, 'player': player, 'depth': depth}) + '\n')
+        proc.stdin.flush()
+        return json.loads(proc.stdout.readline())
+
+    def _close_ai(self, proc, timeout=5):
+        """サブプロセスの全ハンドルを安全に閉じる。"""
+        try:
+            proc.stdin.close()
+            proc.wait(timeout=timeout)
+        finally:
+            proc.stdout.close()
+            proc.stderr.close()
+
+    def test_returns_valid_move_for_initial_board(self):
+        """初期盤面に対して有効な着手座標が返ることを確認する。
+        パス条件: 'row'・'col' キーが存在し、返った座標が get_valid_moves に含まれること。"""
+        board = make_initial_board()
+        proc = self._launch_ai()
+        try:
+            res = self._request(proc, board, BLACK)
+            self.assertIn('row', res)
+            self.assertIn('col', res)
+            self.assertNotIn('error', res)
+            self.assertIn((res['row'], res['col']), get_valid_moves(board, BLACK))
+        finally:
+            self._close_ai(proc)
+
+    def test_handles_sequential_requests(self):
+        """同一プロセスで複数リクエストを順番に処理できることを確認する。
+        パス条件: 3 往復分すべてのレスポンスが有効手であること。"""
+        proc = self._launch_ai()
+        try:
+            board = make_initial_board()
+            for _ in range(3):
+                res = self._request(proc, board, BLACK)
+                self.assertNotIn('error', res)
+                move = (res['row'], res['col'])
+                self.assertIn(move, get_valid_moves(board, BLACK))
+                board = make_move(board, move[0], move[1], BLACK)
+
+                if get_valid_moves(board, WHITE):
+                    res = self._request(proc, board, WHITE)
+                    self.assertNotIn('error', res)
+                    move = (res['row'], res['col'])
+                    self.assertIn(move, get_valid_moves(board, WHITE))
+                    board = make_move(board, move[0], move[1], WHITE)
+        finally:
+            self._close_ai(proc, timeout=10)
+
+    def test_returns_error_for_no_valid_moves(self):
+        """有効手がない局面（全マス黒）に白として送ると error キーのレスポンスが返ることを確認する。
+        パス条件: 'error' キーがレスポンスに含まれること。"""
+        full_board = [[BLACK] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        proc = self._launch_ai()
+        try:
+            res = self._request(proc, full_board, WHITE)
+            self.assertIn('error', res)
+        finally:
+            self._close_ai(proc)
+
+
+class EvaluateComponentTests(unittest.TestCase):
+    """evaluate() の個別評価要素（位置重み・Mobility）のテスト。"""
+
+    def test_x_square_is_unfavorable(self):
+        """X-square（コーナー斜め隣: (1,1) 等）を保有すると評価値が負になることを確認する。
+        パス条件: board[1][1]=BLACK のみの盤面で evaluate(board, BLACK) < 0 であること
+                  （WEIGHTS[1][1] = -50 なので黒視点で不利）。"""
+        board = [[EMPTY] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        board[1][1] = BLACK  # X-square: WEIGHTS[1][1] = -50
+        self.assertLess(evaluate(board, BLACK), 0)
+
+    def test_edge_position_is_favorable(self):
+        """辺マス（コーナー以外の端: (0,2) 等）を保有すると評価値が正になることを確認する。
+        パス条件: board[0][2]=BLACK のみの盤面で evaluate(board, BLACK) > 0 であること
+                  （WEIGHTS[0][2] = 10 なので黒視点で有利）。"""
+        board = [[EMPTY] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        board[0][2] = BLACK  # Edge: WEIGHTS[0][2] = 10
+        self.assertGreater(evaluate(board, BLACK), 0)
+
+    def test_corner_is_better_than_x_square(self):
+        """コーナーは X-square より evaluate 値が高いことを確認する。
+        パス条件: コーナー (0,0) 保有時 > X-square (1,1) 保有時 の評価値であること。"""
+        corner_board = [[EMPTY] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        corner_board[0][0] = BLACK  # WEIGHTS[0][0] = 100
+
+        xsq_board = [[EMPTY] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        xsq_board[1][1] = BLACK  # WEIGHTS[1][1] = -50
+
+        self.assertGreater(evaluate(corner_board, BLACK), evaluate(xsq_board, BLACK))
+
+    def test_evaluate_equals_positional_plus_mobility(self):
+        """evaluate() の戻り値が「位置重み差 + Mobility 差 × 10」と等しいことを確認する。
+        パス条件: 初期盤面を黒として評価した結果が公式と一致すること。"""
+        board = make_initial_board()
+        player = BLACK
+        opp = opponent(player)
+
+        positional = sum(
+            WEIGHTS[r][c] if board[r][c] == player else
+            (-WEIGHTS[r][c] if board[r][c] == opp else 0)
+            for r in range(BOARD_SIZE)
+            for c in range(BOARD_SIZE)
+        )
+        mobility = (count_valid_moves(board, player) - count_valid_moves(board, opp)) * 10
+
+        self.assertEqual(evaluate(board, player), positional + mobility)
 
 
 if __name__ == "__main__":

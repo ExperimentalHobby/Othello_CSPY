@@ -182,4 +182,187 @@ public class GameViewModelTests
 
         Assert.True(vm.IsGameInProgress); // 新しいゲームは壊れていない
     }
+
+    // ========== #3: Undo ==========
+
+    /// <summary>
+    /// 人間が 1 手打った後に Undo すると初期スコア（2/2）に戻ることを確認する。
+    /// BlockingFakeAI で AI をブロックしておくことでエンジン状態への競合を防ぐ。
+    /// パス条件: Undo 後に BlackScore=2、WhiteScore=2 になること。
+    /// </summary>
+    [Fact]
+    public void Undo_AfterHumanMove_RestoresInitialScore()
+    {
+        using var entered = new ManualResetEventSlim(false);
+        using var vm = new GameViewModel(d => new BlockingFakeAI(d, entered));
+
+        // 人間（黒）が着手 → AI（白）が GetBestMove に入ってブロックする
+        vm.SquareClickedCommand.Execute(new Position(2, 3));
+        Assert.True(entered.Wait(Timeout));
+
+        // AI がブロック中に Undo を呼ぶ（RelayCommand.Execute は CanExecute を無視して直接 OnUndo を呼ぶ）
+        vm.UndoCommand.Execute(null);
+
+        Assert.Equal(2, vm.BlackScore);
+        Assert.Equal(2, vm.WhiteScore);
+    }
+
+    /// <summary>
+    /// AI が着手した後に Undo すると、AI と人間の 2 手分がまとめて取り消されて初期スコアに戻ることを確認する
+    /// （OnUndo の「AI ターンに戻った場合はさらに 1 回 Undo」動作の検証）。
+    /// パス条件: Undo 後に BlackScore=2、WhiteScore=2 になること。
+    /// </summary>
+    [Fact]
+    public void Undo_AfterAiResponds_UndoesBothMovesAndRestoresInitialScore()
+    {
+        using var aiMoved = new ManualResetEventSlim(false);
+        using var vm = new GameViewModel(d => new FakeAI(d, () => aiMoved.Set()));
+
+        // 人間（黒）が着手 → AI（白）が応答
+        vm.SquareClickedCommand.Execute(new Position(2, 3));
+        Assert.True(aiMoved.Wait(Timeout));
+
+        // AI の GetBestMove 後にエンジンへの MakeMove が非同期で完了するまで待機する
+        // （ProcessAIMoveAsync 内で await Task.Run 完了 → _engine.MakeMove の順で実行される）
+        Thread.Sleep(500);
+
+        vm.UndoCommand.Execute(null);
+
+        Assert.Equal(2, vm.BlackScore);
+        Assert.Equal(2, vm.WhiteScore);
+    }
+
+    // ========== #4: UndoCommand.CanExecute ==========
+
+    /// <summary>
+    /// ゲーム進行中かつ人間のターンでは UndoCommand.CanExecute が true を返すことを確認する。
+    /// パス条件: 初期状態（黒が先手、AI 非思考中）で CanExecute が true であること。
+    /// </summary>
+    [Fact]
+    public void UndoCommand_CanExecute_TrueWhenHumanTurn()
+    {
+        using var vm = new GameViewModel(d => new FakeAI(d));
+        // デフォルト: 人間=黒（先手）、ゲーム進行中、AI 非思考中
+        Assert.True(vm.IsGameInProgress);
+        Assert.False(vm.IsAIThinking);
+        Assert.True(vm.UndoCommand.CanExecute(null));
+    }
+
+    /// <summary>
+    /// AI が思考中は UndoCommand.CanExecute が false を返すことを確認する。
+    /// パス条件: BlockingFakeAI でブロック中に CanExecute が false であること。
+    /// </summary>
+    [Fact]
+    public void UndoCommand_CanExecute_FalseWhenAiThinking()
+    {
+        using var entered = new ManualResetEventSlim(false);
+        using var vm = new GameViewModel(d => new BlockingFakeAI(d, entered));
+
+        // 人間=白に変更 → AI（黒）が先手で思考開始してブロック
+        vm.HumanColorIndex = 1;
+        Assert.True(entered.Wait(Timeout));
+
+        Assert.True(vm.IsAIThinking);
+        Assert.False(vm.UndoCommand.CanExecute(null));
+    }
+
+    /// <summary>
+    /// ゲームが進行中でない（IsGameInProgress=false）ときは UndoCommand.CanExecute が false を返すことを確認する。
+    /// パス条件: AI ファクトリが例外を投げて IsGameInProgress=false になった後、CanExecute が false であること。
+    /// </summary>
+    [Fact]
+    public void UndoCommand_CanExecute_FalseWhenGameNotInProgress()
+    {
+        // AI ファクトリが例外を投げると StartNewGame が早期 return し IsGameInProgress=false になる
+        using var vm = new GameViewModel(_ => throw new InvalidOperationException("AI unavailable"));
+        Assert.False(vm.IsGameInProgress);
+        Assert.False(vm.UndoCommand.CanExecute(null));
+    }
+
+    // ========== #11: AI エラー時のゲーム停止 ==========
+
+    /// <summary>
+    /// AI が GetBestMove で例外を投げると IsGameInProgress が false になり、
+    /// StatusMessage に "AI エラー" が含まれることを確認する。
+    /// パス条件: AI 例外後に IsGameInProgress=false かつ StatusMessage に "AI エラー" が含まれること。
+    /// </summary>
+    [Fact]
+    public void AiError_SetsIsGameInProgressFalseAndUpdatesStatus()
+    {
+        using var aiErrored = new ManualResetEventSlim(false);
+        using var vm = new GameViewModel(d => new ErrorFakeAI(d, aiErrored));
+
+        // 人間（黒）が着手 → AI（白）の GetBestMove が例外を送出
+        vm.SquareClickedCommand.Execute(new Position(2, 3));
+        Assert.True(aiErrored.Wait(Timeout));
+
+        // ProcessAIMoveAsync の catch ブロックが走る猶予を与える
+        Thread.Sleep(200);
+
+        Assert.False(vm.IsGameInProgress);
+        Assert.Contains("AI エラー", vm.StatusMessage);
+    }
+
+    // ========== #12: 無効クリック ==========
+
+    /// <summary>
+    /// AI 思考中に人間がマスをクリックしても盤面スコアが変わらないことを確認する（クリックが無視される）。
+    /// パス条件: IsAIThinking=true の間にクリックしてもスコアが変化しないこと。
+    /// </summary>
+    [Fact]
+    public void SquareClicked_WhenAiThinking_IsIgnored()
+    {
+        using var entered = new ManualResetEventSlim(false);
+        using var vm = new GameViewModel(d => new BlockingFakeAI(d, entered));
+
+        // 人間=白 → AI（黒）が先手で思考開始してブロック
+        vm.HumanColorIndex = 1;
+        Assert.True(entered.Wait(Timeout));
+        Assert.True(vm.IsAIThinking);
+
+        int totalBefore = vm.BlackScore + vm.WhiteScore;
+        // 人間（白）が AI 思考中にクリックしても無視される（IsAIThinking ガード）
+        vm.SquareClickedCommand.Execute(new Position(2, 3));
+
+        Assert.Equal(totalBefore, vm.BlackScore + vm.WhiteScore);
+        Assert.True(vm.IsAIThinking);
+    }
+
+    /// <summary>
+    /// 有効でないマスへのクリックで MoveResult.Failure が StatusMessage に反映されることを確認する。
+    /// パス条件: 無効手 (0,0) をクリック後に StatusMessage が "有効" を含む失敗メッセージになること。
+    /// </summary>
+    [Fact]
+    public void SquareClicked_InvalidPosition_SetsStatusMessage()
+    {
+        using var vm = new GameViewModel(d => new FakeAI(d));
+
+        // 初期盤面で黒が (0,0) に打つのは無効手（挟める石がない）
+        string statusBefore = vm.StatusMessage;
+        vm.SquareClickedCommand.Execute(new Position(0, 0));
+
+        // HandlePlayerMove が MoveResult.Failure を受け取り StatusMessage を更新する
+        Assert.NotEqual(statusBefore, vm.StatusMessage);
+        Assert.Contains("有効", vm.StatusMessage);
+    }
+}
+
+// ========== テスト専用 AI モック ==========
+// （ErrorFakeAI は GetBestMove を呼ぶと例外を送出し、aiErrored イベントを発火する）
+file sealed class ErrorFakeAI : IAIStrategy
+{
+    private readonly ManualResetEventSlim _errored;
+    public DifficultyLevel Difficulty { get; }
+
+    public ErrorFakeAI(DifficultyLevel difficulty, ManualResetEventSlim errored)
+    {
+        Difficulty = difficulty;
+        _errored = errored;
+    }
+
+    public Position GetBestMove(Board board, PlayerColor playerColor)
+    {
+        _errored.Set();
+        throw new InvalidOperationException("AI エラーのシミュレーション");
+    }
 }
