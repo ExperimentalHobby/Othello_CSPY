@@ -333,5 +333,103 @@ class EvaluateComponentTests(unittest.TestCase):
         self.assertEqual(evaluate(board, player), positional + mobility)
 
 
+class AlphaBetaTimedTests(unittest.TestCase):
+    """AlphaBetaAI.get_best_move_timed() の反復深化探索テスト。"""
+
+    def setUp(self):
+        self.ai = AlphaBetaAI()
+
+    def test_no_valid_moves_returns_none(self):
+        """有効手がない場合に get_best_move_timed が None を返すことを確認する。
+        パス条件: 全マス黒の盤面で白として呼ぶと戻り値が None であること。"""
+        full_board = [[BLACK] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        self.assertIsNone(self.ai.get_best_move_timed(full_board, WHITE, max_depth=5, time_ms=5000))
+
+    def test_returns_legal_move(self):
+        """get_best_move_timed が有効手のいずれかを返すことを確認する。
+        パス条件: 戻り値が get_valid_moves で列挙される有効手のリストに含まれること。"""
+        board = make_initial_board()
+        move = self.ai.get_best_move_timed(board, BLACK, max_depth=5, time_ms=5000)
+        self.assertIn(move, get_valid_moves(board, BLACK))
+
+    def test_respects_time_limit(self):
+        """極端に短い制限時間（1ms）でも有効手を返すことを確認する（深さ 1 で結果を返す）。
+        パス条件: 戻り値が None ではなく、かつ有効手に含まれること。"""
+        board = make_initial_board()
+        move = self.ai.get_best_move_timed(board, BLACK, max_depth=10, time_ms=1)
+        self.assertIsNotNone(move)
+        self.assertIn(move, get_valid_moves(board, BLACK))
+
+    def test_consistent_with_get_best_move_at_shallow_depth(self):
+        """十分な制限時間があれば get_best_move（固定深さ）と同じ結果を返すことを確認する。
+        パス条件: depth=3 の固定深さ探索と同じ手が返ること（同一ロジック）。"""
+        board = make_initial_board()
+        fixed  = self.ai.get_best_move(board, BLACK, depth=3)
+        timed  = self.ai.get_best_move_timed(board, BLACK, max_depth=3, time_ms=30000)
+        self.assertEqual(fixed, timed)
+
+
+class AiTimedMainLoopTests(unittest.TestCase):
+    """ai.py の time_ms フィールドを使った IPC 結合テスト。"""
+
+    def _launch_ai(self):
+        """ai.py をサブプロセスとして起動する。"""
+        import subprocess
+        import sys
+        import os
+        script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai.py')
+        return subprocess.Popen(
+            [sys.executable, '-u', script],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding='utf-8',
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+        )
+
+    def _close_ai(self, proc, timeout=10):
+        try:
+            proc.stdin.close()
+            proc.wait(timeout=timeout)
+        finally:
+            proc.stdout.close()
+            proc.stderr.close()
+
+    def test_time_ms_returns_valid_move(self):
+        """time_ms を指定したリクエストが有効な着手座標を返すことを確認する（反復深化経由）。
+        パス条件: 'row'・'col' キーが存在し、返った座標が get_valid_moves に含まれること。"""
+        import json
+        board = make_initial_board()
+        proc = self._launch_ai()
+        try:
+            req = json.dumps({'board': board, 'player': BLACK, 'depth': 5, 'time_ms': 3000})
+            proc.stdin.write(req + '\n')
+            proc.stdin.flush()
+            res = json.loads(proc.stdout.readline())
+            self.assertIn('row', res)
+            self.assertIn('col', res)
+            self.assertNotIn('error', res)
+            self.assertIn((res['row'], res['col']), get_valid_moves(board, BLACK))
+        finally:
+            self._close_ai(proc)
+
+    def test_null_time_ms_uses_fixed_depth(self):
+        """time_ms が null（省略）の場合は従来の固定深さ探索が行われることを確認する。
+        パス条件: 'error' キーが含まれず、有効手が返ること。"""
+        import json
+        board = make_initial_board()
+        proc = self._launch_ai()
+        try:
+            req = json.dumps({'board': board, 'player': BLACK, 'depth': 3, 'time_ms': None})
+            proc.stdin.write(req + '\n')
+            proc.stdin.flush()
+            res = json.loads(proc.stdout.readline())
+            self.assertNotIn('error', res)
+            self.assertIn((res['row'], res['col']), get_valid_moves(board, BLACK))
+        finally:
+            self._close_ai(proc)
+
+
 if __name__ == "__main__":
     unittest.main()

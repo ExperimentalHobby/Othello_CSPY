@@ -110,7 +110,30 @@
                                              Visibility="{Binding IsValidMove, Converter={StaticResource BoolToVisConverter}}"/>
                                     <Ellipse Fill="{Binding Piece, Converter={StaticResource PlayerColorToBrushConverter}}" Stroke="#2a2a2a" StrokeThickness="2"
                                              Width="85" Height="85"
-                                             Visibility="{Binding HasPiece, Converter={StaticResource BoolToVisConverter}}"/>
+                                             RenderTransformOrigin="0.5,0.5"
+                                             Visibility="{Binding HasPiece, Converter={StaticResource BoolToVisConverter}}">
+                                        <Ellipse.RenderTransform>
+                                            <ScaleTransform/>
+                                        </Ellipse.RenderTransform>
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsBeingFlipped}" Value="True">
+                                                        <DataTrigger.EnterActions>
+                                                            <BeginStoryboard>
+                                                                <Storyboard>
+                                                                    <DoubleAnimation
+                                                                        Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                                                        From="1" To="0" Duration="0:0:0.15"
+                                                                        AutoReverse="True"/>
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </DataTrigger.EnterActions>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
                                 </Grid>
                             </Button>
                         </DataTemplate>

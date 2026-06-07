@@ -1,7 +1,14 @@
 using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Linq;
+using System.Numerics;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Hosting;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Shapes;
 using Technopro.Othello.ViewModels;
 
 namespace Technopro.Othello.WinUI3;
@@ -30,6 +37,10 @@ public sealed partial class MainWindow : Window
         CenterWindow();
 
         this.Closed += (_, _) => _viewModel.Dispose();
+
+        // 各マスの IsBeingFlipped 変更を購読して反転アニメーションをトリガーする
+        foreach (var sq in _viewModel.BoardSquares)
+            sq.PropertyChanged += OnSquarePropertyChanged;
     }
 
     private void CenterWindow()
@@ -52,14 +63,76 @@ public sealed partial class MainWindow : Window
     }
 
     // Border のサイズ変化に応じてセルサイズを動的更新し WPF の UniformGrid と同様に盤面を埋める
+    /// <summary>
+    /// BoardSquareViewModel の PropertyChanged を受け、IsBeingFlipped が true になったマスの
+    /// Composition Scale アニメーションをトリガーする（Y 軸 1→0→1、300ms）。
+    /// </summary>
+    private void OnSquarePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(BoardSquareViewModel.IsBeingFlipped)) return;
+        if (sender is not BoardSquareViewModel sq || !sq.IsBeingFlipped) return;
+
+        int index = _viewModel.BoardSquares.IndexOf(sq);
+        if (index < 0) return;
+
+        DispatcherQueue.TryEnqueue(() => AnimateFlip(index));
+    }
+
+    /// <summary>
+    /// 指定インデックスのセル内にある石 Ellipse のみに Y 軸スケール反転アニメーション（300ms）を適用する。
+    /// DataTemplate 内の Ellipse は [0]=有効手マーカー（黄）・[1]=石 の順なので Skip(1) で石を取得する。
+    /// セル全体（Button）ではなく石だけを対象にすることで WPF 版と同じ挙動になる。
+    /// </summary>
+    private void AnimateFlip(int index)
+    {
+        if (BoardRepeater.TryGetElement(index) is not FrameworkElement element) return;
+
+        // VisualTreeHelper でセル内の Ellipse を列挙し、2 番目（石）だけを取得する
+        var stoneEllipse = FindDescendants<Ellipse>(element).Skip(1).FirstOrDefault();
+        if (stoneEllipse == null) return;
+
+        var visual = ElementCompositionPreview.GetElementVisual(stoneEllipse);
+        var compositor = visual.Compositor;
+
+        var animation = compositor.CreateVector3KeyFrameAnimation();
+        animation.InsertKeyFrame(0.0f, new Vector3(1f, 1f, 1f));
+        animation.InsertKeyFrame(0.5f, new Vector3(1f, 0f, 1f)); // Y 軸を潰す（石の色が切り替わるタイミング）
+        animation.InsertKeyFrame(1.0f, new Vector3(1f, 1f, 1f));
+        animation.Duration = TimeSpan.FromMilliseconds(300);
+
+        visual.CenterPoint = new Vector3(
+            (float)(stoneEllipse.ActualWidth  / 2),
+            (float)(stoneEllipse.ActualHeight / 2),
+            0f);
+        visual.StartAnimation("Scale", animation);
+    }
+
+    /// <summary>
+    /// ビジュアルツリーを深さ優先で走査して型 T の子孫を列挙する。
+    /// </summary>
+    private static IEnumerable<T> FindDescendants<T>(DependencyObject parent) where T : DependencyObject
+    {
+        int count = VisualTreeHelper.GetChildrenCount(parent);
+        for (int i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T match)
+                yield return match;
+            foreach (var d in FindDescendants<T>(child))
+                yield return d;
+        }
+    }
+
     private void OnBoardBorderSizeChanged(object sender, SizeChangedEventArgs e)
     {
         if (BoardRepeater.Layout is not UniformGridLayout layout) return;
 
         // BorderThickness="4" なので各辺 4px ずつコンテンツ領域が縮む
+        // Math.Floor を使わず正確な値を渡す: ItemsStretch="Fill" が横方向を、
+        // MinItemHeight の正確な値が縦方向の隙間をなくす
         const double border = 4.0;
-        double cellW = Math.Floor((e.NewSize.Width  - border * 2) / 8);
-        double cellH = Math.Floor((e.NewSize.Height - border * 2) / 8);
+        double cellW = (e.NewSize.Width  - border * 2) / 8;
+        double cellH = (e.NewSize.Height - border * 2) / 8;
 
         if (cellW >= 20 && cellH >= 20)
         {

@@ -29,6 +29,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Othello.Core\Othello.Core.csproj" />
+    <!-- ConsoleInputParser (internal) のテストに必要 -->
+    <ProjectReference Include="..\Othello.Console\Othello.Console.csproj" />
   </ItemGroup>
 
   <!-- 共有 ViewModels プロジェクトを取り込み、GameViewModel を単体/結合テスト可能にする。

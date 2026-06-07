@@ -2,6 +2,7 @@
 // 人間 vs Python AI の対局をターミナル上で行う。
 // 入力形式: "d4"（列文字 + 行番号）または "3 4"（行インデックス スペース 列インデックス）
 
+using Technopro.Othello.Console;
 using Technopro.Othello.Core.AI;
 using Technopro.Othello.Core.Game;
 using Technopro.Othello.Core.Models;
@@ -22,8 +23,8 @@ Console.WriteLine();
 Console.WriteLine($"設定: あなた = {humanColor.ToDisplayString()}, AI = {aiColor.ToDisplayString()}, 難易度 = {difficulty.ToDisplayString()}");
 Console.WriteLine();
 
-// 実行ディレクトリの Othello.Python/ai.py を使用する
-string scriptPath = Path.Combine(AppContext.BaseDirectory, "Othello.Python", "ai.py");
+// AiScriptPaths でパスを一元管理する（GameViewModel と同じパス解決ロジック）
+string scriptPath = AiScriptPaths.AiScriptPath;
 if (!File.Exists(scriptPath))
 {
     // スクリプトが見つからない場合はエラーを表示して終了する
@@ -66,8 +67,19 @@ while (engine.GameState.IsGameInProgress())
         Console.Write($"AI（{aiColor.ToDisplayString()}）が考え中...");
 
         // Python AI に盤面を送信して最善手を受け取る
-        var bestMove = ai.GetBestMove(engine.CurrentBoard, aiColor);
-        Console.WriteLine($" → {ColChar(bestMove.Column)}{bestMove.Row + 1}");
+        Position bestMove;
+        try
+        {
+            bestMove = ai.GetBestMove(engine.CurrentBoard, aiColor);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine();
+            Console.Error.WriteLine($"AI エラー: {ex.Message}");
+            Console.Error.WriteLine("ゲームを終了します。");
+            return;
+        }
+        Console.WriteLine($" → {ConsoleInputParser.ColChar(bestMove.Column)}{bestMove.Row + 1}");
         engine.MakeMove(bestMove);
         PrintPassNoticeIfAny(engine);
     }
@@ -204,7 +216,7 @@ static Position? GetHumanMove(GameEngine engine, PlayerColor humanColor, List<Po
             return null; // null を返すことで呼び出し元のループを継続させる
         }
 
-        Position? pos = ParseInput(input);
+        Position? pos = ConsoleInputParser.ParseInput(input);
         if (pos == null)
         {
             // 入力形式が不正
@@ -223,44 +235,3 @@ static Position? GetHumanMove(GameEngine engine, PlayerColor humanColor, List<Po
     }
 }
 
-/// <summary>
-/// 文字列入力を Position に変換する。
-/// "d4" 形式（列文字 a-h + 行番号 1-8）または "3 4" 形式（行列インデックス 0-7）をサポートする。
-/// </summary>
-/// <param name="input">変換対象の文字列（小文字変換済み）</param>
-/// <returns>有効な座標であれば Position、不正入力であれば null</returns>
-static Position? ParseInput(string input)
-{
-    try
-    {
-        // "d4" 形式: 先頭が文字、2 文字目が数字の場合
-        if (input.Length == 2 && char.IsLetter(input[0]) && char.IsDigit(input[1]))
-        {
-            int col = input[0] - 'a'; // 'a'=0, 'b'=1, ... 'h'=7
-            int row = input[1] - '1'; // '1'=0, '2'=1, ... '8'=7
-            if (Position.IsValid(row, col))
-                return new Position(row, col);
-        }
-
-        // "3 4" 形式: スペース区切りで 2 つの整数
-        var parts = input.Split(' ');
-        if (parts.Length == 2 && int.TryParse(parts[0], out int r) && int.TryParse(parts[1], out int c))
-        {
-            if (Position.IsValid(r, c))
-                return new Position(r, c);
-        }
-    }
-    catch
-    {
-        // 例外はすべて null 返却で吸収する
-    }
-
-    return null;
-}
-
-/// <summary>
-/// 列インデックス（0-7）を対応する列文字（'a'-'h'）に変換する。
-/// </summary>
-/// <param name="col">列インデックス（0=a, 7=h）</param>
-/// <returns>対応する列文字</returns>
-static char ColChar(int col) => (char)('a' + col);

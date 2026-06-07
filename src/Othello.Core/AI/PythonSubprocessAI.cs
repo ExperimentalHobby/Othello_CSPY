@@ -20,6 +20,11 @@ using Technopro.Othello.Core.Models;
 /// </summary>
 public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
 {
+    /// <summary>Python AI からの応答を待つ最大時間（ミリ秒）。Hard 難易度は時間がかかるため十分な余裕を持つ。</summary>
+    private const int AiResponseTimeoutMs = 60_000;
+    /// <summary>Python 実行可能ファイルの候補を検出する際のプロセス起動タイムアウト（ミリ秒）。</summary>
+    private const int PythonProbeTimeoutMs = 3_000;
+
     /// <summary>起動した Python プロセスの参照</summary>
     private readonly Process _process;
 
@@ -116,11 +121,13 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
             throw new InvalidOperationException(ReadProcessError("Python プロセスが予期せず終了しました"));
 
         // 盤面・手番・探索深さを JSON にシリアライズして送信する
+        // time_ms: Hard 難易度のみ反復深化用の時間制限を付加する。null の場合は固定深さ探索
         var request = new
         {
-            board  = SerializeBoard(board),
-            player = (int)playerColor,            // 1=黒, 2=白
-            depth  = Difficulty.GetSearchDepth()  // 難易度に応じた探索深さ
+            board   = SerializeBoard(board),
+            player  = (int)playerColor,              // 1=黒, 2=白
+            depth   = Difficulty.GetSearchDepth(),   // 難易度に応じた探索深さ
+            time_ms = Difficulty.GetTimeLimitMs()    // Hard=8000, Easy/Normal=null
         };
 
         string json = JsonSerializer.Serialize(request);
@@ -129,7 +136,7 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
 
         // Python 側から 1 行（JSON）を読む（タイムアウト付き）
         // ReadLine() はプロセスが応答しない場合に無限ブロックするため、スレッドで制限する
-        string? response = ReadLineWithTimeout(timeoutMs: 60_000);
+        string? response = ReadLineWithTimeout(timeoutMs: AiResponseTimeoutMs);
         if (response == null)
             throw new InvalidOperationException(ReadProcessError("Python AI プロセスが応答しませんでした"));
 
@@ -204,7 +211,7 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
     /// </summary>
     /// <param name="board">変換元の盤面</param>
     /// <returns>8×8 の int 配列（行優先）</returns>
-    private static int[][] SerializeBoard(Board board)
+    internal static int[][] SerializeBoard(Board board)
     {
         var grid = new int[8][];
         for (int r = 0; r < 8; r++)
@@ -246,7 +253,7 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
 
                 if (probe == null) continue;
 
-                bool exited = probe.WaitForExit(3000);
+                bool exited = probe.WaitForExit(PythonProbeTimeoutMs);
 
                 if (!exited)
                 {

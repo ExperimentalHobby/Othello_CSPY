@@ -43,6 +43,22 @@ if _rust is not None:
                 tuple[int, int] | None: 最善手の (row, col)、有効手なしの場合は None
             """
             return _rust.get_best_move(board, player, depth)
+
+        def get_best_move_timed(self, board, player, max_depth, time_ms):
+            """
+            反復深化探索（Iterative Deepening）で最善手を返す。
+            Rust 実装に委譲する。
+
+            Args:
+                board (list[list[int]]): 現在の盤面（8×8、0=Empty, 1=Black, 2=White）
+                player (int): AI が担当するプレイヤーの色（1=Black, 2=White）
+                max_depth (int): 反復深化の最大深さ
+                time_ms (int): 時間制限（ミリ秒）
+
+            Returns:
+                tuple[int, int] | None: 最善手の (row, col)、有効手なしの場合は None
+            """
+            return _rust.get_best_move_timed(board, player, max_depth, time_ms)
 else:
     # Rust 拡張が無い環境向けの純 Python フォールバック
     from alpha_beta_py import AlphaBetaAI  # noqa: F401  （再エクスポート）

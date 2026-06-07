@@ -12,6 +12,7 @@ public static class FlipCalculator
     /// <summary>
     /// 探索する 8 方向のベクトル（dRow, dCol）。
     /// 上・下・左・右・左上・右上・左下・右下の順。
+    /// 同一の方向定義: board.py の DIRS、lib.rs の DIRS（並び順は異なるが 8 方向の集合は同一）。
     /// </summary>
     private static readonly (int dRow, int dCol)[] Directions =
     [

@@ -14,12 +14,16 @@ public class BoardSquareViewModel : ViewModelBase
     private PlayerColor _piece = PlayerColor.Empty;
     private bool _isValidMove;
     private bool _hasPiece;
+    private bool _isBeingFlipped;
 
     public PlayerColor Piece { get => _piece; set => SetProperty(ref _piece, value); }
 
     public bool IsValidMove { get => _isValidMove; set => SetProperty(ref _isValidMove, value); }
 
     public bool HasPiece { get => _hasPiece; set => SetProperty(ref _hasPiece, value); }
+
+    /// <summary>着手後の反転アニメーション中であることを示すフラグ。UI 層がアニメーションを駆動するために使用する。</summary>
+    public bool IsBeingFlipped { get => _isBeingFlipped; set => SetProperty(ref _isBeingFlipped, value); }
 
     public BoardSquareViewModel(Position position)
     {

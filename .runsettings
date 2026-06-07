@@ -19,4 +19,18 @@
     <CollectFromChildProcesses>true</CollectFromChildProcesses>
     <CollectAspDotNet>false</CollectAspDotNet>
   </CodeCoverage>
+  <!-- Coverlet (XPlat Code Coverage) 用設定。
+       `dotnet test --collect "XPlat Code Coverage"` 実行時に適用される。
+       レポートは coverage/ ディレクトリに Cobertura 形式で出力される。 -->
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <Include>[Technopro.Othello.Core]*,[Technopro.Othello.ViewModels]*,[Technopro.Othello.Console]*</Include>
+          <ExcludeByFile>**/obj/**,**/Migrations/**</ExcludeByFile>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
 </RunSettings>

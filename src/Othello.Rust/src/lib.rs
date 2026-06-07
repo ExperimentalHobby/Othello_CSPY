@@ -19,6 +19,7 @@
 use pyo3::exceptions::PyValueError;
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
+use std::time::{Duration, Instant};
 
 /// 盤面の一辺のサイズ（オセロは常に 8×8）
 const SIZE: usize = 8;
@@ -309,6 +310,111 @@ fn best_move(board: &Board, player: i8, depth: i32) -> Option<(usize, usize)> {
     Some(best)
 }
 
+/// タイムアウト検出用の Result 型エイリアス（Err(()) = 時間切れ）。
+type TimedResult = Result<i32, ()>;
+
+/// 時間制限付きアルファベータ探索（alpha_beta と同一ロジック、deadline 超過で Err(()) を返す）。
+fn alpha_beta_timed(
+    board: &Board,
+    depth: i32,
+    mut alpha: i32,
+    mut beta: i32,
+    is_maximizing: bool,
+    ai_player: i8,
+    deadline: Instant,
+) -> TimedResult {
+    if Instant::now() >= deadline {
+        return Err(());
+    }
+
+    if depth == 0 {
+        return Ok(evaluate(board, ai_player));
+    }
+
+    let current = if is_maximizing { ai_player } else { opponent(ai_player) };
+    let mut moves = get_valid_moves(board, current);
+
+    if moves.is_empty() {
+        if !has_any_valid_move(board, opponent(current)) {
+            return Ok(evaluate_final(board, ai_player, depth));
+        }
+        return alpha_beta_timed(board, depth - 1, alpha, beta, !is_maximizing, ai_player, deadline);
+    }
+
+    moves.sort_by(|a, b| WEIGHTS[b.0][b.1].cmp(&WEIGHTS[a.0][a.1]));
+
+    if is_maximizing {
+        let mut value = NEG_INF;
+        for (r, c) in moves {
+            let next = make_move(board, r, c, current);
+            value = value.max(alpha_beta_timed(&next, depth - 1, alpha, beta, false, ai_player, deadline)?);
+            alpha = alpha.max(value);
+            if alpha >= beta {
+                break;
+            }
+        }
+        Ok(value)
+    } else {
+        let mut value = INF;
+        for (r, c) in moves {
+            let next = make_move(board, r, c, current);
+            value = value.min(alpha_beta_timed(&next, depth - 1, alpha, beta, true, ai_player, deadline)?);
+            beta = beta.min(value);
+            if alpha >= beta {
+                break;
+            }
+        }
+        Ok(value)
+    }
+}
+
+/// 反復深化探索（Iterative Deepening）で最善手を返す（get_best_move_timed の内部実装）。
+/// 深さ 1 から max_depth まで繰り返し探索し、time_ms 以内に完了した最深の結果を返す。
+fn best_move_timed(board: &Board, player: i8, max_depth: i32, time_ms: u64) -> Option<(usize, usize)> {
+    let mut moves = get_valid_moves(board, player);
+    if moves.is_empty() {
+        return None;
+    }
+
+    let deadline = Instant::now() + Duration::from_millis(time_ms);
+    moves.sort_by(|a, b| WEIGHTS[b.0][b.1].cmp(&WEIGHTS[a.0][a.1]));
+
+    // 最低限の初期値（深さ 1 の完了で必ず上書きされる）
+    let mut best = moves[0];
+
+    'outer: for depth in 1..=max_depth {
+        if Instant::now() >= deadline {
+            break;
+        }
+
+        let mut current_best       = moves[0];
+        let mut current_best_score = NEG_INF;
+        let mut alpha              = NEG_INF;
+        let beta                   = INF;
+
+        for &(r, c) in &moves {
+            let next = make_move(board, r, c, player);
+            match alpha_beta_timed(&next, depth - 1, alpha, beta, false, player, deadline) {
+                Ok(score) => {
+                    if score > current_best_score {
+                        current_best_score = score;
+                        current_best = (r, c);
+                    }
+                    alpha = alpha.max(current_best_score);
+                }
+                Err(()) => {
+                    // 探索途中でタイムアウト → この深さの結果は破棄して前の深さの結果を使う
+                    break 'outer;
+                }
+            }
+        }
+
+        best = current_best;
+    }
+
+    Some(best)
+}
+
 // ===== PyO3 バインディング（python フィーチャ有効時のみコンパイル） =====
 
 /// Python へ公開する最善手計算関数。
@@ -345,11 +451,49 @@ fn get_best_move(board: Vec<Vec<i8>>, player: i8, depth: i32) -> PyResult<Option
     Ok(best_move(&internal, player, depth))
 }
 
+/// Python へ公開する反復深化最善手計算関数。
+///
+/// 引数:
+///   board     : 8×8 の int 配列（0=Empty, 1=Black, 2=White）
+///   player    : AI が担当するプレイヤーの色（1=Black, 2=White）
+///   max_depth : 反復深化の最大探索深さ
+///   time_ms   : 時間制限（ミリ秒）
+///
+/// 戻り値: 最善手 (row, col) のタプル。有効手がない場合は None。
+#[cfg(feature = "python")]
+#[pyfunction]
+fn get_best_move_timed(
+    board: Vec<Vec<i8>>,
+    player: i8,
+    max_depth: i32,
+    time_ms: u64,
+) -> PyResult<Option<(usize, usize)>> {
+    if player != 1 && player != 2 {
+        return Err(PyValueError::new_err(format!(
+            "Invalid player value: {player}. Must be BLACK(1) or WHITE(2)."
+        )));
+    }
+
+    if board.len() != SIZE || board.iter().any(|row| row.len() != SIZE) {
+        return Err(PyValueError::new_err("board must be 8x8"));
+    }
+
+    let mut internal: Board = [EMPTY; SIZE * SIZE];
+    for r in 0..SIZE {
+        for c in 0..SIZE {
+            internal[idx(r, c)] = board[r][c];
+        }
+    }
+
+    Ok(best_move_timed(&internal, player, max_depth, time_ms))
+}
+
 /// Python 拡張モジュール othello_ai_rust の定義。
 #[cfg(feature = "python")]
 #[pymodule]
 fn othello_ai_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(get_best_move, m)?)?;
+    m.add_function(wrap_pyfunction!(get_best_move_timed, m)?)?;
     Ok(())
 }
 
@@ -508,6 +652,30 @@ mod tests {
         let mv = best_move(&board, BLACK, 3).expect("should find a move");
         let legal = get_valid_moves(&board, BLACK);
         assert!(legal.contains(&mv));
+    }
+
+    #[test]
+    fn best_move_timed_returns_none_without_valid_moves() {
+        let full = filled_board(BLACK);
+        assert_eq!(best_move_timed(&full, WHITE, 3, 5000), None);
+    }
+
+    #[test]
+    fn best_move_timed_returns_legal_move() {
+        let board = initial_board();
+        let mv = best_move_timed(&board, BLACK, 5, 5000).expect("should find a move");
+        let legal = get_valid_moves(&board, BLACK);
+        assert!(legal.contains(&mv));
+    }
+
+    #[test]
+    fn best_move_timed_respects_time_limit() {
+        // 極端に短い制限時間でも有効手を返すことを確認する（深さ 1 で少なくとも結果を出す）
+        let board = initial_board();
+        let mv = best_move_timed(&board, BLACK, 10, 1);
+        assert!(mv.is_some());
+        let legal = get_valid_moves(&board, BLACK);
+        assert!(legal.contains(&mv.unwrap()));
     }
 
     #[test]

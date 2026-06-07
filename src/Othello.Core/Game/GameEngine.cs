@@ -116,9 +116,11 @@ public class GameEngine
     /// <summary>
     /// 現在のプレイヤーがパスする（有効手がない場合のみ呼び出し可能）。
     /// 両者ともに有効手がない場合は AdvanceTurn 内でゲームを終了する。
+    /// UI/コンソールは AdvanceTurn による自動スキップを利用するため、このメソッドを直接呼ばない。
+    /// テスト・将来の拡張のために残す。
     /// </summary>
     /// <exception cref="InvalidOperationException">ゲームが進行中でない、またはパス不可能な場合</exception>
-    public void Pass()
+    internal void Pass()
     {
         // ゲーム終了後のパスは不正
         if (!_gameState.IsGameInProgress())
@@ -201,7 +203,8 @@ public class GameEngine
         {
             PlayerColor.Black => GameState.BlackTurn,
             PlayerColor.White => GameState.WhiteTurn,
-            // Empty など想定外の値が来た場合は状態を変えない
+            // AdvanceTurn は常に Black/White のみを _currentPlayer にセットするため実際には到達しない。
+            // C# のパターンマッチング網羅性のために記載する。
             _ => _gameState
         };
     }
@@ -217,7 +220,9 @@ public class GameEngine
             PlayerColor.Black => GameState.BlackWon,
             PlayerColor.White => GameState.WhiteWon,
             null              => GameState.Draw,    // 同数 → 引き分け
-            _                 => GameState.GameOver // 想定外（フォールバック）
+            // GetGameResult は Black/White/null のみを返すため、このケースは実際には到達しない。
+            // C# のパターンマッチング網羅性のために記載する。
+            _                 => GameState.GameOver
         };
     }
 

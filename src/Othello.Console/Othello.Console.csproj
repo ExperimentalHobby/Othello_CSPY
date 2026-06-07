@@ -9,6 +9,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- テストから ConsoleInputParser (internal) にアクセスできるようにする -->
+    <InternalsVisibleTo Include="Othello.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Othello.Core\Othello.Core.csproj" />
   </ItemGroup>
 

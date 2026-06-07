@@ -9,6 +9,7 @@
     <Grid Background="#2d5016">
         <Grid.Resources>
             <conv:BoolToVisibilityConverter x:Key="BoolToVisConverter"/>
+            <conv:InverseBooleanConverter x:Key="InverseBoolConverter"/>
             <conv:PlayerColorToBrushConverter x:Key="PlayerColorToBrushConverter"/>
 
             <!-- メニューボタン共通スタイル -->
@@ -97,15 +98,17 @@
                 <ColumnDefinition Width="220"/>
             </Grid.ColumnDefinitions>
 
-            <!-- ボード -->
+            <!-- ボード: AI 思考中はヒットテストを無効化して誤クリックを防ぐ（WPF 版と対称） -->
             <Border Grid.Column="0" Margin="40" BorderBrush="Black" BorderThickness="4"
                     Background="#4a7c2f"
+                    IsHitTestVisible="{Binding IsAIThinking, Converter={StaticResource InverseBoolConverter}}"
                     SizeChanged="OnBoardBorderSizeChanged">
                 <ItemsRepeater x:Name="BoardRepeater"
                                ItemsSource="{Binding BoardSquares}">
                     <ItemsRepeater.Layout>
                         <UniformGridLayout MaximumRowsOrColumns="8" Orientation="Horizontal"
-                                           MinItemWidth="110" MinItemHeight="110"/>
+                                           MinItemWidth="110" MinItemHeight="110"
+                                           ItemsStretch="Fill"/>
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate>

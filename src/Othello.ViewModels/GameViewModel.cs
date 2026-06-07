@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.IO;
 using System.Windows.Input;
 using Technopro.Othello.Core.AI;
 using Technopro.Othello.Core.Game;
@@ -15,6 +14,13 @@ namespace Technopro.Othello.ViewModels;
 /// </summary>
 public class GameViewModel : ViewModelBase, IDisposable
 {
+    /// <summary>AI 着手前に挿入する演出用待機時間（ミリ秒）。</summary>
+    private const int AiMoveDelayMs = 300;
+    /// <summary>AI の連続手番（自分のパス後など）の前に挿入する演出用待機時間（ミリ秒）。</summary>
+    private const int AiTurnDelayMs = 500;
+    /// <summary>石の反転アニメーション全体の所要時間（ミリ秒）。IsBeingFlipped が True を維持する時間。</summary>
+    private const int FlipAnimationDurationMs = 300;
+
     private readonly GameEngine _engine = new();
 
     /// <summary>難易度から AI 実装を生成するファクトリ（テスト時はモックを注入できる）。</summary>
@@ -128,8 +134,7 @@ public class GameViewModel : ViewModelBase, IDisposable
     /// </summary>
     private static IAIStrategy CreateDefaultAI(DifficultyLevel difficulty)
     {
-        string scriptPath = Path.Combine(AppContext.BaseDirectory, "Othello.Python", "ai.py");
-        return new PythonSubprocessAI(difficulty, scriptPath);
+        return new PythonSubprocessAI(difficulty, AiScriptPaths.AiScriptPath);
     }
 
     /// <summary>
@@ -206,6 +211,7 @@ public class GameViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        _ = AnimateFlipsAsync(result.FlippedPieces);
         NotifyIfPassed();
         OnPropertyChanged(nameof(IsSettingsEditable));
         RefreshBoardDisplay();
@@ -241,6 +247,10 @@ public class GameViewModel : ViewModelBase, IDisposable
 
     private async Task ProcessAIMoveAsync(CancellationToken ct)
     {
+        // スレッド安全性の前提: このメソッドの await 後は UI の SynchronizationContext に
+        // 戻るため、_engine へのアクセスは実質 UI スレッドからのみとなる。
+        // SynchronizationContext のないテスト環境や非 UI 利用では別途直列化が必要。
+        //
         // エンジンが手番のないプレイヤーを CurrentPlayer に残さない（AdvanceTurn が自動スキップ）ため、
         // ここに来た時点で AI には必ず有効手がある。明示的なパス処理は不要。
         if (!_engine.GameState.IsGameInProgress())
@@ -258,7 +268,7 @@ public class GameViewModel : ViewModelBase, IDisposable
 
         try
         {
-            await Task.Delay(300, ct);
+            await Task.Delay(AiMoveDelayMs, ct);
 
             var aiColor = AiColor;
             var ai      = _ai;
@@ -266,7 +276,8 @@ public class GameViewModel : ViewModelBase, IDisposable
 
             ct.ThrowIfCancellationRequested();
 
-            _engine.MakeMove(bestMove);
+            var moveResult = _engine.MakeMove(bestMove);
+            _ = AnimateFlipsAsync(moveResult.FlippedPieces);
             NotifyIfPassed();
             OnPropertyChanged(nameof(IsSettingsEditable));
             RefreshBoardDisplay();
@@ -276,7 +287,7 @@ public class GameViewModel : ViewModelBase, IDisposable
             {
                 if (_engine.CurrentPlayer == AiColor)
                 {
-                    await Task.Delay(500, ct);
+                    await Task.Delay(AiTurnDelayMs, ct);
                     await ProcessAIMoveAsync(ct);
                 }
                 else if (_engine.LastPassedPlayer != HumanColor)
@@ -332,6 +343,32 @@ public class GameViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(IsSettingsEditable));
         RefreshBoardDisplay();
         UpdateScoreBoardState();
+    }
+
+    /// <summary>
+    /// 反転する石の IsBeingFlipped を FlipAnimationDurationMs の間 true にして UI 層のアニメーションをトリガーする。
+    /// fire-and-forget で呼び出す。
+    /// </summary>
+    private async Task AnimateFlipsAsync(IReadOnlyList<Position> flipped)
+    {
+        if (flipped.Count == 0) return;
+
+        var targets = BoardSquares
+            .Where(sq => flipped.Contains(sq.Position))
+            .ToList();
+
+        try
+        {
+            foreach (var sq in targets)
+                sq.IsBeingFlipped = true;
+
+            await Task.Delay(FlipAnimationDurationMs);
+        }
+        finally
+        {
+            foreach (var sq in targets)
+                sq.IsBeingFlipped = false;
+        }
     }
 
     private void RefreshBoardDisplay()

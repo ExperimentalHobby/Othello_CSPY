@@ -15,6 +15,7 @@ EMPTY, BLACK, WHITE = 0, 1, 2
 
 # 探索する 8 方向のベクトル (dRow, dCol)
 # 上・右上・右・右下・下・左下・左・左上 の順
+# 同一の方向定義: Othello.Rust/src/lib.rs の DIRS、Othello.Core/Rules/FlipCalculator.cs の Directions
 DIRS = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
 
 

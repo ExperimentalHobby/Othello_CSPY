@@ -96,6 +96,17 @@
 			"problemMatcher": "$msCompile"
 		},
 		{
+			"label": "test: Coverage",
+			"type": "shell",
+			"command": "dotnet test Othello.WPF.sln --collect \"XPlat Code Coverage\" --results-directory coverage",
+			"group": "test",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			},
+			"problemMatcher": "$msCompile"
+		},
+		{
 			"label": "test: Rust",
 			"type": "shell",
 			"command": "cargo test --manifest-path src/Othello.Rust/Cargo.toml --no-default-features",

@@ -17,6 +17,7 @@ from board import count_valid_moves, opponent, BOARD_SIZE
 # X-square（コーナー斜め隣）: -50  相手にコーナーを与えるリスクが高い
 # 辺（端の行・列）: +10  比較的安定した位置
 # 中央付近: +1〜+5  ゲーム序盤は重要だが終盤では相対的に価値が下がる
+# 同一の値: Othello.Rust/src/lib.rs の WEIGHTS と一致させること（test_parity.py が担保）
 WEIGHTS = [
     [100, -20, 10,  5,  5, 10, -20, 100],
     [-20, -50, -2, -2, -2, -2, -50, -20],
