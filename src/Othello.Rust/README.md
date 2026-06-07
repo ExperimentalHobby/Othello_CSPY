@@ -53,6 +53,11 @@ py -m unittest discover -s src/Othello.Python -p "test_*.py"
 
 ## 探索シーケンス
 
+![Rust アルファベータ探索シーケンス](https://www.plantuml.com/plantuml/svg/TLHHJzfG57xlhxZp2I9i-4gcKHDvSpDxC34X8GMgDYijeSN9dcWx6QWuCL7ZffiojXdTc3WtDSFvi7T-XCU2FkqlxFG2fKMyJ-szvtpt-yxvpXsM5JQX96C2e_2Am95dILaXe1L1FmHz7RGzqBT0hu9sMLyfDawAe9tItmheFq0xPvWuflCHFiwA2kcRI2cpaXWKNQmGdsL3OKvX7yPJxZx2ocHYoXaRvcGb59FcE5VpV7JSUTw1SBc38gHNZKpUE3k2T866ZumwmxavLaYoIXjjRBBtSMYQ5rcX7HHWc8afuXt2oucVp71AgCCgBB69g8V41JR59JmaoiMLMJV3HXH-3d5CkWncsNFn2ZvAasLdjibVtpNhfc-0Ta0_qg0Vq1eU_Qjcho_oZOloxUiyg9UtM_dRtGne5pGi-w-QOnX1akB4M7rLtyuPY-Vrt19n8QM8co6uR2nYx7FEmTwCibZOeaT6CTfMOP6RH-tD7AhKE-09YhMAXzIEFOINGp5sde_nBtbnPd2Q5MJE2MfL1Rj2DoZXbcFq5QeaXpefD1aYFWBg4gWbIm-e6cYBfbRIMiYmpRExjcvobLcpQNMRJ1_LZadztKbzumZqt_NtEqOsYuX6jcIKtmP5lBjMkSfzmY1Glu26vjPRnJKluyHeapShA4tzP72G-33hff2p2UYcDpQ9z2pdENjkXLh5GK-szp3HsvPdRpwE56XeYg9nMWwA_MHS2lC2hwJmb_pT90C-2o7ATUDos1PoVRPtaru0THyqpLRT0r0tKKtZfsPKqZrq16mwMYFIs_ztHGKweW8TKSRI3gXxVjBl6l3Xwc-c1yMRurrG2txYxTetgkkWveriXfxsbXdeo6oy-MDixuE-2VfNq4gWbymMgMKiuLtLe1UmhlUOopO4z_h_WMC0d1ssh6DYjkVGQYFJfQ4z7xQPfI-E794INCk_rAt6wd83GTJlna8MrCERp-QuqA7v2Ee7KvssrlZrhRwichee2HCJGV51yvEdSOMNnCUkXFG2Nm19S0zHrAxQ83nv8ecS2M4ZYK_RC28cOy9_)
+
+<details>
+<summary>PlantUML ソース</summary>
+
 ```plantuml
 @startuml
 title Rust アルファベータ探索シーケンス
@@ -101,6 +106,8 @@ BM --> PY : Option<(row, col)>\n（有効手なしは None）
 deactivate BM
 @enduml
 ```
+
+</details>
 
 ---
 

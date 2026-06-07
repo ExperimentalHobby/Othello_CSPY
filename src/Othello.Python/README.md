@@ -40,6 +40,11 @@ src/Othello.Rust/                  Rust 層（探索本体・PyO3 拡張）
 | `board.py` | 盤面の表現・有効手列挙・着手・反転計算などの純粋関数群（フォールバックが使用） |
 | `Othello.Rust`（`lib.rs`） | 探索・評価・盤面操作の Rust 実装。PyO3 で `get_best_move(board, player, depth)` を Python へ公開する。内部盤面はフラットな `[i8; 64]` で高速に扱う |
 
+![AI モジュール ブロック構成](https://www.plantuml.com/plantuml/svg/XLHDJnD16BxlhtYZbnAnrNZpO43aW4OWuisQPhOTwCRjxcPtIj8OatOtI96WDGgAYf5QGL04n0-C0Zzcs2tz5yx7RbbgrHwQsPbvFkPztfa-Xo2R50kwGZIYO-WV0khLgRjBlNVK-qMz3-nxWNeRrFEekncipWRLcg9OA7i7JM0uDN0Q4idXmPjm_bpFARYh0FjbpO9b6jWWS6kqHFAcCLPKBTlCOiVf7xeDo861CQGfzs8qSX_ususquTZPr0Z9Orqtat8-rOKPQKchb3QejqpT1lLsc5FXzncaO6Xq0FpgDtz_MQWnhJ_GkfL76HKJ5BBKvFce-rvmpRGgky63rzJzJhqtaaIL96tBpIzF8RHDlNdghibojQaYptzLpbWbAUxM1OvnB5DlaTEu1y73UlDBFLIsIjsOy2JIYuYOjc1flcoqbkf7Q_E7-ykjXNemloN0UB8RL3MHdOl1WYTpXtklgBSYpd2Vkc-fjou7WaND2PPx9pAxKNJ8dudnsHH0WbOMQUK7hQo0hgb9s-dU7ICNW1SiJ71Q2EzGTojjJ632gkIGJC6Sn8aULgPoBUgIgO-jXLde7nsYvSV2dwrgHgwJNPOmJ9Gtz4xQY36oFZdE8XJuHnJK-ybQGTHdWRhhOb0MLU9-sqOSZEniljDAF9Qq4GOdFKGVcN7DG7heut1lhhdtgJKzHoi7S0QkcwgcQwJ4jZU_klvsMVArHJb7fsGyM5bDjadBYSCxGhc0xk1sTREchkCioOphcYMNyyZ98ACaPjW4hQpJobfORTu-l1VuFUQwPyzU0f13W8lWa9ncfDY_MIHmTMnaE6qadFORqAD4EoLCZM0d8nSYlM3fg8JjNiXXY-GPL8r1HUnTeBA8hV8BVvV5_fYwFrYfsj1aKgXQ9VWhLBHsy8g5-qJqmqomw7AAI52gowmPXR_wz6ZZin9Do5KUYX0uZliu-YZj3emuSsJgH5vf8nPN68OIQNI04_7iUSdaKSKkF1bL-v-sJc3KN3oX_zkAD3h07ROKmoGOR6qYJy0Sv-yhWCRQrsQLhzRysWgjh1vDh_kpytvrEdXvm9OlzmzS6no-0dvZXbqajkvN6txrdVzeyyZRKp2BXdDsCaUF0tllSgolaux9Z6x2o1Y_qlp2iqk-SRY_v6yyPxjOwgqfVlluOTmPwQ3h0tyisCT6nOB-6m)
+
+<details>
+<summary>PlantUML ソース</summary>
+
 ```plantuml
 @startuml
 title AI モジュール ブロック構成
@@ -91,6 +96,8 @@ end note
 @enduml
 ```
 
+</details>
+
 ---
 
 ## 3. C# との通信仕様（IPC プロトコル）
@@ -113,6 +120,11 @@ EndGame() / 新規ゲーム開始
 ```
 
 > Python プロセス内では、`ai.py` が受け取ったリクエストを Rust 拡張（`othello_ai_rust.get_best_move`）へ委譲します（未ビルド時は純 Python 実装）。**C# から見た通信仕様は AI の実装言語に依らず不変**で、C# 側（`PythonSubprocessAI`）に変更はありません。
+
+![AI サブプロセス通信シーケンス](https://www.plantuml.com/plantuml/svg/dLHVRz9G57_lfxYfBv00EeqlF9WLeWOVvaAVp5Z8XTv8az8sxMMJc2NGcon3C3EweJ76o8jkBijqIeQAySDSof-dVGLFMncKlIpsgJazlp_dd1yisnHRj5BM1AfIZI0fWxZJvQpDsMlEZhdpYpi_9hMtWpyTxfnnrkVELyw-GL4GJ42gHTN4EaLY-bfEZwnMQSdGvKh1j8mYiMqf4nKHjb5Q3ZS7VG30QiAi1ZshZy8zM3DBE5yW54CBj7BsWZF6dHFk77WEM6DIxmsVlG_GKYgCpbPiYeRDZjll0jQW9Q9fHXwhUGi-193iWgdHzpqqCtQXdfyPl2S8QHd5xy0hIYBPszmAsRoFooGIpUcyrZAhA5v1_b2yzfmxByVTCxUvB-0YLJSm9TwGWcOO9Ypvr5ic-p2fdOuxhK7lM43mpD7RL55rj0GVqGFvuKfEVoeM36mfOd9jBP58hA_7H5F3LMA9oQMOg12JbiJaxIsV9gJd5O0HUAKKy3uc5EQoQRviR928Jnb30LCC-JJHC0UiDYXe5CsjbTTRxixXQE_0tJqPiz_d_Hs8YTlhdVSRVhltW238PcMGNJX1ugesGbRWPDCQaCQd8qKiOpE6YeOsWoXa4KGqc_pp_-upPwyuEu8CWMtEzhbpw5_Zw29abwU0yuEKvEKY1R6GClytWfUYQT6ZlE8GKnZHbU0QdgbfL1QWSx3fxRpxGtTQ3e9bL6WuMK0W9c_6HE0GaxUsX4lgWYyy5y-xkX847rr7m_QNySVTMQJRJVTJCwS72OPVmQJTuFKtt6aAypxc_s56NMVmSnkEGPwe5DtmjX-MNmRzIbdx2m)
+
+<details>
+<summary>PlantUML ソース</summary>
 
 ```plantuml
 @startuml
@@ -158,6 +170,8 @@ PY --> CS : プロセス終了（exit 0）
 deactivate PY
 @enduml
 ```
+
+</details>
 
 ### リクエスト（C# → Python stdin）
 
