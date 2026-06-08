@@ -173,6 +173,220 @@ deactivate PY
 
 </details>
 
+### 3-1. 通常時（Rust 拡張あり）の処理フロー
+
+`alpha_beta.py` が `othello_ai_rust` の import に成功（`BACKEND = "rust"`）した場合のフローです。探索・評価・盤面操作はすべて Rust 内部で完結するため、`board.py` / `evaluator.py` は呼び出されません。
+
+![AI 処理フロー ― 通常時（Rust 拡張あり）](https://www.plantuml.com/plantuml/svg/ZPJTRXfN4CVlzob6snjG2BKlUeDhDMuQLMbLjwelZONMOLrMNNOHkyH2KQJzQ304I6iKJ4bjDT2eJjtOJUnQnGvMtY0FuV41ziglq3a7i74kekm5sZsS-StCVpvkMBQIjNDfNR8rMrTXxZQmjJ_xlnJGhwE_YtuNJfqw1CuJrkdqcjvvj_XzphAXLswnxY6w7deFpxibIH8SIOhT_0ZGhQ1JoUJXUWuKBPh9erD5hpOu_8-Lwt5ZyRkydJADXTno9clUKIrhxdPqWLlFgwjVAcar55wQ8P2YPr9AObcr5I9m9fXsIjLrCw5eYIoFWPYWfJDcreuRfuKQV3vty-jRyr_0BCZyVvaegocDaWgXjq-PeFyqSFO7hSfPP_UpC6WMXFAg5POa01usHrXsKZDYyDN2j_E0_Wvw_w3t7BqZz8k1uvwzQSMDU_AogMIJScnnCHgDBYr5v8okvDMi79kEo4arOwVas2VtPmHLP3_6UJNsSuCGwBz6Vvt7unt5ZHzKcvAqx4JQlAk613e2Gs8412uiJDUxw1wmjMDqcoFsf3wnkF6EEj4F0hiTjlruiBila1cgWMPhfW7okr9VBJihF0ZyvrHs6UwH7GNJsoonXqUzKfaL6xrACswSdLJx9tl1MXNTD-WNXFeRwF-DxdRGh0PF2-YTYCCYeQamemlUZdXnkFR-0NeloOc83M1KojxcJkzHk_zl6zqzvZG7VsoILzvnl1NBwBZeqkSpUFiAFeMt-vDr1l74qigFwb0KBi1s_xTdmLORlGFq7vFpyswXl-KGSsPydmjvLz6rf32oXbQz5oqAu29jNY6H-TXAMu5G_z1ZhvppxkyaHwSrS1wWIxtaNHgvE-Wsma1Q6rT29ASgUSmfjffOqGn53uNZ1YjliU9VS6rwYXxu67hr1giquBHO6v-mRXtTAYiMq5s7gN4agcwfF9h1UWdzHqBUaeX9z03CpiBK-qFWpg-KayQ1rFBQS0s-CPSrNRDfFiU7asuXn0fLrdav0Rtisf3ews4dNf_ccWulJtHwum9c9BKLQVGsQWJ334lZvdFOnayaA8Iovce4xfYwOFVRnspl2MVSlvp6yPYREVjYpb-82TyI7NTqEUS4asESA1DHZj4F7-l924ZqMqQIBwtmnUeRxX3kFzWeeVih3DSTkMdmXUgz5bBLg3dEZWipV76Q6Ua6KNDf_Ny0)
+
+<details>
+<summary>PlantUML ソース（アクティビティー図）</summary>
+
+```plantuml
+@startuml
+title AI 処理フロー ― 通常時（Rust 拡張あり）
+
+start
+
+:C# が「py -u ai.py」を起動\n[PythonSubprocessAI.StartNewGame()];
+
+:alpha_beta.py が othello_ai_rust を import\n→ BACKEND = "rust";
+
+while (ゲーム進行中?) is (yes)
+
+  :C# → stdin: JSON リクエスト送信\n{"board":[[...]],"player":1,"depth":5};
+
+  :ai.py: JSON を受信・パース\nget_best_move(board, player, depth) を呼び出す;
+
+  :alpha_beta.py:\nothello_ai_rust.get_best_move(board, player, depth) へ委譲;
+
+  partition "othello_ai_rust （Rust 拡張内部）" {
+    :有効手列挙\n位置重みテーブルで降順ソート（ムーブオーダリング）;
+
+    while (未探索の候補手がある、かつ α < β?) is (yes)
+      :make_move() で盤面コピー＆着手;
+      :get_valid_moves() で次の有効手を列挙;
+      if (終局？\n両者とも有効手なし) then (yes)
+        :evaluate_final()\n勝利 +10000 / 敗北 −10000 / 引き分け 0;
+      elseif (葉ノード？\ndepth == 0) then (yes)
+        :evaluate()\n位置重みスコア + Mobility スコア;
+      else (再帰)
+        :alpha_beta() を depth-1 で再帰呼び出し;
+      endif
+    endwhile (no)
+
+    :最善手 (row, col) を確定;
+  }
+
+  :ai.py → stdout: JSON レスポンス送信\n{"row":row,"col":col};
+
+endwhile (no / EndGame)
+
+:C# が stdin を閉じ Python プロセスを終了;
+
+stop
+@enduml
+```
+
+</details>
+
+---
+
+### 3-2. Python フォールバック時（Rust 未ビルド）の処理フロー
+
+Rust 拡張（`othello_ai_rust.pyd` / `.so`）が配置されていない場合のフローです。`alpha_beta.py` が import の失敗を検知して `alpha_beta_py.AlphaBetaAI` へ切り替えます（`BACKEND = "python"`）。**C# から見た通信仕様は変わりません。**
+
+![AI 処理フロー ― Python フォールバック時（Rust 未ビルド）](https://www.plantuml.com/plantuml/svg/dLNTJXj75BxtKnnjRzOAeN3HctLHGrAKqggqAfLwWP6rn4kywdftPQz3hIZIxcnZx80JC06N5fH0KSf_4cXK813U80_1CFwvuXLwPhp-WQONhI-idPapt_dEETyvSoFjg2adapH2ZkuO6lGF0fjyKPt9KN-U-ZlKFuOpTnw-pJe9omI-IJPma_fRr9-Xla_9oyeYkJZEVvT9Er1PsgJ-d3WiN1mNGY617Wefjpu2warJTzhEmlKCg7gtdQLkaP9IxSrVR6e-QeuqN0ndnkoKTKTBf_i7kuVvxI5juhQQrEJmQ0I1LCDEgB4npL4HWME2vIGqmx1YgXvBSGxKsmKzQLif_4JuZHVKEwLa2Y_huo079vNy37lqxBCmu6KJPDE2Zo-H3uS0b9lzjxuQ6FeS-a2o1Ja9mRTgwpjizzT8I3FI6iXPBSrjJSlH8ANVJJWAsimXXrR-gFSoQluZEvWqRkITrhsDwjDrX4WxbXtIpBW-7WfD97IiXKp9diZryxgxLrkPFZ_OGSPwEl3AAM9Upt8bl1lNJGM-7Fvc26kqYKMXP9sIG-hdwwvtVheIDUzBOvQQYalAo4XtT_VeQ9Ta6sfMIqbARvSKrsmd8IcVF8W8L56U9XmfiITbXA3-M-hFSZxaC6hUrHoiGjg99QrxcYoWkw21s0K2BYokpcBy-spoY7gB0NPd0PMesS_NDt69zVw_e3RAH7Tq5AZKXe_PMIuHkSD1M8Bxt1vf270H9NTwJpNqkF2Qlkms73LvVYjB1VRei5AO4idbQMLF5jYxSYH0mnA9GYrGiYa-N6xexrFoAcgUdnIh9xlroI8NefyB3Fqja7yO6BpznVV369JtHtsnM7-Ue-H4dES3v408g9pAuzNgdwke6UOkrdvVubomeJo2qgQkHprShi7xr_0flD-xef8h0IVL7xLB6KvP4rrmnpAk15rTTj4BUuTUTgk_hTMNLx7DATcd_bFaYEqT-G3ulsJJr7voOfTJkesAAbD_cv8rwg-9HjbjvRa5pNks-eQmr-x5yJFCvS5ApNr8FHGtQHV5swHUkTdBGKS6p3Gaar4TAoNO1IijDgwRgl5XXJNeiQbbbj-0Qxqz-EF3ORxCfijmbYyrTzZnFFMAB9-ZtYpqH0ANV2fmphNP0lKVYreM17C13drzqFDVY5vHOwHbtnuuhIs0TXdaHi4gSyNpawLmXmcFxP8WKSrOKh8Ar-1hQqmtT0V7QdEpTH7dad3P4IN8B5Ta1wywOcWtdomQjP7HwxrStmtZZjOjjrBMc7d1Pw1uCP7Pm_MssacfqGALWppo3eIjL9PSjl0pdeFSbB5mNLqz4bCQhHwqPrfpM5ePfpKjjqL3BujkFMnFIqIJ50uf8QIau1yVZbS83fXn_ZQ5MozSOn9p0lM50lL-QJ-SPVuQaBSYjILKzFbHBiBVHnpwDn0rapJ-1W00)
+
+<details>
+<summary>PlantUML ソース（アクティビティー図）</summary>
+
+```plantuml
+@startuml
+title AI 処理フロー ― Python フォールバック時（Rust 未ビルド）
+
+start
+
+:C# が「py -u ai.py」を起動\n[PythonSubprocessAI.StartNewGame()];
+
+:alpha_beta.py が othello_ai_rust の import を試みる;
+
+if (import 成功?) then (no / 未ビルド)
+  :BACKEND = "python" に設定;
+else (yes)
+  note right: このフローは\nRust 未ビルド時のみ適用
+  stop
+endif
+
+while (ゲーム進行中?) is (yes)
+
+  :C# → stdin: JSON リクエスト送信\n{"board":[[...]],"player":1,"depth":5};
+
+  :ai.py: JSON を受信・パース\nget_best_move(board, player, depth) を呼び出す;
+
+  :alpha_beta.py:\nAlphaBetaAI.get_best_move(board, player, depth) を呼び出す;
+
+  partition "alpha_beta_py.py (AlphaBetaAI)" {
+
+    :board.py: get_valid_moves(board, player)\n→ 有効手リスト取得;
+
+    :ムーブオーダリング\n位置重みテーブル (WEIGHTS) で降順ソート;
+
+    while (未探索の候補手がある、かつ α < β?) is (yes)
+
+      :board.py: make_move(board, row, col, player)\n→ 着手後の盤面（コピー）;
+
+      :board.py: get_valid_moves(board, next_player)\n→ 次プレイヤーの有効手;
+
+      if (終局？\n両者とも有効手なし) then (yes)
+        :evaluator.py: evaluate_final(board, player, depth)\n→ 勝利 +10000 / 敗北 −10000 / 引き分け 0;
+      elseif (葉ノード？\ndepth == 0) then (yes)
+        :evaluator.py: evaluate(board, player);
+        note right
+          board.py: (盤面操作)
+          → 位置重みスコア + Mobility スコア
+        end note
+      else (再帰)
+        :alpha_beta() を depth-1 で再帰呼び出し;
+      endif
+
+    endwhile (no / 全候補手を探索済み)
+
+    :最善手 (row, col) を確定;
+
+  }
+
+  :ai.py → stdout: JSON レスポンス送信\n{"row":row,"col":col};
+
+endwhile (no / EndGame)
+
+:C# が stdin を閉じ Python プロセスを終了;
+
+stop
+@enduml
+```
+
+</details>
+
+モジュール間の呼び出し順をより詳しく示したシーケンス図は以下のとおりです。
+
+![AI Python フォールバック時シーケンス](https://www.plantuml.com/plantuml/svg/dLNVJzjM57xtNt7blO0QCjYqbqXCJI3gs3HMBLMdgQaYGzp6ccDRpWrjD5MAxJPB6jADTWcZWwc9q5PeOT0DGLSe_yjEx2HF_HTsV9qGkwK8pIznhi_vpdT-VVTYZWewpMTbZafK5abqXe2v1rO3h6Mmji1y1URBNl5n-xW9vZvOXs3kWlKN7huvB5ykq8og4B3gO6wutwndOFq4bWNcdywAIJuaN-Tpb3Yhcs0zOXyhRmuh7ATXI6bUqWI54dxgWwGouY4bydEQhiwBkLnqPfGdGevC9OB6dXqw259OAtWsbxyDsWYobX5ISo8Lq0HDJoY1-TIbRbLwne5p_pVFEnfxdtTAAtW0KVSeXYS3Lj7Osp751K7E2rJLFO_kHhtzkjbhj9pwZkSIlnfqc5C5FUqPTtvTxwsrd4Urzj6gPnoRvhYf11dx57CZ4P9mMpGhtheaPCMHqQG2nKMjGCRoX1K1YZKm7tRtzkrgdHFcgRGWKD4j2gUe-A8kY3eIHXWfgwaw9IhDYBAifWGffRlT-RVqaDZhkqvzEQd4ebDVn6UdoIJXDLPfde3nhFjqozv-p76ogceu7IzOfv_qYY-wpSNsmHP7yF7HpT6qf909_4W-JtmrcrI-zxBb8zUkXSFXwzT3l2OB1L7d8nCXFYrgDCD7Fhd3O0BytGD4H5p6_wP8iIyvcifYJYCCCaGyf11XCAD136mjEq1lXi7O-PeP_X-80ruC3L5ZqtrcE01IcW7bWaWU1DgD3KaugnNx_akdKWLh4rS9h38pOWtJfPiPxDADWIsMcXMy0UOcUocwJkuAxk3mV1EVkVJPbGJfhTHwJqfW7Z6JygZ7ij-n5jizND8cM2jiXu-T1wtEtotSOMT_5uowVNVJlbS6wvLTgja7E-wMaluJo3GhV2S6ggMhjq9aNfM3sRwRSMUjYEdQhnV1sFO67cE3YTluCn9Ygd1gmFUKLX5lqzJP4PtdJQPXpy5S1slTJTlOFYdyC9mWKz9Tge3rW9KE5QhCMayc9yculn1-Rl6h6A6_zE9f_Jv17umE2e3_7046AGO5863LpyYDzextCDFsKQrpjDtxeGR6iJjDM5MpHIwGBzKvIPPeWPmS1a3IucdaH3adaiwUQUyM_ILf7pIxnNjWBJ7bFqTHKZSaHP3FMAhpL6YOerrTiyiRvCB4E3vuiQ1SsOlBP6pmtpwiWr6pooKmbiZuUV9KqjpWrxVH0x4P6GosHzQ7uTS0Pi_udMK_L3AqHg5a4gdcQL0Z4O2FV1JY4OEFV7pdRHWCogZwX3QkfBqhmQr7OwVx-uz3SMvKxJ-gISNJOhmVUeqA6B-0MUNyFFoNFFQy_Ky9MotUbgWt-S7m5p5-FYl_1m00)
+
+<details>
+<summary>PlantUML ソース（シーケンス図）</summary>
+
+```plantuml
+@startuml
+title AI サブプロセス通信シーケンス（Python フォールバック時 / Rust 未ビルド）
+
+participant "C#\n(PythonSubprocessAI)" as CS
+participant "Python\n(ai.py)" as PY
+participant "alpha_beta.py\n(バックエンド選択)" as AB
+participant "alpha_beta_py.py\n(AlphaBetaAI)" as ABPY
+participant "evaluator.py\n(評価関数)" as EV
+participant "board.py\n(盤面操作)" as BD
+
+CS -> PY : StartNewGame()\n「py -u ai.py」を起動
+activate PY
+
+note over AB : import othello_ai_rust → 失敗\nBACKEND = "python" に設定
+
+loop ゲーム進行中
+    CS -> PY : stdin 1行 JSON\n{"board":[[...]],"player":1,"depth":5}
+    activate PY
+
+    PY -> AB : get_best_move(board, player, depth)
+    activate AB
+
+    AB -> ABPY : AlphaBetaAI.get_best_move(board, player, depth)
+    activate ABPY
+
+    ABPY -> BD : get_valid_moves(board, player)
+    BD --> ABPY : 有効手リスト
+    note right of ABPY : ムーブオーダリング\n(WEIGHTS 降順ソート)
+
+    loop アルファベータ探索（深さ優先・再帰）
+        ABPY -> BD : make_move(board, row, col, player)
+        BD --> ABPY : 着手後の盤面（コピー）
+
+        ABPY -> BD : get_valid_moves(board, next_player)
+        BD --> ABPY : 次プレイヤーの有効手
+
+        alt 葉ノード（depth == 0）
+            ABPY -> EV : evaluate(board, player)
+            activate EV
+            EV -> BD : (盤面操作)
+            BD --> EV :
+            EV --> ABPY : 位置重みスコア + Mobility スコア
+            deactivate EV
+        else 終局ノード（両者パス）
+            ABPY -> EV : evaluate_final(board, player, depth)
+            activate EV
+            EV --> ABPY : 勝利 +10000 / 敗北 -10000 / 引き分け 0
+            deactivate EV
+        end
+    end
+
+    ABPY --> AB : (row, col)
+    deactivate ABPY
+
+    AB --> PY : (row, col)
+    deactivate AB
+
+    PY --> CS : stdout 1行 JSON\n{"row":2,"col":3}
+    deactivate PY
+end
+
+CS -> PY : EndGame() / 新規ゲーム開始\nstdin を閉じる
+PY --> CS : プロセス終了（exit 0）
+deactivate PY
+@enduml
+```
+
+</details>
+
+---
+
 ### リクエスト（C# → Python stdin）
 
 ```json
