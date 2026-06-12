@@ -5,7 +5,7 @@
 .DESCRIPTION
     1. maturin で abi3 ホイール(.whl)を release ビルドする
     2. ホイール内の拡張モジュール(othello_ai_rust.pyd / othello_ai_rust*.so)を取り出し、
-       src/Othello.Python/ へ配置する（ai.py の作業ディレクトリ＝sys.path 上）
+       src/Othello.AI/Python/ へ配置する（ai.py の作業ディレクトリ＝sys.path 上）
 
     配置後、C# 側の `dotnet build` が *.pyd/*.so を出力ディレクトリへコピーし、
     実行時に Python が Rust 実装を import する（未配置なら純 Python 実装にフォールバック）。
@@ -13,16 +13,16 @@
 .NOTES
     前提: rustup(Rust)・maturin・C リンカ(Windows は VS Build Tools の MSVC link.exe) が導入済みであること。
     純 Rust ロジックのテストのみ行う場合:
-        cargo test --manifest-path src/Othello.Rust/Cargo.toml --no-default-features
+        cargo test --manifest-path src/Othello.AI/Rust/Cargo.toml --no-default-features
 
 .EXAMPLE
-    pwsh -File src/Othello.Rust/build_rust.ps1
+    pwsh -File src/Othello.AI/Rust/build_rust.ps1
 #>
 
 $ErrorActionPreference = "Stop"
 
 $crateDir = $PSScriptRoot
-$pyDir    = Join-Path $crateDir "..\Othello.Python" | Resolve-Path
+$pyDir    = Join-Path $crateDir "..\Python" | Resolve-Path
 $wheelDir = Join-Path $crateDir "target\wheels"
 
 # cargo が PATH に無い場合に備え、rustup 既定の bin を先頭に補う
