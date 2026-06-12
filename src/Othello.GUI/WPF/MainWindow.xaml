@@ -101,15 +101,14 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Button Margin="0" Background="#4a7c2f" BorderBrush="Black" BorderThickness="1"
-                                    Padding="0" VerticalContentAlignment="Top" HorizontalContentAlignment="Center"
+                                    Padding="0" VerticalContentAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                     Command="{Binding RelativeSource={RelativeSource AncestorType=ItemsControl}, Path=DataContext.SquareClickedCommand}"
-                                    CommandParameter="{Binding Position}"
-                                    MinWidth="110" MinHeight="110">
-                                <Grid Background="#4a7c2f" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,8,0,0">
-                                    <Ellipse Fill="Yellow" Opacity="0.6" Width="60" Height="60"
+                                    CommandParameter="{Binding Position}">
+                                <Grid Background="#4a7c2f" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                                    <Ellipse Fill="Yellow" Opacity="0.6" Width="55" Height="55"
                                              Visibility="{Binding IsValidMove, Converter={StaticResource BoolToVisConverter}}"/>
                                     <Ellipse Fill="{Binding Piece, Converter={StaticResource PlayerColorToBrushConverter}}" Stroke="#2a2a2a" StrokeThickness="2"
-                                             Width="85" Height="85"
+                                             Width="78" Height="78"
                                              RenderTransformOrigin="0.5,0.5"
                                              Visibility="{Binding HasPiece, Converter={StaticResource BoolToVisConverter}}">
                                         <Ellipse.RenderTransform>
