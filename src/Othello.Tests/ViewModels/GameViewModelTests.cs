@@ -109,6 +109,8 @@ public class GameViewModelTests
     /// <summary>
     /// 初手前に難易度を変更すると、新しい難易度で AI を作り直してゲームが再起動することを確認する（#3）。
     /// パス条件: 難易度変更後にファクトリが再度呼ばれ、生成された AI の Difficulty が新しい値であること。
+    /// 注: RestartIfConfiguringBeforeFirstMove() は StartNewGameAsync()（非同期）を使うため、
+    ///     ファクトリ呼び出し完了まで待機してから検証する。
     /// </summary>
     [Fact]
     public void ChangingDifficulty_BeforeFirstMove_RestartsWithNewDifficulty()
@@ -119,9 +121,10 @@ public class GameViewModelTests
 
         Assert.Equal(1, created);
 
-        vm.DifficultyIndex = 2; // Hard へ変更 → 初期状態なので再起動
+        vm.DifficultyIndex = 2; // Hard へ変更 → 初期状態なので非同期再起動
 
-        Assert.Equal(2, created);                              // AI を作り直した
+        // 非同期再起動の完了を待機（FakeAI の生成は瞬時なので短時間で確認できる）
+        Assert.True(SpinWait.SpinUntil(() => Volatile.Read(ref created) == 2, Timeout));
         Assert.Equal(DifficultyLevel.Hard, last!.Difficulty); // 新しい難易度が反映されている
         Assert.True(vm.IsGameInProgress);
     }

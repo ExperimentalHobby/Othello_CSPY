@@ -30,7 +30,11 @@ public sealed partial class MainWindow : Window
         _viewModel = new GameViewModel();
         // WinUI3 は Window に DataContext がないため、XAML ルート要素に設定する
         if (this.Content is FrameworkElement root)
+        {
             root.DataContext = _viewModel;
+            // Loaded 後に非同期でゲーム開始することでウィンドウ表示をブロックしない
+            root.Loaded += async (_, _) => await _viewModel.StartNewGameAsync();
+        }
 
         // ウィンドウサイズ・位置を設定
         AppWindow.Resize(new Windows.Graphics.SizeInt32(WindowWidth, WindowHeight));

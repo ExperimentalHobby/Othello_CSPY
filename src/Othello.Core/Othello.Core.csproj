@@ -15,6 +15,7 @@
   <!-- AI フォルダが Othello.AI に移動したため、明示的にコンパイル対象を指定 -->
   <ItemGroup>
     <Compile Include="..\Othello.AI\Core\**\*.cs" />
+    <Compile Include="..\Othello.AI\CSharp\**\*.cs" />
   </ItemGroup>
 
 </Project>

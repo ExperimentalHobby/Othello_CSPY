@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Windows.Input;
 using Technopro.Othello.Core.AI;
 using Technopro.Othello.Core.Game;
@@ -45,6 +46,14 @@ public class GameViewModel : ViewModelBase, IDisposable
 
     public ObservableCollection<BoardSquareViewModel> BoardSquares { get; } = new();
 
+    private string _aiEngineLabel = "AI: ?";
+    /// <summary>現在使用中の AI バックエンド名（メニューバーに表示）。</summary>
+    public string AiEngineLabel
+    {
+        get => _aiEngineLabel;
+        private set => SetProperty(ref _aiEngineLabel, value);
+    }
+
     public int BlackScore { get => _blackScore; set => SetProperty(ref _blackScore, value); }
     public int WhiteScore { get => _whiteScore; set => SetProperty(ref _whiteScore, value); }
     public string CurrentPlayerDisplay { get => _currentPlayerDisplay; set => SetProperty(ref _currentPlayerDisplay, value); }
@@ -86,7 +95,7 @@ public class GameViewModel : ViewModelBase, IDisposable
     private void RestartIfConfiguringBeforeFirstMove()
     {
         if (IsGameInProgress && _engine.IsInitialState)
-            StartNewGame();
+            _ = StartNewGameAsync();
     }
 
     public int DifficultyIndex
@@ -107,34 +116,50 @@ public class GameViewModel : ViewModelBase, IDisposable
     public ICommand SquareClickedCommand { get; }
     public ICommand UndoCommand => _undoCommand;
 
-    /// <summary>既定のコンストラクタ。実際の Python AI を使用する。</summary>
-    public GameViewModel() : this(null) { }
+    /// <summary>
+    /// 既定のコンストラクタ。実際の Python AI を使用する。
+    /// ゲーム開始は呼び出し元（WPF/WinUI3 の Loaded イベント）が StartNewGameAsync() で行う。
+    /// </summary>
+    public GameViewModel() : this(null, startDeferred: true) { }
 
     /// <summary>
     /// AI ファクトリを注入できるコンストラクタ（テスト用にモック AI を差し込める）。
     /// </summary>
     /// <param name="aiFactory">難易度から IAIStrategy を生成するファクトリ。null の場合は Python AI を使う。</param>
-    public GameViewModel(Func<DifficultyLevel, IAIStrategy>? aiFactory)
+    /// <param name="startDeferred">true のとき StartNewGame() をコンストラクタから呼ばない（View 側の Loaded イベントで呼び出す）。</param>
+    public GameViewModel(Func<DifficultyLevel, IAIStrategy>? aiFactory, bool startDeferred = false)
     {
         _aiFactory = aiFactory ?? CreateDefaultAI;
 
-        NewGameCommand       = new RelayCommand(StartNewGame);
+        NewGameCommand       = new RelayCommand(() => _ = StartNewGameAsync());
         SquareClickedCommand = new RelayCommand<Position>(SquareClicked);
 
         _undoCommand = new RelayCommand(OnUndo, () =>
             _engine.GameState.IsGameInProgress() && !IsAIThinking);
 
         InitializeBoard();
-        StartNewGame();
+
+        if (!startDeferred)
+            StartNewGame();
     }
 
     /// <summary>
-    /// 既定の AI 実装（Python サブプロセス）を生成する。
-    /// 出力ディレクトリにコピーされた Othello.Python/ai.py を使用する。
+    /// 既定の AI 実装を生成する。Python サブプロセスを優先し、起動に失敗した場合は C# AI にフォールバックする。
+    /// Task.Run 内（バックグラウンドスレッド）から呼ばれる可能性があるため、
+    /// UI バインド済みプロパティ（AiEngineLabel 等）を更新しない。
+    /// ラベル更新は ApplyNewGameState() で UI スレッド側が行う。
     /// </summary>
-    private static IAIStrategy CreateDefaultAI(DifficultyLevel difficulty)
+    private IAIStrategy CreateDefaultAI(DifficultyLevel difficulty)
     {
-        return new PythonSubprocessAI(difficulty, AiScriptPaths.AiScriptPath);
+        try
+        {
+            return new PythonSubprocessAI(difficulty, AiScriptPaths.AiScriptPath);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Python AI 起動失敗（C# AI で代替）: {ex.Message}");
+            return new AlphaBetaAI(difficulty);
+        }
     }
 
     /// <summary>
@@ -156,6 +181,11 @@ public class GameViewModel : ViewModelBase, IDisposable
                 BoardSquares.Add(new BoardSquareViewModel(new Position(row, col)));
     }
 
+    /// <summary>
+    /// ゲームを同期的に開始する（テスト・Console 用）。
+    /// UI スレッドから呼ぶと FindPythonExecutable() でブロックする可能性がある。
+    /// GUI アプリでは StartNewGameAsync() を使うこと。
+    /// </summary>
     public void StartNewGame()
     {
         _cts?.Cancel();
@@ -177,6 +207,51 @@ public class GameViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        ApplyNewGameState();
+    }
+
+    /// <summary>
+    /// ゲームを非同期で開始する。AI ファクトリ呼び出しをバックグラウンドスレッドで実行し
+    /// UI スレッドのブロックを防ぐ（WPF/WinUI3 の Loaded イベントから呼び出す）。
+    /// </summary>
+    public async Task StartNewGameAsync()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+        IsAIThinking = false;
+
+        (_ai as IDisposable)?.Dispose();
+        _ai = null;
+
+        try
+        {
+            _ai = await Task.Run(() => _aiFactory(Difficulty));
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"AI の起動に失敗しました: {ex.Message}";
+            IsGameInProgress = false;
+            return;
+        }
+
+        ApplyNewGameState();
+    }
+
+    /// <summary>
+    /// AI 生成後の共通初期化処理（StartNewGame / StartNewGameAsync 両方から呼ばれる）。
+    /// 常に UI スレッドから呼ばれる前提。AiEngineLabel の更新もここで行う。
+    /// </summary>
+    private void ApplyNewGameState()
+    {
+        // AI の実装型からバックエンド名を決定（UI スレッドで実行されるため安全）
+        AiEngineLabel = _ai switch
+        {
+            PythonSubprocessAI => AiScriptPaths.IsRustAvailable ? "AI: Rust" : "AI: Python",
+            AlphaBetaAI        => "AI: C#",
+            _                  => "AI: ?"
+        };
+
         _engine.Initialize();
         OnPropertyChanged(nameof(IsSettingsEditable));
         RefreshBoardDisplay();
@@ -188,7 +263,7 @@ public class GameViewModel : ViewModelBase, IDisposable
         UpdateScoreBoardState();
 
         if (AiColor == PlayerColor.Black)
-            _ = ProcessAIMoveAsync(_cts.Token);
+            _ = ProcessAIMoveAsync(_cts!.Token);
     }
 
     private void SquareClicked(Position pos)

@@ -4,7 +4,7 @@
 		{
 			"label": "build: WPF",
 			"type": "shell",
-			"command": "dotnet build Othello.WPF.sln",
+			"command": "dotnet build Othello.sln",
 			"group": {
 				"kind": "build",
 				"isDefault": true
@@ -18,7 +18,7 @@
 		{
 			"label": "build: WinUI3",
 			"type": "shell",
-			"command": "dotnet build Othello.WinUI3.sln",
+			"command": "dotnet build Othello.sln -p:Platform=x64",
 			"group": "build",
 			"presentation": {
 				"reveal": "always",
@@ -40,7 +40,7 @@
 		{
 			"label": "rebuild: WPF",
 			"type": "shell",
-			"command": "dotnet build Othello.WPF.sln --no-incremental",
+			"command": "dotnet build Othello.sln --no-incremental",
 			"group": "build",
 			"presentation": {
 				"reveal": "always",
@@ -51,7 +51,7 @@
 		{
 			"label": "rebuild: WinUI3",
 			"type": "shell",
-			"command": "dotnet build Othello.WinUI3.sln --no-incremental",
+			"command": "dotnet build Othello.sln --no-incremental -p:Platform=x64",
 			"group": "build",
 			"presentation": {
 				"reveal": "always",
@@ -62,7 +62,7 @@
 		{
 			"label": "clean: WPF",
 			"type": "shell",
-			"command": "dotnet clean Othello.WPF.sln",
+			"command": "dotnet clean Othello.sln",
 			"group": "build",
 			"presentation": {
 				"reveal": "always",
@@ -73,7 +73,7 @@
 		{
 			"label": "clean: WinUI3",
 			"type": "shell",
-			"command": "dotnet clean Othello.WinUI3.sln",
+			"command": "dotnet clean Othello.sln -p:Platform=x64",
 			"group": "build",
 			"presentation": {
 				"reveal": "always",
@@ -84,7 +84,7 @@
 		{
 			"label": "test",
 			"type": "shell",
-			"command": "dotnet test Othello.WPF.sln",
+			"command": "dotnet test Othello.sln",
 			"group": {
 				"kind": "test",
 				"isDefault": true
@@ -98,13 +98,26 @@
 		{
 			"label": "test: Coverage",
 			"type": "shell",
-			"command": "dotnet test Othello.WPF.sln --collect \"XPlat Code Coverage\" --results-directory coverage",
+			"command": "dotnet test Othello.sln --collect \"XPlat Code Coverage\" --results-directory coverage",
 			"group": "test",
 			"presentation": {
 				"reveal": "always",
 				"panel": "shared"
 			},
 			"problemMatcher": "$msCompile"
+		},
+		{
+			"label": "test: Report",
+			"dependsOn": ["test: Coverage"],
+			"dependsOrder": "sequence",
+			"type": "shell",
+			"command": "dotnet tool restore && dotnet tool run reportgenerator -reports:coverage/**/coverage.cobertura.xml -targetdir:coverage/html -reporttypes:Html",
+			"group": "test",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			},
+			"problemMatcher": []
 		},
 		{
 			"label": "test: Rust",

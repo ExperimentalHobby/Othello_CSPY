@@ -98,3 +98,21 @@ public class SerializeBoardTests
                 Assert.Equal(2, grid[r][c]);
     }
 }
+
+/// <summary>
+/// AiScriptPaths の回帰テスト。
+/// </summary>
+public class AiScriptPathsTests
+{
+    /// <summary>
+    /// IsRustAvailable は Othello.Python ディレクトリが存在しない場合でも例外を投げず false を返す。
+    /// 修正前は Directory.EnumerateFiles が DirectoryNotFoundException を投げる恐れがあった。
+    /// パス条件: プロパティへのアクセスで例外が発生しないこと（テスト環境では通常 false）。
+    /// </summary>
+    [Fact]
+    public void IsRustAvailable_WhenDirectoryMayNotExist_DoesNotThrow()
+    {
+        var ex = Record.Exception(() => _ = AiScriptPaths.IsRustAvailable);
+        Assert.Null(ex);
+    }
+}

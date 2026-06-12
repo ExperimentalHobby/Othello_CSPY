@@ -4,7 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:Technopro.Othello.WinUI3"
     xmlns:conv="using:Technopro.Othello.WinUI3.Converters"
-    Title="Othello (オセロ) - Python AI">
+    Title="Othello (オセロ) - WinUI3">
 
     <Grid Background="#2d5016">
         <Grid.Resources>
@@ -30,6 +30,10 @@
             <SolidColorBrush x:Key="ButtonForegroundPressed"     Color="White"/>
             <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="Transparent"/>
             <SolidColorBrush x:Key="ButtonBorderBrushPressed"     Color="Transparent"/>
+
+            <!-- AI バッジ色（WPF 版 AppColors.xaml と同値） -->
+            <SolidColorBrush x:Key="AiBadgeBackgroundBrush" Color="#1a1a2e"/>
+            <SolidColorBrush x:Key="AiBadgeForegroundBrush" Color="#7ec8e3"/>
         </Grid.Resources>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -39,6 +43,12 @@
 
         <!-- メニューバー -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Background="#1a3010" Height="50" Spacing="0">
+            <!-- AI エンジン表示 -->
+            <Border Background="{StaticResource AiBadgeBackgroundBrush}" CornerRadius="4" Padding="8,4" Margin="8,0,4,0" VerticalAlignment="Center">
+                <TextBlock Text="{Binding AiEngineLabel}" FontSize="11" FontWeight="Bold"
+                           Foreground="{StaticResource AiBadgeForegroundBrush}" VerticalAlignment="Center"/>
+            </Border>
+            <Rectangle Width="2" Fill="#666666" Margin="4,5" VerticalAlignment="Stretch"/>
             <Button Content="新規ゲーム" Command="{Binding NewGameCommand}"
                     Style="{StaticResource MenuButtonStyle}"/>
             <Button Content="戻す" Command="{Binding UndoCommand}"

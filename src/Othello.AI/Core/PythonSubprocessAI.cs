@@ -99,7 +99,17 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
         };
 
         _process.Start();
-        _process.BeginErrorReadLine();
+        try
+        {
+            _process.BeginErrorReadLine();
+        }
+        catch
+        {
+            try { _process.Kill(); } catch { /* Kill 失敗は無視 */ }
+            _process.Dispose();
+            _process = null!;
+            throw;
+        }
     }
 
     /// <summary>
