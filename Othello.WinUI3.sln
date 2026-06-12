@@ -7,7 +7,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{A1000001-000
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Othello.Core", "src\Othello.Core\Othello.Core.csproj", "{A1000002-0000-0000-0000-000000000002}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Othello.WinUI3", "src\Othello.WinUI3\Othello.WinUI3.csproj", "{A1000007-0000-0000-0000-000000000007}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Othello.WinUI3", "src\Othello.GUI\WinUI3\Othello.WinUI3.csproj", "{A1000007-0000-0000-0000-000000000007}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Othello.Tests", "src\Othello.Tests\Othello.Tests.csproj", "{A1000005-0000-0000-0000-000000000005}"
 EndProject

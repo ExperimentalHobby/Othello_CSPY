@@ -11,20 +11,20 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Othello.Core\Othello.Core.csproj" />
+    <ProjectReference Include="..\..\Othello.Core\Othello.Core.csproj" />
   </ItemGroup>
 
-  <Import Project="..\Othello.ViewModels\Othello.ViewModels.projitems" Label="Shared" />
+  <Import Project="..\..\Othello.ViewModels\Othello.ViewModels.projitems" Label="Shared" />
 
   <ItemGroup>
     <!-- テストファイル（test_*.py）は実行時に不要なため出力にコピーしない -->
-    <Content Include="..\Othello.AI\Python\**\*.py" Exclude="..\Othello.AI\Python\**\test_*.py">
+    <Content Include="..\..\Othello.AI\Python\**\*.py" Exclude="..\..\Othello.AI\Python\**\test_*.py">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>Othello.Python\%(RecursiveDir)%(Filename)%(Extension)</Link>
     </Content>
     <!-- Rust 製 AI 拡張（othello_ai_rust.pyd / .so）。ビルド済みの場合のみ出力にコピーされる。
          未ビルド時は何もマッチせず、Python 側が純 Python 実装にフォールバックする。 -->
-    <Content Include="..\Othello.AI\Python\**\*.pyd;..\Othello.AI\Python\**\*.so">
+    <Content Include="..\..\Othello.AI\Python\**\*.pyd;..\..\Othello.AI\Python\**\*.so">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>Othello.Python\%(RecursiveDir)%(Filename)%(Extension)</Link>
     </Content>

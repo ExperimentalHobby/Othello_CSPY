@@ -133,7 +133,7 @@
 			"dependsOn": ["build: Rust AI"],
 			"dependsOrder": "sequence",
 			"type": "shell",
-			"command": "dotnet publish src/Othello.WPF/Othello.WPF.csproj -c Release -o dist/WPF",
+			"command": "dotnet publish src/Othello.GUI/WPF/Othello.WPF.csproj -c Release -o dist/WPF",
 			"group": "none",
 			"presentation": {
 				"reveal": "always",
@@ -146,7 +146,7 @@
 			"dependsOn": ["build: Rust AI"],
 			"dependsOrder": "sequence",
 			"type": "shell",
-			"command": "dotnet publish src/Othello.WinUI3/Othello.WinUI3.csproj -c Release -o dist/WinUI3",
+			"command": "dotnet publish src/Othello.GUI/WinUI3/Othello.WinUI3.csproj -c Release -o dist/WinUI3",
 			"group": "none",
 			"presentation": {
 				"reveal": "always",
@@ -159,7 +159,7 @@
 			"dependsOn": ["build: Rust AI"],
 			"dependsOrder": "sequence",
 			"type": "shell",
-			"command": "dotnet publish src/Othello.WPF/Othello.WPF.csproj -c Release -o dist/WPF && dotnet publish src/Othello.WinUI3/Othello.WinUI3.csproj -c Release -o dist/WinUI3",
+			"command": "dotnet publish src/Othello.GUI/WPF/Othello.WPF.csproj -c Release -o dist/WPF && dotnet publish src/Othello.GUI/WinUI3/Othello.WinUI3.csproj -c Release -o dist/WinUI3",
 			"group": "none",
 			"presentation": {
 				"reveal": "always",
@@ -170,7 +170,7 @@
 		{
 			"label": "run: WPF",
 			"type": "shell",
-			"command": "dotnet run --project src/Othello.WPF/Othello.WPF.csproj",
+			"command": "dotnet run --project src/Othello.GUI/WPF/Othello.WPF.csproj",
 			"group": "none",
 			"presentation": {
 				"reveal": "always",
@@ -181,7 +181,7 @@
 		{
 			"label": "run: WinUI3",
 			"type": "shell",
-			"command": "dotnet run --project src/Othello.WinUI3/Othello.WinUI3.csproj",
+			"command": "dotnet run --project src/Othello.GUI/WinUI3/Othello.WinUI3.csproj",
 			"group": "none",
 			"presentation": {
 				"reveal": "always",
