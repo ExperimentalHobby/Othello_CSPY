@@ -172,6 +172,18 @@ git diff HEAD~1..HEAD
 - 色リソースが `AppColors.xaml` のキー経由になっているか（直書きでないか）
 - WPF / WinUI3 の両方に変更が反映されているか（ViewModel は共有、View は個別）
 
+**`IValueConverter.Convert()` の例外処理**
+- `catch { }` (bare catch) でバインディングエラーをサイレントに飲み込んでいないか — デバッグ時に問題の原因が特定できなくなる
+- 想定できる例外（`FormatException`、`OverflowException` など）のみを具体的に捕捉し、それ以外は伝播させる:
+  ```csharp
+  // NG: FormatException 以外のバグも隠す
+  catch { return new SolidColorBrush(Colors.Transparent); }
+
+  // OK: 想定できる parse エラーのみ握る
+  catch (FormatException) { return new SolidColorBrush(Colors.Transparent); }
+  ```
+- WinUI3 固有: `StringToBrushConverter` で毎回 `new SolidColorBrush()` を生成していないか — 既存の静的キャッシュ（`AppColors.xaml` 等）を経由できないか確認する
+
 ---
 
 ## dotnet/runtime レビュー基準（C# 一般）
@@ -202,6 +214,25 @@ git diff HEAD~1..HEAD
 - 想定外例外は伝播させるか fail-fast させる
 - `OperationCanceledException` はキャンセルの正常終了として扱い、握り潰さない
 - **例外の握りつぶしに対して積極的に質問する** — try/catch でサイレントに捨てる場合、その例外が本当に「予期できる・回復可能」な状態なのかを問う。そうでなければデバッグを困難にする根本原因隠蔽になる。
+
+**`catch { }` (bare catch / 型なし catch) の禁止**
+- 型を指定しない `catch { }` は `OperationCanceledException` を含む全例外を飲み込む — キャンセルが上位に伝播しなくなる
+- フォールバック目的でも bare catch は使わない。代わりに `when` ガードで OCE を透過させる:
+  ```csharp
+  // NG: キャンセルも飲み込む
+  try { return await _primary.GetAsync(...); }
+  catch { /* fallback */ }
+
+  // OK: OCE は透過、それ以外のエラーでフォールバック
+  try { return await _primary.GetAsync(...); }
+  catch (Exception ex) when (ex is not OperationCanceledException)
+  { /* fallback */ }
+  ```
+- `catch (Exception)` も同様 — `when (ex is not OperationCanceledException)` なしで使っていないか確認する
+- **フォールバックパターン（Primary → Secondary）固有チェック**:
+  1. Primary の `catch` が OCE を透過させているか
+  2. Secondary も同じ `CancellationToken` を受け取っているか
+  3. Secondary の例外も適切に処理されているか（サイレント無限フォールバックになっていないか）
 
 **`out` パラメータの初期化**
 - 全コードパス（エラーパス含む）で `out` パラメータを初期化する
