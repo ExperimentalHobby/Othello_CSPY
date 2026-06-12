@@ -7,9 +7,9 @@ namespace Technopro.Othello.Core.AI;
 public static class AiScriptPaths
 {
     /// <summary>
-    /// 実行ディレクトリ配下の Othello.Python/ai.py への絶対パス。
+    /// 実行ディレクトリ配下の Othello.AI/Python/ai.py への絶対パス。
     /// Python スクリプトは各プロジェクトの Content ビルドアクションで出力ディレクトリにコピーされる。
     /// </summary>
     public static string AiScriptPath =>
-        Path.Combine(AppContext.BaseDirectory, "Othello.Python", "ai.py");
+        Path.Combine(AppContext.BaseDirectory, "Othello.AI", "Python", "ai.py");
 }

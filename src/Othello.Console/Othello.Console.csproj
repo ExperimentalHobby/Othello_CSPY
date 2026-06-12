@@ -19,13 +19,13 @@
 
   <ItemGroup>
     <!-- テストファイル（test_*.py）は実行時に不要なため出力にコピーしない -->
-    <Content Include="..\Othello.Python\**\*.py" Exclude="..\Othello.Python\**\test_*.py">
+    <Content Include="..\Othello.AI\Python\**\*.py" Exclude="..\Othello.AI\Python\**\test_*.py">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>Othello.Python\%(RecursiveDir)%(Filename)%(Extension)</Link>
     </Content>
     <!-- Rust 製 AI 拡張（othello_ai_rust.pyd / .so）。ビルド済みの場合のみ出力にコピーされる。
          未ビルド時は何もマッチせず、Python 側が純 Python 実装にフォールバックする。 -->
-    <Content Include="..\Othello.Python\**\*.pyd;..\Othello.Python\**\*.so">
+    <Content Include="..\Othello.AI\Python\**\*.pyd;..\Othello.AI\Python\**\*.so">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>Othello.Python\%(RecursiveDir)%(Filename)%(Extension)</Link>
     </Content>
