@@ -41,8 +41,17 @@ if (-not $maturin) {
 if (-not $maturin) { throw "maturin が見つかりません。'py -m pip install --user maturin' を実行してください。" }
 
 # ビルド対象の Python インタプリタを解決する（abi3 でも 1 つ必要）
-$python = (& py -c "import sys; print(sys.executable)" 2>$null)
-if (-not $python) { $python = (Get-Command python -ErrorAction SilentlyContinue).Source }
+$python = $null
+foreach ($cmd in @("py", "python", "python3")) {
+    if (Get-Command $cmd -ErrorAction SilentlyContinue) {
+        try {
+            $python = & $cmd -c "import sys; print(sys.executable)" 2>$null
+            if ($python) { break }
+        } catch {
+            # このコマンドが失敗した場合、次を試す
+        }
+    }
+}
 if (-not $python) { throw "Python インタプリタが見つかりません。" }
 
 Write-Host "==> maturin: $maturin"
