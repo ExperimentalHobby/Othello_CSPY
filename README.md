@@ -121,10 +121,10 @@ dotnet build Othello.WPF.sln
 dotnet build Othello.WinUI3.sln
 
 # WPF 版を起動
-dotnet run --project src/Othello.WPF/Othello.WPF.csproj
+dotnet run --project src/Othello.GUI/WPF/Othello.WPF.csproj
 
 # WinUI3 版を起動
-dotnet run --project src/Othello.WinUI3/Othello.WinUI3.csproj
+dotnet run --project src/Othello.GUI/WinUI3/Othello.WinUI3.csproj
 
 # コンソール版を起動
 dotnet run --project src/Othello.Console/Othello.Console.csproj
@@ -177,17 +177,17 @@ dotnet run --project src/Othello.Console/Othello.Console.csproj
 
 ### 3. AI 拡張（Rust）のビルド（任意・高速化）
 
-AI のアルファベータ探索を Rust 実装（[src/Othello.Rust/](src/Othello.Rust/)）へ委譲することで高速化できます。  
+AI のアルファベータ探索を Rust 実装（[src/Othello.AI/Rust/](src/Othello.AI/Rust/)）へ委譲することで高速化できます。  
 **ビルドしない場合でも純 Python 実装で動作する**ため、この手順は任意です（前提ツールは [Rust（任意・AI 高速化）](#rust任意ai-高速化) を参照）。
 
 **ビルド（リポジトリルートから）:**
 
 ```powershell
-pwsh -File src/Othello.Rust/build_rust.ps1
+pwsh -File src/Othello.AI/Rust/build_rust.ps1
 ```
 
 成功すると拡張モジュール `othello_ai_rust.pyd`（Windows）/ `othello_ai_rust*.so`（Linux・macOS）が
-`src/Othello.Python/` に配置されます。以降の `dotnet build` で出力ディレクトリへ自動コピーされ、
+`src/Othello.AI/Python/` に配置されます。以降の `dotnet build` で出力ディレクトリへ自動コピーされ、
 実行時に Python が Rust 実装を読み込みます（読み込めない場合は純 Python にフォールバック）。
 
 > 生成物（`.pyd`/`.so`）は OS・アーキテクチャ依存のためリポジトリには含めません（`.gitignore` 済み）。環境ごとにビルドしてください。
@@ -196,10 +196,10 @@ pwsh -File src/Othello.Rust/build_rust.ps1
 
 ```powershell
 # Rust 単体テスト（Python 非依存）
-cargo test --manifest-path src/Othello.Rust/Cargo.toml --no-default-features
+cargo test --manifest-path src/Othello.AI/Rust/Cargo.toml --no-default-features
 
 # Python テスト（Rust 経路 + Rust↔Python 整合性テスト。Rust 未ビルド時は整合性テストは自動スキップ）
-py -m unittest discover -s src/Othello.Python -p "test_*.py"
+py -m unittest discover -s src/Othello.AI/Python -p "test_*.py"
 ```
 
 ---
@@ -242,8 +242,7 @@ Othello_CSPY/
 │   ├── Othello.Core/          # ゲームロジック層（.NET 10）
 │   │   ├── Models/            # Board, Position, PlayerColor, GameState, MoveResult
 │   │   ├── Rules/             # OthelloRules, FlipCalculator
-│   │   ├── Game/              # GameEngine
-│   │   └── AI/                # IAIStrategy, DifficultyLevel, PythonSubprocessAI
+│   │   └── Game/              # GameEngine
 │   │
 │   ├── Othello.ViewModels/    # 共有 ViewModel 層（.shproj 共有プロジェクト）
 │   │   ├── ViewModelBase.cs
@@ -251,31 +250,36 @@ Othello_CSPY/
 │   │   ├── BoardSquareViewModel.cs
 │   │   └── GameViewModel.cs
 │   │
-│   ├── Othello.WPF/           # WPF UI 層（.NET 10、Windows 専用）
-│   │   ├── Converters/        # BoolToVisibilityConverter, InverseBooleanConverter, PlayerColorToBrushConverter
-│   │   └── MainWindow.xaml
-│   │
-│   ├── Othello.WinUI3/        # WinUI3 UI 層（.NET 10、Windows 専用）
-│   │   ├── Converters/        # BoolToVisibilityConverter, PlayerColorToBrushConverter
-│   │   ├── Program.cs         # Bootstrap.TryInitialize による明示的な Runtime 初期化
-│   │   ├── App.xaml
-│   │   └── MainWindow.xaml
+│   ├── Othello.GUI/           # GUI 層（Windows 専用）
+│   │   ├── WPF/               # WPF UI 層（.NET 10）
+│   │   │   ├── Converters/    # BoolToVisibilityConverter, PlayerColorToBrushConverter
+│   │   │   └── MainWindow.xaml
+│   │   └── WinUI3/            # WinUI3 UI 層（.NET 10）
+│   │       ├── Converters/    # BoolToVisibilityConverter, InverseBooleanConverter, PlayerColorToBrushConverter
+│   │       ├── Program.cs     # Bootstrap.TryInitialize による明示的な Runtime 初期化
+│   │       ├── App.xaml
+│   │       └── MainWindow.xaml
 │   │
 │   ├── Othello.Console/       # コンソール版（.NET 10）
 │   │   └── Program.cs
 │   │
-│   ├── Othello.Python/        # Python AI（C# との窓口 + フォールバック）
-│   │   ├── ai.py              # エントリポイント（stdin/stdout ループ）
-│   │   ├── alpha_beta.py      # バックエンド選択シム（Rust 優先・Python フォールバック）
-│   │   ├── alpha_beta_py.py   # 純 Python アルファベータ探索（フォールバック実装）
-│   │   ├── evaluator.py       # 盤面評価関数（位置重み + Mobility + 終局 depth 評価）
-│   │   └── board.py           # 盤面操作ユーティリティ（has_any_flip / count_valid_moves 含む）
-│   │
-│   ├── Othello.Rust/          # Rust 製 AI 拡張（PyO3 / abi3）
-│   │   ├── src/lib.rs         # アルファベータ探索・評価・盤面操作（Python 版と挙動一致）
-│   │   ├── Cargo.toml
-│   │   ├── pyproject.toml     # maturin ビルド設定
-│   │   └── build_rust.ps1     # ビルド & .pyd/.so 配置ヘルパー
+│   ├── Othello.AI/            # AI 層
+│   │   ├── Core/              # C# AI インターフェース
+│   │   │   ├── IAIStrategy.cs
+│   │   │   ├── DifficultyLevel.cs
+│   │   │   ├── AiScriptPaths.cs
+│   │   │   └── PythonSubprocessAI.cs
+│   │   ├── Python/            # Python AI（C# との窓口 + フォールバック）
+│   │   │   ├── ai.py          # エントリポイント（stdin/stdout ループ）
+│   │   │   ├── alpha_beta.py  # バックエンド選択シム（Rust 優先・Python フォールバック）
+│   │   │   ├── alpha_beta_py.py # 純 Python アルファベータ探索（フォールバック実装）
+│   │   │   ├── evaluator.py   # 盤面評価関数（位置重み + Mobility + 終局 depth 評価）
+│   │   │   └── board.py       # 盤面操作ユーティリティ（has_any_flip / count_valid_moves 含む）
+│   │   └── Rust/              # Rust 製 AI 拡張（PyO3 / abi3）
+│   │       ├── src/lib.rs     # アルファベータ探索・評価・盤面操作（Python 版と挙動一致）
+│   │       ├── Cargo.toml
+│   │       ├── pyproject.toml # maturin ビルド設定
+│   │       └── build_rust.ps1 # ビルド & .pyd/.so 配置ヘルパー
 │   │
 │   └── Othello.Tests/         # xUnit テスト（.NET 10）
 │
@@ -294,7 +298,7 @@ Othello_CSPY/
 ```
 ┌─────────────────────────────────────────────┐
 │        UI 層                                 │
-│  Othello.WPF  /  Othello.WinUI3             │
+│  Othello.GUI/WPF  /  Othello.GUI/WinUI3     │
 │  (XAML + コードビハインド + Converters)      │
 └──────────────────┬──────────────────────────┘
                    │ DataContext
@@ -312,10 +316,11 @@ Othello_CSPY/
                    │ stdin/stdout JSON
 ┌──────────────────▼──────────────────────────┐
 │        AI 層                                 │
-│  Othello.Python … ai.py / バックエンド選択   │
+│  Othello.AI/Core … PythonSubprocessAI       │
+│  Othello.AI/Python … ai.py / バックエンド選択│
 │        │ 委譲（未ビルド時は純 Python に戻る） │
 │        ▼                                     │
-│  Othello.Rust（PyO3 拡張）                   │
+│  Othello.AI/Rust（PyO3 拡張）                │
 │  アルファベータ探索 + 盤面評価               │
 └─────────────────────────────────────────────┘
 ```
