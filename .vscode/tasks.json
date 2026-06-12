@@ -29,7 +29,7 @@
 		{
 			"label": "build: Rust AI",
 			"type": "shell",
-			"command": "pwsh -File src/Othello.Rust/build_rust.ps1",
+			"command": "pwsh -File src/Othello.AI/Rust/build_rust.ps1",
 			"group": "build",
 			"presentation": {
 				"reveal": "always",
@@ -109,7 +109,7 @@
 		{
 			"label": "test: Rust",
 			"type": "shell",
-			"command": "cargo test --manifest-path src/Othello.Rust/Cargo.toml --no-default-features",
+			"command": "cargo test --manifest-path src/Othello.AI/Rust/Cargo.toml --no-default-features",
 			"group": "test",
 			"presentation": {
 				"reveal": "always",
@@ -120,7 +120,7 @@
 		{
 			"label": "test: Python",
 			"type": "shell",
-			"command": "py -m unittest discover -s src/Othello.Python -p \"test_*.py\"",
+			"command": "py -m unittest discover -s src/Othello.AI/Python -p \"test_*.py\"",
 			"group": "test",
 			"presentation": {
 				"reveal": "always",
