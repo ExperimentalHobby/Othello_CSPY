@@ -19,6 +19,7 @@ public class GameViewModelTests
     {
         private readonly Action? _onMove;
         public DifficultyLevel Difficulty { get; }
+        public string EngineName => "AI: Fake";
 
         public FakeAI(DifficultyLevel difficulty, Action? onMove = null)
         {
@@ -44,6 +45,7 @@ public class GameViewModelTests
         private readonly ManualResetEventSlim _gate = new(false);
         private volatile bool _disposed;
         public DifficultyLevel Difficulty { get; }
+        public string EngineName => "AI: Fake";
 
         public BlockingFakeAI(DifficultyLevel difficulty, ManualResetEventSlim entered)
         {
@@ -356,6 +358,7 @@ file sealed class ErrorFakeAI : IAIStrategy
 {
     private readonly ManualResetEventSlim _errored;
     public DifficultyLevel Difficulty { get; }
+    public string EngineName => "AI: Error";
 
     public ErrorFakeAI(DifficultyLevel difficulty, ManualResetEventSlim errored)
     {

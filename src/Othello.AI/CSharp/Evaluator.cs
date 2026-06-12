@@ -8,9 +8,7 @@ using Technopro.Othello.Core.Rules;
 /// </summary>
 public static class Evaluator
 {
-    private const int BoardSize = 8;
     private const int EndgameThreshold = 50;
-    private const int MidgameThreshold = 50;
     private const int PieceDifferenceMultiplier = 10;
     private const int MobilityMultiplier = 10;
     internal const int VictoryScore = 10000;
@@ -35,8 +33,8 @@ public static class Evaluator
         var opponent = aiPlayer.Opponent();
         int score = 0;
 
-        for (int row = 0; row < BoardSize; row++)
-            for (int col = 0; col < BoardSize; col++)
+        for (int row = 0; row < Board.BoardSize; row++)
+            for (int col = 0; col < Board.BoardSize; col++)
             {
                 var piece = board.GetPiece(row, col);
                 if (piece == aiPlayer)       score += EvaluationWeights[row, col];
@@ -49,38 +47,32 @@ public static class Evaluator
 
         if (totalPieces >= EndgameThreshold)
             score += (aiPieces - opponentPieces) * PieceDifferenceMultiplier;
-
-        if (totalPieces < MidgameThreshold)
+        else
         {
-            int aiMoves       = OthelloRules.GetValidMoves(board, aiPlayer).Count;
-            int opponentMoves = OthelloRules.GetValidMoves(board, opponent).Count;
+            // Mobility: リストを確保しない CountValidMoves を使う
+            int aiMoves       = OthelloRules.CountValidMoves(board, aiPlayer);
+            int opponentMoves = OthelloRules.CountValidMoves(board, opponent);
             score += (aiMoves - opponentMoves) * MobilityMultiplier;
         }
 
         return score;
     }
 
-    /// <summary>位置ウェイトのみの高速評価（Move Ordering 用）。</summary>
-    public static int EvaluatePositional(Board board, PlayerColor aiPlayer)
-    {
-        var opponent = aiPlayer.Opponent();
-        int score = 0;
-        for (int row = 0; row < BoardSize; row++)
-            for (int col = 0; col < BoardSize; col++)
-            {
-                var piece = board.GetPiece(row, col);
-                if (piece == aiPlayer)       score += EvaluationWeights[row, col];
-                else if (piece == opponent)  score -= EvaluationWeights[row, col];
-            }
-        return score;
-    }
+    /// <summary>
+    /// 指定位置の位置ウェイトを返す（Move Ordering 用、ボードクローン不要）。
+    /// </summary>
+    internal static int GetPositionWeight(int row, int col) => EvaluationWeights[row, col];
 
-    /// <summary>終局時の最終評価。</summary>
-    public static int EvaluateFinal(Board board, PlayerColor aiPlayer)
+    /// <summary>
+    /// 終局時の最終評価。
+    /// depth（残り探索深さ）を加算して早い勝ちを選好・遅い負けを選好する。
+    /// Python の evaluate_final(board, player, depth) と同じ挙動。
+    /// </summary>
+    public static int EvaluateFinal(Board board, PlayerColor aiPlayer, int depth = 0)
     {
         var (winner, _, _) = OthelloRules.GetGameResult(board);
-        if (winner == aiPlayer) return VictoryScore;
+        if (winner == aiPlayer) return VictoryScore + depth;
         if (winner == null)     return DrawScore;
-        return DefeatScore;
+        return DefeatScore - depth;
     }
 }

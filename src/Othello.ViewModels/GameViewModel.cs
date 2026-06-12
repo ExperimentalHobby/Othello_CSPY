@@ -218,15 +218,18 @@ public class GameViewModel : ViewModelBase, IDisposable
     {
         _cts?.Cancel();
         _cts?.Dispose();
-        _cts = new CancellationTokenSource();
+        // ローカルに保持して「自分のCTS」として後で再入チェックに使う（F3）
+        var cts = new CancellationTokenSource();
+        _cts = cts;
         IsAIThinking = false;
 
         (_ai as IDisposable)?.Dispose();
         _ai = null;
 
+        IAIStrategy? newAi = null;
         try
         {
-            _ai = await Task.Run(() => _aiFactory(Difficulty));
+            newAi = await Task.Run(() => _aiFactory(Difficulty));
         }
         catch (Exception ex)
         {
@@ -235,6 +238,15 @@ public class GameViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        // await 完了後に別の StartNewGameAsync が既に始動していたら、
+        // 新しく作った AI を破棄して早期 return する（二重初期化・プロセスリーク防止）（F3）
+        if (cts.IsCancellationRequested)
+        {
+            (newAi as IDisposable)?.Dispose();
+            return;
+        }
+
+        _ai = newAi;
         ApplyNewGameState();
     }
 
@@ -244,13 +256,9 @@ public class GameViewModel : ViewModelBase, IDisposable
     /// </summary>
     private void ApplyNewGameState()
     {
-        // AI の実装型からバックエンド名を決定（UI スレッドで実行されるため安全）
-        AiEngineLabel = _ai switch
-        {
-            PythonSubprocessAI => AiScriptPaths.IsRustAvailable ? "AI: Rust" : "AI: Python",
-            AlphaBetaAI        => "AI: C#",
-            _                  => "AI: ?"
-        };
+        // EngineName は各 IAIStrategy 実装が自己報告する（F7）
+        // PythonSubprocessAI はコンストラクタで IsRustAvailable を評価済み（I/O なし）
+        AiEngineLabel = _ai!.EngineName;
 
         _engine.Initialize();
         OnPropertyChanged(nameof(IsSettingsEditable));

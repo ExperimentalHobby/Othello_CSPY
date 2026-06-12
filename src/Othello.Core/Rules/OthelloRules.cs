@@ -80,6 +80,19 @@ public static class OthelloRules
         GetValidMoves(board, playerColor).Count == 0;
 
     /// <summary>
+    /// 指定したプレイヤーの有効手の件数を返す（リストを構築しない高速版）。
+    /// Evaluator の Mobility 計算など、件数だけ必要な場面で使う。
+    /// </summary>
+    public static int CountValidMoves(Board board, PlayerColor playerColor)
+    {
+        int count = 0;
+        foreach (var position in board.GetEmptySquares())
+            if (IsValidMove(board, position, playerColor))
+                count++;
+        return count;
+    }
+
+    /// <summary>
     /// 両プレイヤーともに有効手がない（ゲーム終了）かどうかを判定する。
     /// どちらかに有効手があれば false を返す。
     /// </summary>

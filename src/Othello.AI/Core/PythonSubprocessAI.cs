@@ -40,6 +40,9 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
     /// <summary>この AI インスタンスの難易度（探索深さの決定に使用）</summary>
     public DifficultyLevel Difficulty { get; }
 
+    /// <summary>UI 表示用バックエンド名。Rust / Python を構築時に一度だけ判定しキャッシュする。</summary>
+    public string EngineName { get; }
+
     /// <summary>
     /// 指定した難易度とスクリプトパスで Python AI プロセスを起動する。
     /// </summary>
@@ -50,6 +53,9 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
     public PythonSubprocessAI(DifficultyLevel difficulty, string pythonScriptPath)
     {
         Difficulty = difficulty;
+        // バックグラウンドスレッド（Task.Run）から呼ばれる前提で IsRustAvailable を確定させる。
+        // これにより Lazy の初期化が UI スレッドではなくここで行われる。
+        EngineName = AiScriptPaths.IsRustAvailable ? "AI: Rust" : "AI: Python";
 
         // スクリプトの存在を事前確認し、見つからない場合は明確なエラーを出す
         if (!File.Exists(pythonScriptPath))
@@ -223,11 +229,11 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
     /// <returns>8×8 の int 配列（行優先）</returns>
     internal static int[][] SerializeBoard(Board board)
     {
-        var grid = new int[8][];
-        for (int r = 0; r < 8; r++)
+        var grid = new int[Board.BoardSize][];
+        for (int r = 0; r < Board.BoardSize; r++)
         {
-            grid[r] = new int[8];
-            for (int c = 0; c < 8; c++)
+            grid[r] = new int[Board.BoardSize];
+            for (int c = 0; c < Board.BoardSize; c++)
                 grid[r][c] = (int)board.GetPiece(r, c);
         }
         return grid;

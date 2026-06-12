@@ -10,7 +10,7 @@ public class Board
     private readonly PlayerColor[,] _board;
 
     /// <summary>オセロ盤は常に 8×8</summary>
-    private const int BoardSize = 8;
+    public const int BoardSize = 8;
 
     /// <summary>
     /// 新しい Board インスタンスを生成し、オセロの初期配置（中央 4 マス）を設定する。

@@ -19,4 +19,7 @@ public interface IAIStrategy
 
     /// <summary>この AI インスタンスの難易度レベル</summary>
     DifficultyLevel Difficulty { get; }
+
+    /// <summary>UI に表示する AI バックエンド名（例: "AI: Rust", "AI: Python", "AI: C#"）</summary>
+    string EngineName { get; }
 }

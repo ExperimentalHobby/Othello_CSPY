@@ -15,18 +15,20 @@ public static class AiScriptPaths
 
     /// <summary>
     /// Rust 拡張モジュール（othello_ai_rust.pyd / .so）が出力ディレクトリに存在するかどうか。
-    /// true の場合、Python AI は Rust バックエンドで動作する。
+    /// プロセス起動後に .pyd が追加・削除されることはないため Lazy で一度だけ検査してキャッシュする。
+    /// UI スレッドをブロックしないよう、最初のアクセスをバックグラウンドスレッドから行うこと。
     /// </summary>
-    public static bool IsRustAvailable
+    public static bool IsRustAvailable => _isRustAvailable.Value;
+
+    private static readonly Lazy<bool> _isRustAvailable = new(CheckRustAvailable);
+
+    private static bool CheckRustAvailable()
     {
-        get
-        {
-            var dir = Path.Combine(AppContext.BaseDirectory, "Othello.Python");
-            if (!Directory.Exists(dir))
-                return false;
-            return Directory.EnumerateFiles(dir, "othello_ai_rust.*")
-                .Any(f => f.EndsWith(".pyd", StringComparison.OrdinalIgnoreCase)
-                       || f.EndsWith(".so",  StringComparison.OrdinalIgnoreCase));
-        }
+        var dir = Path.Combine(AppContext.BaseDirectory, "Othello.Python");
+        if (!Directory.Exists(dir))
+            return false;
+        return Directory.EnumerateFiles(dir, "othello_ai_rust.*")
+            .Any(f => f.EndsWith(".pyd", StringComparison.OrdinalIgnoreCase)
+                   || f.EndsWith(".so",  StringComparison.OrdinalIgnoreCase));
     }
 }
