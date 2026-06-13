@@ -157,8 +157,7 @@ dotnet run --project src/Othello.Console/Othello.Console.csproj
 | WinUI3 ビルド | `Ctrl+Shift+P` → `Tasks: Run Task` → `build: WinUI3` |
 | AI 拡張（Rust）をビルド | `Ctrl+Shift+P` → `Tasks: Run Task` → `build: Rust AI` |
 | テスト実行（.NET） | `Ctrl+Shift+P` → `Tasks: Run Test Task` |
-| カバレッジ計測 | `Ctrl+Shift+P` → `Tasks: Run Task` → `test: Coverage` |
-| カバレッジ HTML レポート生成 | `Ctrl+Shift+P` → `Tasks: Run Task` → `test: Report` |
+| カバレッジ計測 + レポート生成 | `Ctrl+Shift+P` → `Tasks: Run Task` → `test: Coverage` |
 | Rust テスト | `Ctrl+Shift+P` → `Tasks: Run Task` → `test: Rust` |
 | Python テスト | `Ctrl+Shift+P` → `Tasks: Run Task` → `test: Python` |
 | WPF 版を起動 | `Ctrl+Shift+P` → `Tasks: Run Task` → `run: WPF` |
@@ -168,7 +167,12 @@ dotnet run --project src/Othello.Console/Othello.Console.csproj
 | dist へ発行（WinUI3） | `Ctrl+Shift+P` → `Tasks: Run Task` → `publish: WinUI3 → dist/WinUI3` |
 | dist へ発行（両方） | `Ctrl+Shift+P` → `Tasks: Run Task` → `publish: all → dist` |
 
-> **カバレッジ HTML レポート**（`test: Report`）は初回のみ `dotnet tool restore` でローカルツールをインストールする必要があります。レポートは `coverage/html/index.html` に生成されます。
+> **カバレッジ計測スクリプト**（`tools/measure-coverage.ps1`）を使うと、テスト実行からレポート生成まで一括で行えます。  
+> ```powershell
+> .\tools\measure-coverage.ps1
+> ```
+> レポートは `report/YYYYMMDD-HHMMSS_<ブランチ名>_report/index.html` に生成されます（`report/` は `.gitignore` 対象）。  
+> スクリプト実行には `reportgenerator` のグローバルインストールが必要です: `dotnet tool install -g dotnet-reportgenerator-globaltool`
 
 > `publish: *` タスクは発行前に自動で `build: Rust AI` を実行し、Rust 製 AI を dist に同梱します。Rust 未導入の場合は先に [Rust（任意・AI 高速化）](#rust任意ai-高速化) を導入してください。
 
@@ -295,6 +299,8 @@ Othello_CSPY/
 │   ├── diff-review.md         # /diff-review        : 差分セキュリティレビュー
 │   ├── supply-chain-audit.md  # /supply-chain-audit : サプライチェーンリスク評価
 │   └── semgrep-scan.md        # /semgrep-scan       : 脆弱性パターンスキャン
+├── tools/
+│   └── measure-coverage.ps1   # カバレッジ計測スクリプト（report/ に HTML レポートを生成）
 ├── .config/
 │   └── dotnet-tools.json      # reportgenerator（カバレッジ HTML レポート）
 ├── Othello.sln                # 統合ソリューション（WPF / WinUI3 / Console / Tests）
