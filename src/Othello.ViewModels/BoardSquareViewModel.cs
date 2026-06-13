@@ -25,11 +25,18 @@ public class BoardSquareViewModel : ViewModelBase
     /// <summary>着手後の反転アニメーション中であることを示すフラグ。UI 層がアニメーションを駆動するために使用する。</summary>
     public bool IsBeingFlipped { get => _isBeingFlipped; set => SetProperty(ref _isBeingFlipped, value); }
 
+    /// <summary>指定した盤面座標でマスを初期化する。</summary>
+    /// <param name="position">このマスが対応する盤面上の座標（0〜7, 0〜7）。</param>
     public BoardSquareViewModel(Position position)
     {
         Position = position;
     }
 
+    /// <summary>
+    /// 石を設定し、<see cref="HasPiece"/> を連動更新する。
+    /// <see cref="HasPiece"/> は石の有無を示す UI バインディング用フラグ。
+    /// </summary>
+    /// <param name="piece">設定する石の色。<see cref="PlayerColor.Empty"/> で石を除去する。</param>
     public void SetPiece(PlayerColor piece)
     {
         Piece = piece;
