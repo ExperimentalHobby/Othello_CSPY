@@ -63,6 +63,9 @@ docs/
 # local
 *local*
 
+# カバレッジレポート（report/ 配下に YYYYMMDD-HHMMSS_<branch>_report 形式で生成）
+report/
+
 # ===== OS =====
 .DS_Store
 Thumbs.db

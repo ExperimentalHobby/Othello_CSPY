@@ -80,6 +80,91 @@ public class BoardTests
 
         Assert.Empty(board.GetEmptySquares());
     }
+
+    /// <summary>
+    /// 初期盤面の空きマス数が 60 であることを CountPieces(Empty) で確認する。
+    /// パス条件: CountPieces(Empty) が 60 を返すこと。
+    /// </summary>
+    [Fact]
+    public void CountPieces_Empty_OnInitialBoard_Returns60()
+    {
+        var board = new Board();
+        Assert.Equal(60, board.CountPieces(PlayerColor.Empty));
+    }
+
+    /// <summary>
+    /// 範囲外の行インデックスで GetPiece(int, int) を呼ぶと ArgumentException がスローされる。
+    /// パス条件: ArgumentException がスローされること。
+    /// </summary>
+    [Fact]
+    public void GetPiece_InvalidRow_ThrowsArgumentException()
+    {
+        var board = new Board();
+        Assert.Throws<ArgumentException>(() => board.GetPiece(8, 0));
+        Assert.Throws<ArgumentException>(() => board.GetPiece(-1, 0));
+    }
+
+    /// <summary>
+    /// 範囲外の列インデックスで GetPiece(int, int) を呼ぶと ArgumentException がスローされる。
+    /// パス条件: ArgumentException がスローされること。
+    /// </summary>
+    [Fact]
+    public void GetPiece_InvalidColumn_ThrowsArgumentException()
+    {
+        var board = new Board();
+        Assert.Throws<ArgumentException>(() => board.GetPiece(0, 8));
+        Assert.Throws<ArgumentException>(() => board.GetPiece(0, -1));
+    }
+
+    /// <summary>
+    /// 範囲外の座標で SetPiece(int, int, color) を呼ぶと ArgumentException がスローされる。
+    /// パス条件: ArgumentException がスローされること。
+    /// </summary>
+    [Fact]
+    public void SetPiece_InvalidPosition_ThrowsArgumentException()
+    {
+        var board = new Board();
+        Assert.Throws<ArgumentException>(() => board.SetPiece(8, 0, PlayerColor.Black));
+        Assert.Throws<ArgumentException>(() => board.SetPiece(0, -1, PlayerColor.Black));
+    }
+
+    /// <summary>
+    /// Position オーバーロードの GetPiece が行・列オーバーロードと同じ結果を返す。
+    /// パス条件: GetPiece(Position(3,3)) が White を返すこと。
+    /// </summary>
+    [Fact]
+    public void GetPiece_ByPosition_ReturnsCorrectColor()
+    {
+        var board = new Board();
+        Assert.Equal(PlayerColor.White, board.GetPiece(new Position(3, 3)));
+        Assert.Equal(PlayerColor.Black, board.GetPiece(new Position(3, 4)));
+    }
+
+    /// <summary>
+    /// Position オーバーロードの SetPiece で石を置いた後、同座標を GetPiece で取得すると置いた色が返る。
+    /// パス条件: GetPiece(Position(0,0)) が Black を返すこと。
+    /// </summary>
+    [Fact]
+    public void SetPiece_ByPosition_UpdatesPosition()
+    {
+        var board = new Board();
+        board.SetPiece(new Position(0, 0), PlayerColor.Black);
+        Assert.Equal(PlayerColor.Black, board.GetPiece(new Position(0, 0)));
+    }
+
+    /// <summary>
+    /// ToString() が ●・○・・ の記号を含む非空文字列を返すことを確認する。
+    /// パス条件: 戻り値が空でなく、● と ○ を含むこと。
+    /// </summary>
+    [Fact]
+    public void ToString_InitialBoard_ContainsExpectedSymbols()
+    {
+        var board = new Board();
+        var str = board.ToString();
+        Assert.NotEmpty(str);
+        Assert.Contains("●", str);
+        Assert.Contains("○", str);
+    }
 }
 
 public class PositionTests
@@ -135,6 +220,91 @@ public class PositionTests
         var pos2 = new Position(4, 3);
         Assert.NotEqual(pos1, pos2);
     }
+
+    /// <summary>
+    /// object 型のオーバーロードで同じ座標の Position を渡すと true を返す。
+    /// パス条件: Equals(object) が true を返すこと。
+    /// </summary>
+    [Fact]
+    public void Equals_BoxedSamePosition_ReturnsTrue()
+    {
+        var pos1 = new Position(3, 4);
+        object pos2 = new Position(3, 4);
+        Assert.True(pos1.Equals(pos2));
+    }
+
+    /// <summary>
+    /// object 型のオーバーロードで異なる型を渡すと false を返す。
+    /// パス条件: Equals(object) が false を返すこと。
+    /// </summary>
+    [Fact]
+    public void Equals_NonPositionObject_ReturnsFalse()
+    {
+        var pos = new Position(3, 4);
+        Assert.False(pos.Equals("(3, 4)"));
+        Assert.False(pos.Equals(null));
+    }
+
+    /// <summary>
+    /// == 演算子で同じ座標の Position を比較すると true を返す。
+    /// パス条件: == が true を返すこと。
+    /// </summary>
+    [Fact]
+    public void EqualityOperator_SamePosition_ReturnsTrue()
+    {
+        var pos1 = new Position(3, 4);
+        var pos2 = new Position(3, 4);
+        Assert.True(pos1 == pos2);
+    }
+
+    /// <summary>
+    /// != 演算子で異なる座標の Position を比較すると true を返す。
+    /// パス条件: != が true を返すこと。
+    /// </summary>
+    [Fact]
+    public void InequalityOperator_DifferentPosition_ReturnsTrue()
+    {
+        var pos1 = new Position(3, 4);
+        var pos2 = new Position(4, 3);
+        Assert.True(pos1 != pos2);
+    }
+
+    /// <summary>
+    /// 同じ座標を持つ Position は同じ GetHashCode を返す。
+    /// パス条件: 2 つの GetHashCode が等しいこと。
+    /// </summary>
+    [Fact]
+    public void GetHashCode_EqualPositions_ReturnSameHash()
+    {
+        var pos1 = new Position(3, 4);
+        var pos2 = new Position(3, 4);
+        Assert.Equal(pos1.GetHashCode(), pos2.GetHashCode());
+    }
+
+    /// <summary>
+    /// ToString() が "(Row, Column)" 形式の文字列を返す。
+    /// パス条件: ToString() が "(3, 4)" を返すこと。
+    /// </summary>
+    [Fact]
+    public void ToString_ValidPosition_ReturnsExpectedFormat()
+    {
+        var pos = new Position(3, 4);
+        Assert.Equal("(3, 4)", pos.ToString());
+    }
+
+    /// <summary>
+    /// IsValid() インスタンスメソッドが構築済みの Position で true を返す。
+    /// パス条件: IsValid() が true を返すこと（コンストラクタが検証済みのため常に true）。
+    /// </summary>
+    [Fact]
+    public void IsValid_ConstructedPosition_ReturnsTrue()
+    {
+        var pos = new Position(0, 0);
+        Assert.True(pos.IsValid());
+
+        var corner = new Position(7, 7);
+        Assert.True(corner.IsValid());
+    }
 }
 
 public class PlayerColorTests
@@ -187,6 +357,26 @@ public class PlayerColorTests
     public void ToDisplayString_Empty_ReturnsJapaneseText()
     {
         Assert.Equal("空", PlayerColor.Empty.ToDisplayString());
+    }
+
+    /// <summary>
+    /// 未定義の PlayerColor 値は ToDisplayString の default 分岐で "不明" を返す。
+    /// パス条件: 戻り値が "不明" であること。
+    /// </summary>
+    [Fact]
+    public void ToDisplayString_InvalidColor_ReturnsUnknown()
+    {
+        Assert.Equal("不明", ((PlayerColor)99).ToDisplayString());
+    }
+
+    /// <summary>
+    /// Empty.Opponent() は相手が存在しないため ArgumentException をスローする。
+    /// パス条件: ArgumentException がスローされること。
+    /// </summary>
+    [Fact]
+    public void Opponent_Empty_ThrowsArgumentException()
+    {
+        Assert.Throws<ArgumentException>(() => PlayerColor.Empty.Opponent());
     }
 }
 
