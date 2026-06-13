@@ -134,6 +134,26 @@ public class ConsoleInputParserTests
         Assert.Null(ConsoleInputParser.ParseInput("undo"));
     }
 
+    /// <summary>
+    /// null を渡すと例外を catch して null を返すことを確認する（catch ブロックのカバー）。
+    /// パス条件: 戻り値が null であること。
+    /// </summary>
+    [Fact]
+    public void ParseInput_Null_ReturnsNull()
+    {
+        Assert.Null(ConsoleInputParser.ParseInput(null!));
+    }
+
+    /// <summary>
+    /// 大文字の列文字 "D4" は 'd' - 'a' 換算外となるため null を返すことを確認する。
+    /// パス条件: 戻り値が null であること。
+    /// </summary>
+    [Fact]
+    public void ParseInput_UpperCaseFormat_ReturnsNull()
+    {
+        Assert.Null(ConsoleInputParser.ParseInput("D4"));
+    }
+
     // ---------- ColChar ----------
 
     /// <summary>

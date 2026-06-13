@@ -140,6 +140,28 @@ public class ParsePythonMajorVersionTests
         int version = PythonSubprocessAI.ParsePythonMajorVersion(input);
         Assert.Equal(-1, version);
     }
+
+    /// <summary>
+    /// "Python 3" のようにドットなしの文字列からメジャーバージョン 3 が得られること。
+    /// パス条件: 戻り値が 3 であること。
+    /// </summary>
+    [Fact]
+    public void ParsePythonMajorVersion_NoDot_ReturnsMajorVersion()
+    {
+        int version = PythonSubprocessAI.ParsePythonMajorVersion("Python 3");
+        Assert.Equal(3, version);
+    }
+
+    /// <summary>
+    /// "Python X.Y.Z" のようにメジャー部分が非数値の場合は -1 が返ること。
+    /// パス条件: 戻り値が -1 であること。
+    /// </summary>
+    [Fact]
+    public void ParsePythonMajorVersion_NonNumericMajor_ReturnsMinusOne()
+    {
+        int version = PythonSubprocessAI.ParsePythonMajorVersion("Python X.Y.Z");
+        Assert.Equal(-1, version);
+    }
 }
 
 /// <summary>
@@ -157,6 +179,23 @@ public class AiScriptPathsTests
     {
         var ex = Record.Exception(() => _ = AiScriptPaths.IsRustAvailable);
         Assert.Null(ex);
+    }
+}
+
+/// <summary>
+/// PythonSubprocessAI コンストラクタの異常系テスト。
+/// </summary>
+public class PythonSubprocessAIConstructorTests
+{
+    /// <summary>
+    /// 存在しないスクリプトパスを渡すと FileNotFoundException がスローされる。
+    /// パス条件: FileNotFoundException がスローされること。
+    /// </summary>
+    [Fact]
+    public void Constructor_NonExistentScript_ThrowsFileNotFoundException()
+    {
+        Assert.Throws<FileNotFoundException>(() =>
+            new PythonSubprocessAI(DifficultyLevel.Easy, "/nonexistent/path/ai.py"));
     }
 }
 
