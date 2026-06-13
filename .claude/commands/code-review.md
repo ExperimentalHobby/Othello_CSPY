@@ -108,6 +108,11 @@ git diff HEAD~1..HEAD
 - `ReadLineWithTimeout()` でタイムアウト定数（`AiResponseTimeoutMs`）を使っているか（マジックナンバーでないか）
 - IPC プロトコル変更（フィールド追加など）がある場合、C# 送信側と Python 受信側の両方に反映されているか
 
+**Python — トランスポジションテーブルの境界値誤用**
+- Python 側の TT エントリが `(score, depth)` のみで NodeType（Exact / LowerBound / UpperBound）を管理していない場合、βカットで得た下界値や fail-low で得た上界値を正確値として再利用するリスクがある
+- C# `AlphaBetaAI` はすでに `NodeType` を導入済み。Python 側に同様の対処がないなら、**異なる探索窓でヒットした場合に誤った評価値が返る可能性がある**ことを指摘する
+- 最小修正は「`alpha < cached_score < beta` のときのみ TT ヒットとして返す」こと
+
 ---
 
 ### 5. パフォーマンス（過去の実績: HashSet 化、SolidColorBrush キャッシュ、早期 return）
@@ -125,6 +130,11 @@ git diff HEAD~1..HEAD
 
 **共通**
 - `evaluate_final()` が勝利スコアに `depth` を加算して早い勝ちを選好しているか（`±(10000 + depth)`）
+
+**Python — Move Ordering のコストトレードオフ**
+- ムーブオーダリングのソートキーが `WEIGHTS[m[0]][m[1]]`（着手先マスの位置重みのみ・O(1)）か、`evaluate_positional(make_move(board, ...))`（着手後の盤面全体を評価・O(n) per 候補手）かを確認する
+- 後者は精度が高い（着手によって盤面全体の評価が変わることを考慮）が、各ノードで全候補手分の `make_move` が発生するため探索コストが増大する。現在のリポジトリは前者（高速・シンプル）を採用
+- 変更する場合は `test_parity.py` で Rust/Python の着手一致が維持されることを確認すること
 
 ---
 
@@ -312,6 +322,12 @@ git diff HEAD~1..HEAD
 **エッジケースの網羅**
 - 盤面境界（`(0,0)`・`(7,7)`）、全マス同色、着手可能手なし（パス局面）、初期配置をテストする
 - `depth=0`・`depth=1` などの最小深さで AI が正常動作するか
+
+**テストヘルパークラスを活用する**
+- `src/Othello.Tests/Helpers/` の `TestBoardHelper` / `TestGameHelper` / `TestPositionHelper` を使い、テストごとに同じ盤面生成コードを繰り返し書いていないか確認する
+- `TestBoardHelper.CreateBoardWithPieces(...)` — 境界盤面のセットアップ
+- `TestGameHelper.CreateGameWithMoves(...)` — 特定局面まで進めたゲーム状態の生成
+- `TestPositionHelper.GetOpeningMovesForBlack()` — 初期盤面の黒の有効手を正しく列挙しているかの検証
 
 **フレークなテストは追加しない**
 - `Task.Delay` などタイミング依存でたまに失敗するテストは追加しない
