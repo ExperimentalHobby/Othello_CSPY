@@ -11,8 +11,15 @@ public class AlphaBetaAI : IAIStrategy
 {
     private static readonly ulong[,,] ZobristTable = InitZobristTable();
 
-    /// <summary>TT エントリ。Score・Depth に加え isMaximizing コンテキストを保存する（F2）。</summary>
-    private record struct TTEntry(int Score, int Depth, bool IsMaximizing);
+    /// <summary>
+    /// TT エントリに格納するノード種別。
+    /// Exact: αβ窓内の正確値。LowerBound: βカット（fail-high）で得た下界値。
+    /// UpperBound: αを改善できなかった（fail-low）上界値。
+    /// </summary>
+    private enum NodeType { Exact, LowerBound, UpperBound }
+
+    /// <summary>TT エントリ。Score・Depth・IsMaximizing に加えノード種別を保存する。</summary>
+    private record struct TTEntry(int Score, int Depth, bool IsMaximizing, NodeType Type);
     private Dictionary<ulong, TTEntry>? _transpositionTable;
 
     public DifficultyLevel Difficulty { get; }
@@ -52,6 +59,75 @@ public class AlphaBetaAI : IAIStrategy
     }
 
     public Position GetBestMove(Board board, PlayerColor playerColor)
+    {
+        var timeLimitMs = Difficulty.GetTimeLimitMs();
+        return timeLimitMs.HasValue
+            ? GetBestMoveIterativeDeepening(board, playerColor, timeLimitMs.Value)
+            : GetBestMoveFixedDepth(board, playerColor);
+    }
+
+    /// <summary>
+    /// 時間制限付き反復深化探索（深さ 1 から <see cref="DifficultyLevel.GetSearchDepth"/> まで）。
+    /// Hard 難易度の <see cref="GetBestMove"/> から呼ばれる。テストから直接呼び出し可能。
+    /// </summary>
+    internal Position GetBestMoveIterativeDeepening(Board board, PlayerColor playerColor, int timeLimitMs)
+    {
+        var validMoves = OthelloRules.GetValidMoves(board, playerColor);
+
+        if (validMoves.Count == 0)
+            throw new InvalidOperationException("有効な移動がありません");
+
+        if (validMoves.Count == 1)
+            return validMoves[0];
+
+        var sortedMoves = SortMovesByHeuristic(validMoves);
+        var bestMove    = sortedMoves[0];
+        int maxDepth    = Difficulty.GetSearchDepth();
+        var deadline    = DateTime.UtcNow.AddMilliseconds(timeLimitMs);
+
+        for (int depth = 1; depth <= maxDepth; depth++)
+        {
+            if (DateTime.UtcNow >= deadline)
+                break;
+
+            _transpositionTable = new Dictionary<ulong, TTEntry>(capacity: 1 << 16);
+
+            var currentBest  = sortedMoves[0];
+            var bestScore    = int.MinValue;
+            var alpha        = int.MinValue;
+            bool timedOut    = false;
+
+            foreach (var move in sortedMoves)
+            {
+                if (DateTime.UtcNow >= deadline)
+                {
+                    timedOut = true;
+                    break;
+                }
+
+                var newBoard = board.Clone();
+                OthelloRules.MakeMove(newBoard, move, playerColor);
+
+                var score = AlphaBeta(newBoard, depth - 1, alpha, int.MaxValue, false,
+                    playerColor.Opponent(), playerColor);
+
+                if (score > bestScore)
+                {
+                    bestScore   = score;
+                    currentBest = move;
+                    alpha       = bestScore;
+                }
+            }
+
+            // 時間切れで深さが途中終了した場合は前の深さの結果を維持する
+            if (!timedOut)
+                bestMove = currentBest;
+        }
+
+        return bestMove;
+    }
+
+    private Position GetBestMoveFixedDepth(Board board, PlayerColor playerColor)
     {
         var validMoves = OthelloRules.GetValidMoves(board, playerColor);
 
@@ -149,15 +225,29 @@ public class AlphaBetaAI : IAIStrategy
         PlayerColor currentPlayer, PlayerColor aiPlayer)
     {
         var hash = ComputeBoardHash(board);
-        // isMaximizing を含めてコンテキストを検証することで誤ったキャッシュ値の返却を防ぐ（F2）
+        // isMaximizing を含めてコンテキストを検証する。
+        // さらに NodeType を考慮して境界値を正確値として誤用しない。
         if (_transpositionTable!.TryGetValue(hash, out var tt)
             && tt.Depth >= depth && tt.IsMaximizing == isMaximizing)
-            return tt.Score;
+        {
+            switch (tt.Type)
+            {
+                case NodeType.Exact:
+                    return tt.Score;
+                case NodeType.LowerBound:
+                    alpha = Math.Max(alpha, tt.Score);
+                    break;
+                case NodeType.UpperBound:
+                    beta = Math.Min(beta, tt.Score);
+                    break;
+            }
+            if (alpha >= beta) return tt.Score;
+        }
 
         var terminalValue = TryEvaluateTerminalNode(board, depth, aiPlayer);
         if (terminalValue.HasValue)
         {
-            _transpositionTable[hash] = new TTEntry(terminalValue.Value, depth, isMaximizing);
+            _transpositionTable[hash] = new TTEntry(terminalValue.Value, depth, isMaximizing, NodeType.Exact);
             return terminalValue.Value;
         }
 
@@ -166,16 +256,21 @@ public class AlphaBetaAI : IAIStrategy
         {
             var noMoveScore = HandleNoValidMoves(board, depth, alpha, beta, isMaximizing,
                 currentPlayer, aiPlayer);
-            _transpositionTable[hash] = new TTEntry(noMoveScore, depth, isMaximizing);
+            _transpositionTable[hash] = new TTEntry(noMoveScore, depth, isMaximizing, NodeType.Exact);
             return noMoveScore;
         }
 
-        var sortedMoves = SortMovesByHeuristic(validMoves);
+        var originalAlpha = alpha;
+        var sortedMoves   = SortMovesByHeuristic(validMoves);
         var result = isMaximizing
             ? EvaluateMaximizing(board, depth, alpha, beta, currentPlayer, aiPlayer, sortedMoves)
             : EvaluateMinimizing(board, depth, alpha, beta, currentPlayer, aiPlayer, sortedMoves);
 
-        _transpositionTable[hash] = new TTEntry(result, depth, isMaximizing);
+        // 探索後のスコアに基づいてノード種別を決定する
+        var nodeType = result <= originalAlpha ? NodeType.UpperBound  // fail-low（上界値）
+                     : result >= beta          ? NodeType.LowerBound  // fail-high（下界値）
+                     :                          NodeType.Exact;
+        _transpositionTable[hash] = new TTEntry(result, depth, isMaximizing, nodeType);
         return result;
     }
 

@@ -20,6 +20,7 @@ IPC プロトコル（改行区切り JSON）:
 
 import sys
 import json
+import alpha_beta
 from alpha_beta import AlphaBetaAI
 
 
@@ -34,6 +35,10 @@ def main():
         sys.stdin.reconfigure(encoding='utf-8-sig')
     except AttributeError:
         pass  # Python 3.7 未満では reconfigure が存在しない（3.8+ では常に利用可能）
+
+    # 起動直後にバックエンド種別をハンドシェイクとして出力する。
+    # C# の PythonSubprocessAI がこの 1 行を読んで EngineName を確定させる。
+    print(json.dumps({'backend': alpha_beta.BACKEND}), flush=True)
 
     # AlphaBetaAI はステートレスなので 1 インスタンスで全リクエストを処理できる
     ai = AlphaBetaAI()
@@ -55,6 +60,9 @@ def main():
             player  = req['player']          # 1=Black, 2=White
             depth   = req['depth']           # 探索深さ
             time_ms = req.get('time_ms')     # Hard 時のみ設定される（None=固定深さ探索）
+
+            if not isinstance(depth, int) or depth < 1:
+                raise ValueError(f"depth must be an integer >= 1, got {depth!r}")
 
             # time_ms が指定されている場合は反復深化探索、そうでなければ固定深さ探索
             if time_ms is not None:

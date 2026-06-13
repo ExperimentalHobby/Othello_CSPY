@@ -80,7 +80,12 @@ while (engine.GameState.IsGameInProgress())
             return;
         }
         Console.WriteLine($" → {ConsoleInputParser.ColChar(bestMove.Column)}{bestMove.Row + 1}");
-        engine.MakeMove(bestMove);
+        var aiMoveResult = engine.MakeMove(bestMove);
+        if (!aiMoveResult.IsSuccess)
+        {
+            Console.Error.WriteLine($"AI の手が無効でした: {aiMoveResult.Message}");
+            return;
+        }
         PrintPassNoticeIfAny(engine);
     }
 }

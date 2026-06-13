@@ -18,15 +18,7 @@ public static class OthelloRules
     /// <param name="playerColor">着手するプレイヤーの色</param>
     /// <returns>着手が有効であれば true</returns>
     public static bool IsValidMove(Board board, Position position, PlayerColor playerColor)
-    {
-        // 既に石が置かれているマスへは着手できない
-        if (board.GetPiece(position) != PlayerColor.Empty)
-            return false;
-
-        // 1 枚以上反転できる場合のみ有効
-        var flipped = FlipCalculator.GetFlippablePieces(board, position, playerColor);
-        return flipped.Count > 0;
-    }
+        => FlipCalculator.HasAnyFlip(board, position, playerColor);
 
     /// <summary>
     /// 指定したプレイヤーが着手できる全有効マスの座標リストを返す。

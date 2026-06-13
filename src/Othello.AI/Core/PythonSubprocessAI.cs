@@ -40,8 +40,11 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
     /// <summary>この AI インスタンスの難易度（探索深さの決定に使用）</summary>
     public DifficultyLevel Difficulty { get; }
 
-    /// <summary>UI 表示用バックエンド名。Rust / Python を構築時に一度だけ判定しキャッシュする。</summary>
-    public string EngineName { get; }
+    /// <summary>
+    /// UI 表示用バックエンド名。プロセス起動後のハンドシェイク（ai.py が出力する {"backend": ...}）
+    /// を読んで確定させる。ファイル存在チェックではなく実際の import 結果を反映する。
+    /// </summary>
+    public string EngineName { get; private set; }
 
     /// <summary>
     /// 指定した難易度とスクリプトパスで Python AI プロセスを起動する。
@@ -53,8 +56,8 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
     public PythonSubprocessAI(DifficultyLevel difficulty, string pythonScriptPath)
     {
         Difficulty = difficulty;
-        // バックグラウンドスレッド（Task.Run）から呼ばれる前提で IsRustAvailable を確定させる。
-        // これにより Lazy の初期化が UI スレッドではなくここで行われる。
+        // ハンドシェイクを読む前のデフォルト（ファイル存在ベース）。
+        // プロセス起動後に上書きされる。
         EngineName = AiScriptPaths.IsRustAvailable ? "AI: Rust" : "AI: Python";
 
         // スクリプトの存在を事前確認し、見つからない場合は明確なエラーを出す
@@ -63,8 +66,8 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
                 $"Python スクリプトが見つかりません: {pythonScriptPath}\n" +
                 "dotnet build を実行してファイルが出力ディレクトリにコピーされているか確認してください。");
 
-        // OS に合わせた Python 実行ファイルを自動検出する
-        string pythonExe = FindPythonExecutable();
+        // OS に合わせた Python 実行ファイルを自動検出する（Lazy キャッシュで2回目以降は即時）
+        string pythonExe = _pythonExeCache.Value;
 
         // スクリプトと同じディレクトリを作業ディレクトリにすることで
         // ai.py が board.py / evaluator.py / alpha_beta.py を import できるようにする
@@ -108,6 +111,16 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
         try
         {
             _process.BeginErrorReadLine();
+
+            // ai.py は起動直後に {"backend": "rust"|"python"} を 1 行出力する。
+            // これを読んで EngineName を確定させる（ファイル存在チェックより信頼性が高い）。
+            var handshake = ReadLineWithTimeout(timeoutMs: 5_000);
+            if (handshake != null)
+            {
+                using var doc = JsonDocument.Parse(handshake);
+                if (doc.RootElement.TryGetProperty("backend", out var backend))
+                    EngineName = backend.GetString() == "rust" ? "AI: Rust" : "AI: Python";
+            }
         }
         catch
         {
@@ -239,13 +252,17 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
         return grid;
     }
 
+    /// <summary>プロセス起動ごとに探索を行わないよう結果をキャッシュする。</summary>
+    private static readonly Lazy<string> _pythonExeCache = new(FindPythonExecutable);
+
     /// <summary>
-    /// OS に応じて Python 実行ファイル名を自動検出する。
+    /// OS に応じて Python 3.x 実行ファイル名を自動検出する。
     /// Windows では py → python3 → python の順で試す。
     /// 非 Windows では python3 → python の順で試す。
+    /// 結果は <see cref="_pythonExeCache"/> でプロセス生存期間中キャッシュされる。
     /// </summary>
-    /// <returns>使用可能な Python 実行ファイル名</returns>
-    /// <exception cref="InvalidOperationException">Python 3.8 以上が見つからない場合</exception>
+    /// <returns>使用可能な Python 3.x 実行ファイル名</returns>
+    /// <exception cref="InvalidOperationException">Python 3.x が見つからない場合</exception>
     private static string FindPythonExecutable()
     {
         // Windows では py（Windows Python Launcher）が最も確実
@@ -269,16 +286,20 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
 
                 if (probe == null) continue;
 
+                // stdout と stderr の両方に出力されることがある（Python 2 は stderr）
+                string stdout = probe.StandardOutput.ReadToEnd();
+                string stderr = probe.StandardError.ReadToEnd();
                 bool exited = probe.WaitForExit(PythonProbeTimeoutMs);
 
                 if (!exited)
                 {
-                    // タイムアウト: プロセスを強制終了して次の候補へ
                     try { probe.Kill(); } catch { }
                     continue;
                 }
 
-                if (probe.ExitCode == 0)
+                // "Python 3.x.y" のような出力が得られれば採用する
+                string versionOutput = string.IsNullOrWhiteSpace(stdout) ? stderr : stdout;
+                if (ParsePythonMajorVersion(versionOutput.Trim()) == 3)
                     return exe;
             }
             catch
@@ -288,6 +309,23 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
         }
         throw new InvalidOperationException(
             "Python 3.8 以上が見つかりません。インストールされているか確認してください。");
+    }
+
+    /// <summary>
+    /// "Python X.Y.Z" 形式の文字列からメジャーバージョン番号を取り出す。
+    /// 解析できない場合は -1 を返す。
+    /// </summary>
+    internal static int ParsePythonMajorVersion(string output)
+    {
+        // 期待フォーマット: "Python 3.11.2" / "Python 2.7.18"
+        if (!output.StartsWith("Python ", StringComparison.OrdinalIgnoreCase))
+            return -1;
+
+        var versionPart = output["Python ".Length..].Trim();
+        var dot = versionPart.IndexOf('.');
+        var majorStr = dot >= 0 ? versionPart[..dot] : versionPart;
+
+        return int.TryParse(majorStr, out int major) ? major : -1;
     }
 
     /// <summary>

@@ -87,8 +87,12 @@ class AlphaBetaAI:
         if not moves:
             return None
 
+        # Rust 版（best_move_timed）と一致させるため、deadline 設定前にソートして初期値を決める。
+        # ソート前の moves[0]（行優先の先頭）は重みが最大とは限らないため、
+        # 時間切れで深さ 1 の探索が完了しない場合でもムーブオーダリング後の最良手が返るようにする。
+        moves.sort(key=lambda m: WEIGHTS[m[0]][m[1]], reverse=True)
         deadline  = time.monotonic() + time_ms / 1000.0
-        best_move = moves[0]  # 最低限の初期値（深さ 1 の結果で必ず上書きされる）
+        best_move = moves[0]  # ソート後の先頭（最大重みの手）を初期フォールバックとする
 
         for depth in range(1, max_depth + 1):
             if time.monotonic() >= deadline:
@@ -200,7 +204,7 @@ class AlphaBetaAI:
 
         if not moves:
             # 現在のプレイヤーに有効手がない → パス（相手にターンを渡す）
-            # 深さは減らさず、is_maximizing を反転してパスを表現する
+            # パスも 1 手消費するため depth - 1 を渡す。is_maximizing を反転して相手ターンを表現する。
             return self._alpha_beta(board, depth - 1, alpha, beta, not is_maximizing, ai_player)
 
         # ムーブオーダリング: 再帰内でも位置重みで手をソートして枝刈り効率を向上させる

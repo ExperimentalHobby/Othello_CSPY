@@ -84,6 +84,25 @@ class RustPythonParityTests(unittest.TestCase):
                     py_move, rust_move,
                     msg=f"不一致: depth={depth} player={player} board={board}")
 
+    def test_same_timed_move_across_positions(self):
+        """
+        時間制限付き反復深化（get_best_move_timed）で Rust と純 Python が同じ手を返すことを確認する。
+        十分大きな time_ms（10 秒）を与えることで深さ 5 の探索が確実に完了し、
+        結果が固定深さ探索（get_best_move depth=5）と一致することも副次的に確認できる。
+        パス条件: 全局面で py_timed と rust_timed が一致すること。
+        """
+        py = alpha_beta_py.AlphaBetaAI()
+        max_depth = 5
+        time_ms   = 10_000  # 十分大きい値で「時間切れなし」を保証する
+
+        for board, player in self._positions():
+            py_timed   = py.get_best_move_timed(board, player, max_depth, time_ms)
+            rust_timed = othello_ai_rust.get_best_move_timed(board, player, max_depth, time_ms)
+            rust_timed = tuple(rust_timed) if rust_timed is not None else None
+            self.assertEqual(
+                py_timed, rust_timed,
+                msg=f"timed 不一致: player={player} board={board}")
+
 
 if __name__ == "__main__":
     unittest.main()

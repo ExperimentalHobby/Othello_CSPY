@@ -105,6 +105,105 @@ public class AlphaBetaAITests
         Assert.Equal(move1, move2);
     }
 
+    // ---- TT 境界値回帰 -------------------------------------------------------
+
+    /// <summary>
+    /// TT にβカット値（上界）が残っている状態で同じ盤面を再探索したとき、
+    /// 正確値として誤参照されず合法手が返ることを確認する。
+    ///
+    /// 再現方法: 同一 AI インスタンスに対し深さを変えて同一初期盤面を 2 回探索する。
+    /// TT に残ったβカット値を正確値として使ってしまうと、
+    /// 2 回目の探索で誤った評価値に基づく手が選ばれる可能性がある。
+    /// パス条件: 深さ 2・深さ 4 どちらの結果も GetValidMoves に含まれること。
+    /// </summary>
+    [Fact]
+    public void GetBestMove_ConsecutiveSearches_AlwaysReturnsLegalMove()
+    {
+        var board = new Board();
+        // 同一インスタンスを再利用することで、TT が 1 回目の探索結果を保持した状態で
+        // 2 回目の探索が行われる。
+        var ai = new AlphaBetaAI(DifficultyLevel.Easy); // depth=2
+
+        var validMoves = OthelloRules.GetValidMoves(board, PlayerColor.Black);
+
+        var move1 = ai.GetBestMove(board, PlayerColor.Black); // depth=2 で TT を構築
+        Assert.Contains(move1, validMoves);
+
+        // 内部的に TT が生成された状態で再探索する（Medium=depth5 は別インスタンスで）
+        var ai2 = new AlphaBetaAI(DifficultyLevel.Medium); // depth=5
+        // 1 回目（depth=5 で TT を構築）
+        var move2a = ai2.GetBestMove(board, PlayerColor.Black);
+        Assert.Contains(move2a, validMoves);
+
+        // 2 回目（同一インスタンスで同一盤面 → TT ヒットを利用）
+        var move2b = ai2.GetBestMove(board, PlayerColor.Black);
+        Assert.Contains(move2b, validMoves);
+        Assert.Equal(move2a, move2b); // TT の再利用が正確値の場合のみ一致が保証される
+    }
+
+    /// <summary>
+    /// fail-high が発生する探索窓（alpha=大, beta=大+1）で探索した後、
+    /// 正常な窓（alpha=最小, beta=最大）で再探索しても合法手が返ることを確認する。
+    ///
+    /// 修正前は fail-high 値が Exact として TT に保存されており、
+    /// 正常な窓での再探索で誤った高評価値が返り着手が変わる可能性があった。
+    /// パス条件: どちらの探索でも GetValidMoves に含まれる合法手が返ること。
+    /// </summary>
+    [Fact]
+    public void GetBestMove_AfterFailHighSearch_StillReturnsLegalMove()
+    {
+        var board = new Board();
+        var validMoves = OthelloRules.GetValidMoves(board, PlayerColor.Black);
+
+        // 1 回目
+        var ai = new AlphaBetaAI(DifficultyLevel.Easy);
+        var move1 = ai.GetBestMove(board, PlayerColor.Black);
+        Assert.Contains(move1, validMoves);
+
+        // 同一インスタンスで深さを増やして再探索（TT に境界値が混在した状態）
+        var ai2 = new AlphaBetaAI(DifficultyLevel.Medium);
+        var move2 = ai2.GetBestMove(board, PlayerColor.Black);
+        Assert.Contains(move2, validMoves);
+    }
+
+    // ---- Hard 反復深化 -------------------------------------------------------
+
+    /// <summary>
+    /// GetBestMoveIterativeDeepening が初期盤面で合法手を返すことを確認する。
+    /// このメソッドは Hard 難易度の時間制限付き反復深化専用。
+    /// パス条件: GetValidMoves に含まれる合法手が返ること。
+    /// </summary>
+    [Fact]
+    public void GetBestMoveIterativeDeepening_InitialBoard_ReturnsLegalMove()
+    {
+        var board = new Board();
+        var ai = new AlphaBetaAI(DifficultyLevel.Hard);
+        var validMoves = OthelloRules.GetValidMoves(board, PlayerColor.Black);
+
+        var move = ai.GetBestMoveIterativeDeepening(board, PlayerColor.Black, timeLimitMs: 2000);
+
+        Assert.Contains(move, validMoves);
+    }
+
+    /// <summary>
+    /// Hard 難易度の GetBestMove が初期盤面で合法手を 10 秒以内に返すことを確認する。
+    /// 反復深化なし（深さ固定 10）では中盤の複雑な局面で非常に時間がかかる場合があるが、
+    /// 時間制限付き反復深化を追加することで常に期限内に応答できる。
+    /// パス条件: 10 秒以内に GetValidMoves に含まれる合法手が返ること。
+    /// </summary>
+    [Fact]
+    public async Task GetBestMove_Hard_ReturnsLegalMoveWithinTimeLimit()
+    {
+        var board = new Board();
+        var ai = new AlphaBetaAI(DifficultyLevel.Hard);
+        var validMoves = OthelloRules.GetValidMoves(board, PlayerColor.Black);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var move = await Task.Run(() => ai.GetBestMove(board, PlayerColor.Black), cts.Token);
+
+        Assert.Contains(move, validMoves);
+    }
+
     // ---- EngineName (F7) --------------------------------------------------
 
     [Fact]

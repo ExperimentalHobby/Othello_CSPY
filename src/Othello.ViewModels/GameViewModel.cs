@@ -294,7 +294,7 @@ public class GameViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        _ = AnimateFlipsAsync(result.FlippedPieces);
+        _ = AnimateFlipsAsync(result.FlippedPieces, _cts!.Token);
         NotifyIfPassed();
         OnPropertyChanged(nameof(IsSettingsEditable));
         RefreshBoardDisplay();
@@ -315,7 +315,9 @@ public class GameViewModel : ViewModelBase, IDisposable
 
             if (_engine.CurrentPlayer == AiColor)
             {
-                await Task.Delay(500, ct);
+                await Task.Delay(AiTurnDelayMs, ct);
+                // 遅延中に Undo 等で手番が変わっていた場合は AI 処理をスキップする
+                if (_engine.CurrentPlayer != AiColor) return;
                 await ProcessAIMoveAsync(ct);
             }
         }
@@ -359,8 +361,11 @@ public class GameViewModel : ViewModelBase, IDisposable
 
             ct.ThrowIfCancellationRequested();
 
+            // Undo が遅延中に実行され手番が人間に戻っている場合は着手しない
+            if (_engine.CurrentPlayer != AiColor) return;
+
             var moveResult = _engine.MakeMove(bestMove);
-            _ = AnimateFlipsAsync(moveResult.FlippedPieces);
+            _ = AnimateFlipsAsync(moveResult.FlippedPieces, ct);
             NotifyIfPassed();
             OnPropertyChanged(nameof(IsSettingsEditable));
             RefreshBoardDisplay();
@@ -432,7 +437,7 @@ public class GameViewModel : ViewModelBase, IDisposable
     /// 反転する石の IsBeingFlipped を FlipAnimationDurationMs の間 true にして UI 層のアニメーションをトリガーする。
     /// fire-and-forget で呼び出す。
     /// </summary>
-    private async Task AnimateFlipsAsync(IReadOnlyList<Position> flipped)
+    private async Task AnimateFlipsAsync(IReadOnlyList<Position> flipped, CancellationToken ct = default)
     {
         if (flipped.Count == 0) return;
 
@@ -445,8 +450,10 @@ public class GameViewModel : ViewModelBase, IDisposable
             foreach (var sq in targets)
                 sq.IsBeingFlipped = true;
 
-            await Task.Delay(FlipAnimationDurationMs);
+            // キャンセル時は OperationCanceledException が発生するが finally で IsBeingFlipped を戻す
+            await Task.Delay(FlipAnimationDurationMs, ct);
         }
+        catch (OperationCanceledException) { }
         finally
         {
             foreach (var sq in targets)

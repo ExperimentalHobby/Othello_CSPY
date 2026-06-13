@@ -100,6 +100,49 @@ public class SerializeBoardTests
 }
 
 /// <summary>
+/// PythonSubprocessAI.ParsePythonMajorVersion の単体テスト。
+/// python --version の出力文字列からメジャーバージョン番号を取り出す内部ロジックを検証する。
+/// </summary>
+public class ParsePythonMajorVersionTests
+{
+    /// <summary>
+    /// "Python 3.11.2" のような標準出力から 3 が得られること。
+    /// パス条件: 戻り値が 3 であること。
+    /// </summary>
+    [Fact]
+    public void ParsePythonMajorVersion_Python3_ReturnsThree()
+    {
+        int version = PythonSubprocessAI.ParsePythonMajorVersion("Python 3.11.2");
+        Assert.Equal(3, version);
+    }
+
+    /// <summary>
+    /// "Python 2.7.18" のような出力から 2 が得られること。
+    /// パス条件: 戻り値が 2 であること。
+    /// </summary>
+    [Fact]
+    public void ParsePythonMajorVersion_Python2_ReturnsTwo()
+    {
+        int version = PythonSubprocessAI.ParsePythonMajorVersion("Python 2.7.18");
+        Assert.Equal(2, version);
+    }
+
+    /// <summary>
+    /// 空文字列や "Python" プレフィックスのない文字列では -1 が返ること。
+    /// パス条件: 戻り値が -1 であること。
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("3.11.2")]
+    [InlineData("not python output")]
+    public void ParsePythonMajorVersion_InvalidInput_ReturnsMinusOne(string input)
+    {
+        int version = PythonSubprocessAI.ParsePythonMajorVersion(input);
+        Assert.Equal(-1, version);
+    }
+}
+
+/// <summary>
 /// AiScriptPaths の回帰テスト。
 /// </summary>
 public class AiScriptPathsTests
@@ -114,5 +157,37 @@ public class AiScriptPathsTests
     {
         var ex = Record.Exception(() => _ = AiScriptPaths.IsRustAvailable);
         Assert.Null(ex);
+    }
+}
+
+/// <summary>
+/// PythonSubprocessAI のバックエンドハンドシェイク統合テスト。
+/// ai.py が起動直後に backend フィールドを含む JSON を出力し、
+/// PythonSubprocessAI.EngineName がその値と一致することを確認する。
+/// Python スクリプトが出力ディレクトリに存在しない場合はスキップする。
+/// </summary>
+public class PythonSubprocessAIHandshakeTests
+{
+    private static readonly string ScriptPath = AiScriptPaths.AiScriptPath;
+
+    /// <summary>
+    /// PythonSubprocessAI を起動したとき、EngineName が "AI: Rust" または "AI: Python" の
+    /// いずれかであることを確認する（ハンドシェイクの結果が反映されていること）。
+    /// パス条件: EngineName が期待する 2 値のどちらかと一致すること。
+    /// </summary>
+    [Fact]
+    public void EngineName_MatchesHandshakeBackend()
+    {
+        if (!File.Exists(ScriptPath))
+        {
+            // テスト環境に Python スクリプトがない場合はスキップ
+            return;
+        }
+
+        using var ai = new PythonSubprocessAI(DifficultyLevel.Easy, ScriptPath);
+
+        Assert.True(
+            ai.EngineName == "AI: Rust" || ai.EngineName == "AI: Python",
+            $"予期しない EngineName: {ai.EngineName}");
     }
 }

@@ -206,12 +206,12 @@ class AiMainLoopTests(unittest.TestCase):
     """
 
     def _launch_ai(self):
-        """ai.py をサブプロセスとして起動する。"""
+        """ai.py をサブプロセスとして起動し、起動直後のハンドシェイク行を読み捨てる。"""
         import subprocess
         import sys
         import os
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai.py')
-        return subprocess.Popen(
+        proc = subprocess.Popen(
             [sys.executable, '-u', script],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -220,6 +220,9 @@ class AiMainLoopTests(unittest.TestCase):
             encoding='utf-8',
             cwd=os.path.dirname(os.path.abspath(__file__)),
         )
+        # ハンドシェイク行（{"backend": ...}）を読み捨てる
+        proc.stdout.readline()
+        return proc
 
     def _request(self, proc, board, player, depth=2):
         """JSON リクエストを 1 件送信してレスポンスを返す。"""
@@ -368,17 +371,56 @@ class AlphaBetaTimedTests(unittest.TestCase):
         timed  = self.ai.get_best_move_timed(board, BLACK, max_depth=3, time_ms=30000)
         self.assertEqual(fixed, timed)
 
+    def test_initial_fallback_move_matches_sorted_first_move(self):
+        """time_ms=0（即時タイムアウト）のとき、フォールバック手がソート後先頭（最大重み）であることを確認する。
+
+        このテストは純 Python 実装（alpha_beta_py.AlphaBetaAI）を直接テストする。
+        alpha_beta.AlphaBetaAI は Rust が利用可能な場合に Rust 版（バグなし）を使うため。
+
+        再現用盤面: 黒石(2,4)(5,2)、白石(3,4)(5,1)
+          有効手: (4,4)[重み=2] と (5,0)[重み=10]
+          行優先では (4,4) が先頭、重み降順では (5,0) が先頭。
+          修正前: deadline 前に sort しないため best_move = (4,4)（重み=2）
+          修正後: deadline 前に sort するため best_move = (5,0)（重み=10）
+
+        パス条件: time_ms=0 のとき、返った手の位置重みが他の有効手以上であること。"""
+        import alpha_beta_py as py_module
+        from evaluator import WEIGHTS
+        from board import EMPTY
+
+        py_ai = py_module.AlphaBetaAI()
+
+        # 黒の有効手が (4,4)[重み=2] と (5,0)[重み=10] の 2 手のみとなる盤面
+        board = [[EMPTY] * 8 for _ in range(8)]
+        board[2][4] = BLACK   # 黒石
+        board[3][4] = WHITE   # 白石（(4,4)から上方向で反転候補）
+        board[5][1] = WHITE   # 白石（(5,0)から右方向で反転候補）
+        board[5][2] = BLACK   # 黒石
+
+        moves = get_valid_moves(board, BLACK)
+        self.assertEqual(set(moves), {(4, 4), (5, 0)}, "前提: 有効手が 2 手のみであること")
+
+        # time_ms=-1（過去の deadline）で即時タイムアウトを保証する
+        move = py_ai.get_best_move_timed(board, BLACK, max_depth=5, time_ms=-1)
+        self.assertIsNotNone(move)
+        move_weight = WEIGHTS[move[0]][move[1]]
+        for other in moves:
+            self.assertGreaterEqual(
+                move_weight, WEIGHTS[other[0]][other[1]],
+                msg=f"フォールバック手 {move}（重み={move_weight}）が {other}（重み={WEIGHTS[other[0]][other[1]]}）より小さい"
+            )
+
 
 class AiTimedMainLoopTests(unittest.TestCase):
     """ai.py の time_ms フィールドを使った IPC 結合テスト。"""
 
     def _launch_ai(self):
-        """ai.py をサブプロセスとして起動する。"""
+        """ai.py をサブプロセスとして起動し、起動直後のハンドシェイク行を読み捨てる。"""
         import subprocess
         import sys
         import os
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai.py')
-        return subprocess.Popen(
+        proc = subprocess.Popen(
             [sys.executable, '-u', script],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -387,6 +429,9 @@ class AiTimedMainLoopTests(unittest.TestCase):
             encoding='utf-8',
             cwd=os.path.dirname(os.path.abspath(__file__)),
         )
+        # ハンドシェイク行（{"backend": ...}）を読み捨てる
+        proc.stdout.readline()
+        return proc
 
     def _close_ai(self, proc, timeout=10):
         try:
@@ -427,6 +472,37 @@ class AiTimedMainLoopTests(unittest.TestCase):
             res = json.loads(proc.stdout.readline())
             self.assertNotIn('error', res)
             self.assertIn((res['row'], res['col']), get_valid_moves(board, BLACK))
+        finally:
+            self._close_ai(proc)
+
+    def test_depth_zero_returns_error(self):
+        """depth=0 のリクエストは 'error' キーを含むレスポンスを返すことを確認する。
+        depth < 1 は無効値であり、評価関数の呼び出しが目的でないことをバリデーションする。
+        パス条件: レスポンスに 'error' キーが存在すること。"""
+        import json
+        board = make_initial_board()
+        proc = self._launch_ai()
+        try:
+            req = json.dumps({'board': board, 'player': BLACK, 'depth': 0, 'time_ms': None})
+            proc.stdin.write(req + '\n')
+            proc.stdin.flush()
+            res = json.loads(proc.stdout.readline())
+            self.assertIn('error', res)
+        finally:
+            self._close_ai(proc)
+
+    def test_negative_depth_returns_error(self):
+        """depth=-1 のリクエストは 'error' キーを含むレスポンスを返すことを確認する。
+        パス条件: レスポンスに 'error' キーが存在すること。"""
+        import json
+        board = make_initial_board()
+        proc = self._launch_ai()
+        try:
+            req = json.dumps({'board': board, 'player': BLACK, 'depth': -1, 'time_ms': None})
+            proc.stdin.write(req + '\n')
+            proc.stdin.flush()
+            res = json.loads(proc.stdout.readline())
+            self.assertIn('error', res)
         finally:
             self._close_ai(proc)
 

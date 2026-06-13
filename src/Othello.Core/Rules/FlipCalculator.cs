@@ -27,6 +27,58 @@ public static class FlipCalculator
     ];
 
     /// <summary>
+    /// 指定した position に playerColor の石を置いたとき、1 方向でも挟める相手の石があれば true を返す。
+    /// 反転リストを構築せず最初に見つけた時点で即終了するため、<see cref="GetFlippablePieces"/> より高速。
+    /// <see cref="Technopro.Othello.Core.Rules.OthelloRules.IsValidMove"/> の高速版として使用する。
+    /// </summary>
+    public static bool HasAnyFlip(Board board, Position position, PlayerColor playerColor)
+    {
+        if (board.GetPiece(position) != PlayerColor.Empty)
+            return false;
+
+        var opponent = playerColor.Opponent();
+        foreach (var (dRow, dCol) in Directions)
+        {
+            if (HasFlipInDirection(board, position, (dRow, dCol), playerColor, opponent))
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// 指定した 1 方向について、反転できる相手の石が存在するかどうかを返す（短絡評価）。
+    /// </summary>
+    private static bool HasFlipInDirection(Board board, Position start,
+        (int dRow, int dCol) direction, PlayerColor playerColor, PlayerColor opponent)
+    {
+        var row = start.Row + direction.dRow;
+        var col = start.Column + direction.dCol;
+        bool foundOpponent = false;
+
+        while (Position.IsValid(row, col))
+        {
+            var piece = board.GetPiece(row, col);
+
+            if (piece == PlayerColor.Empty)
+                return false;
+
+            if (piece == opponent)
+            {
+                foundOpponent = true;
+            }
+            else if (piece == playerColor)
+            {
+                return foundOpponent;
+            }
+
+            row += direction.dRow;
+            col += direction.dCol;
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// 指定した position に playerColor の石を置いたとき、
     /// 8 方向すべてを探索して反転される石の座標リストを返す。
     /// </summary>

@@ -77,7 +77,18 @@ try {
     if (-not $entries) { throw "ホイール内に拡張モジュール(*.pyd/*.so)が見つかりません: $($wheel.Name)" }
     foreach ($e in $entries) {
         $target = Join-Path $pyDir $e.Name
-        [System.IO.Compression.ZipFileExtensions]::ExtractToFile($e, $target, $true)
+        # .pyd が別プロセスにロックされている場合は最大 5 秒リトライする
+        $retryMax = 5; $retried = 0
+        while ($true) {
+            try {
+                [System.IO.Compression.ZipFileExtensions]::ExtractToFile($e, $target, $true)
+                break
+            } catch [System.IO.IOException] {
+                if ($retried++ -ge $retryMax) { throw }
+                Write-Warning "$($e.Name) がロックされています。1 秒後にリトライします ($retried/$retryMax)..."
+                Start-Sleep -Seconds 1
+            }
+        }
         Write-Host "placed: $target"
     }
 }

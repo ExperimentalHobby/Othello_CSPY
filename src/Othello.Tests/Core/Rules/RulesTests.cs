@@ -243,4 +243,61 @@ public class FlipCalculatorTests
         Assert.Contains(new Position(3, 1), flipped);
         Assert.Contains(new Position(3, 2), flipped);
     }
+
+    // ---- HasAnyFlip 短絡判定 -----------------------------------------------
+
+    /// <summary>
+    /// 初期盤面で黒が (3,2) に打てる（少なくとも 1 方向挟める）ことを HasAnyFlip で確認する。
+    /// パス条件: HasAnyFlip の戻り値が true であること。
+    /// </summary>
+    [Fact]
+    public void HasAnyFlip_ValidMove_ReturnsTrue()
+    {
+        var board = new Board();
+        Assert.True(FlipCalculator.HasAnyFlip(board, new Position(3, 2), PlayerColor.Black));
+    }
+
+    /// <summary>
+    /// 初期盤面の隅 (0,0) は黒でも挟めないため HasAnyFlip が false を返すことを確認する。
+    /// パス条件: HasAnyFlip の戻り値が false であること。
+    /// </summary>
+    [Fact]
+    public void HasAnyFlip_InvalidMove_ReturnsFalse()
+    {
+        var board = new Board();
+        Assert.False(FlipCalculator.HasAnyFlip(board, new Position(0, 0), PlayerColor.Black));
+    }
+
+    /// <summary>
+    /// 既に石が置かれているマス (3,3) は HasAnyFlip が false を返すことを確認する。
+    /// パス条件: HasAnyFlip の戻り値が false であること。
+    /// </summary>
+    [Fact]
+    public void HasAnyFlip_OccupiedSquare_ReturnsFalse()
+    {
+        var board = new Board();
+        // (3,3) は初期配置で White が存在する
+        Assert.False(FlipCalculator.HasAnyFlip(board, new Position(3, 3), PlayerColor.Black));
+    }
+
+    /// <summary>
+    /// HasAnyFlip の結果が GetFlippablePieces.Count > 0 と常に一致することを確認する。
+    /// 初期盤面の全空きマスで比較する。
+    /// パス条件: 両者の結果が一致すること。
+    /// </summary>
+    [Fact]
+    public void HasAnyFlip_AlwaysMatchesGetFlippablePiecesCount()
+    {
+        var board = new Board();
+        for (int r = 0; r < 8; r++)
+        {
+            for (int c = 0; c < 8; c++)
+            {
+                var pos = new Position(r, c);
+                bool hasAny = FlipCalculator.HasAnyFlip(board, pos, PlayerColor.Black);
+                bool hasFlips = FlipCalculator.GetFlippablePieces(board, pos, PlayerColor.Black).Count > 0;
+                Assert.Equal(hasFlips, hasAny);
+            }
+        }
+    }
 }

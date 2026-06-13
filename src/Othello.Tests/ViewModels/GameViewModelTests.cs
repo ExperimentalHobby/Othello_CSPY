@@ -350,6 +350,41 @@ public class GameViewModelTests
         Assert.NotEqual(statusBefore, vm.StatusMessage);
         Assert.Contains("有効", vm.StatusMessage);
     }
+
+    // ========== #Undo競合: CheckAndProcessNextTurnAsync 遅延中の Undo ==========
+
+    /// <summary>
+    /// CheckAndProcessNextTurnAsync の 500ms 遅延中に Undo が実行されても、
+    /// 遅延明けの AI が「人間の手番のまま MakeMove」しないことを確認する（競合バグ回帰）。
+    ///
+    /// バグ再現の仕掛け:
+    ///   FixedMoveFakeAI は色を問わず Position(2,3) を返す。
+    ///   (2,3) は初期盤面で黒（HumanColor）の有効手である。
+    ///   Undo 後に _currentPlayer=Black のまま ProcessAIMoveAsync が続行すると
+    ///   MakeMove((2,3)) が黒として成功し、スコアが 4/1 に変わる（バグ）。
+    ///   修正済みなら CurrentPlayer != AiColor ガードで弾かれ 2/2 のまま（グリーン）。
+    ///
+    /// パス条件: Undo 後のスコアが初期値 BlackScore=2 / WhiteScore=2 のままであること。
+    /// </summary>
+    [Fact]
+    public async Task UndoDuringAiDelay_DoesNotMakeMoveOnHumanTurn()
+    {
+        // (2,3) は初期盤面で黒の有効手 → Undo 後に黒手番のままこの手が通ると黒石が増える
+        using var vm = new GameViewModel(d => new FixedMoveFakeAI(d, new Position(2, 3)));
+
+        // 人間（黒）が (2,3) に着手 → CheckAndProcessNextTurnAsync が 500ms 遅延に入る
+        vm.SquareClickedCommand.Execute(new Position(2, 3));
+
+        // 遅延中（IsAIThinking=false）に Undo を実行する
+        await Task.Delay(50);
+        vm.UndoCommand.Execute(null);
+
+        // 遅延完了 + ProcessAIMoveAsync の AI 待機（300ms）を過ぎるまで待機
+        await Task.Delay(900);
+
+        Assert.Equal(2, vm.BlackScore);
+        Assert.Equal(2, vm.WhiteScore);
+    }
 }
 
 // ========== テスト専用 AI モック ==========
@@ -371,4 +406,16 @@ file sealed class ErrorFakeAI : IAIStrategy
         _errored.Set();
         throw new InvalidOperationException("AI エラーのシミュレーション");
     }
+}
+
+/// <summary>
+/// 色を問わず常に指定した固定座標を返す AI モック。
+/// 「白手番として呼ばれたのに黒の有効手座標を返す」状況を再現し、
+/// Undo 競合バグ（CurrentPlayer ガードなし）のテストに使用する。
+/// </summary>
+file sealed class FixedMoveFakeAI(DifficultyLevel difficulty, Position fixedMove) : IAIStrategy
+{
+    public DifficultyLevel Difficulty { get; } = difficulty;
+    public string EngineName => "AI: FixedMove";
+    public Position GetBestMove(Board board, PlayerColor playerColor) => fixedMove;
 }

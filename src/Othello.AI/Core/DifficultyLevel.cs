@@ -10,7 +10,7 @@ public enum DifficultyLevel
     Easy = 1,
     /// <summary>中級: 探索深さ 5（1〜2 秒程度）</summary>
     Medium = 2,
-    /// <summary>上級: 探索深さ 10（3〜5 秒程度）</summary>
+    /// <summary>上級: 探索深さ 10（最大 8 秒、反復深化 <c>time_ms=8000</c>）</summary>
     Hard = 3
 }
 
