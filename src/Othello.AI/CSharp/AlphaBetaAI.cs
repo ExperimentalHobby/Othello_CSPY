@@ -25,6 +25,10 @@ public class AlphaBetaAI : IAIStrategy
     public DifficultyLevel Difficulty { get; }
     public string EngineName => "AI: C#";
 
+    /// <summary>
+    /// 指定した難易度で AI を初期化する。
+    /// </summary>
+    /// <param name="difficulty">探索深さ・時間制限を決定する難易度。既定は <see cref="DifficultyLevel.Medium"/>。</param>
     public AlphaBetaAI(DifficultyLevel difficulty = DifficultyLevel.Medium)
     {
         Difficulty = difficulty;
@@ -58,6 +62,12 @@ public class AlphaBetaAI : IAIStrategy
         return hash;
     }
 
+    /// <summary>
+    /// 現在の難易度に応じた探索（固定深さ or 反復深化）で最善手を返す。
+    /// </summary>
+    /// <param name="board">現在の盤面。</param>
+    /// <param name="playerColor">手を選ぶプレイヤーの色。</param>
+    /// <returns>最善と判断した着手位置。</returns>
     public Position GetBestMove(Board board, PlayerColor playerColor)
     {
         var timeLimitMs = Difficulty.GetTimeLimitMs();

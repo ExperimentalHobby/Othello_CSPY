@@ -98,12 +98,19 @@ public class GameViewModel : ViewModelBase, IDisposable
             _ = StartNewGameAsync();
     }
 
+    /// <summary>
+    /// 難易度 ComboBox とバインドする 0 始まりインデックス（Easy=0, Normal=1, Hard=2）。
+    /// <see cref="DifficultyLevel"/> は 1 始まりのため ±1 変換を行う。
+    /// </summary>
     public int DifficultyIndex
     {
         get => (int)Difficulty - 1;
         set => Difficulty = (DifficultyLevel)(value + 1);
     }
 
+    /// <summary>
+    /// 人間の色 ComboBox とバインドする 0 始まりインデックス（黒=0, 白=1）。
+    /// </summary>
     public int HumanColorIndex
     {
         get => HumanColor == PlayerColor.Black ? 0 : 1;
