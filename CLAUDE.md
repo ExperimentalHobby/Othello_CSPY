@@ -43,6 +43,28 @@ Python プロセスのライフサイクル: `StartNewGame()` で起動 → `End
 ## 作業ルール
 
 - **実装前にプランを提示すること**: コード変更を行う前に、方針・変更箇所・影響範囲を日本語でまとめたプランを提示し、ユーザーの承認を得てから実装に進む。
+- **GitHub Flow に従うこと**: コード変更は必ず feature ブランチで行い、`main` に直接コミットしない。
+
+  **ブランチ運用手順（GitHub Flow）**
+
+  1. **ブランチ作成** — 作業開始前に `main` から feature ブランチを切る。ブランチ名は作業内容を端的に示す（例: `feature/iterative-deepening`、`fix/undo-pass-bug`、`docs/ai-readme`）
+     ```bash
+     git switch main
+     git pull
+     git switch -c feature/<作業名>
+     ```
+  2. **コミット** — 小さい単位でこまめにコミットする。コミットメッセージは変更の「なぜ」を説明する
+  3. **プルリクエスト** — 実装が完了したら `main` への PR を作成する。PR タイトルは 70 文字以内、本文に変更内容・テスト方法を記載する
+  4. **マージ後の後始末** — マージ後はローカル・リモートともにブランチを削除する
+     ```bash
+     git switch main && git pull
+     git branch -d feature/<作業名>
+     ```
+
+  **禁止事項**
+  - `main` ブランチへの直接コミット（緊急の typo 修正など極めて軽微なものを除く）
+  - `git push --force` を `main` ブランチに対して実行すること
+
 - **テスト駆動開発を意識すること**: 新機能追加・バグ修正の際は、Red → Green → Refactor のサイクルを厳守する。
 
   **Red → Green → Refactor サイクル**
