@@ -385,6 +385,194 @@ public class GameViewModelTests
         Assert.Equal(2, vm.BlackScore);
         Assert.Equal(2, vm.WhiteScore);
     }
+
+    // ========== AiEngineLabel ==========
+
+    /// <summary>
+    /// 注入した AI の EngineName が AiEngineLabel に反映されることを確認する。
+    /// パス条件: AiEngineLabel が FakeAI.EngineName（"AI: Fake"）と一致すること。
+    /// </summary>
+    [Fact]
+    public void AiEngineLabel_ReflectsInjectedAiEngineName()
+    {
+        using var vm = new GameViewModel(d => new FakeAI(d));
+        Assert.Equal("AI: Fake", vm.AiEngineLabel);
+    }
+
+    // ========== IsSettingsEditable ==========
+
+    /// <summary>
+    /// 初手前（InitialState）はゲーム進行中でも IsSettingsEditable が true を返すことを確認する。
+    /// パス条件: IsGameInProgress=true かつ IsSettingsEditable=true であること。
+    /// </summary>
+    [Fact]
+    public void IsSettingsEditable_TrueAtGameStart_BeforeFirstMove()
+    {
+        using var vm = new GameViewModel(d => new FakeAI(d));
+        Assert.True(vm.IsGameInProgress);
+        Assert.True(vm.IsSettingsEditable);
+    }
+
+    /// <summary>
+    /// 人間が初手を打った後は IsSettingsEditable が false を返すことを確認する。
+    /// BlockingFakeAI で AI をブロックし、着手後の状態を安定して検証する。
+    /// パス条件: 人間着手後に IsGameInProgress=true かつ IsSettingsEditable=false であること。
+    /// </summary>
+    [Fact]
+    public void IsSettingsEditable_FalseAfterFirstMove()
+    {
+        using var entered = new ManualResetEventSlim(false);
+        using var vm = new GameViewModel(d => new BlockingFakeAI(d, entered));
+
+        vm.SquareClickedCommand.Execute(new Position(2, 3));
+        Assert.True(entered.Wait(Timeout)); // AI がブロック中 = 着手済み
+
+        Assert.True(vm.IsGameInProgress);
+        Assert.False(vm.IsSettingsEditable);
+    }
+
+    // ========== BoardSquares 表示 ==========
+
+    /// <summary>
+    /// ゲーム開始直後、人間（黒）ターンでは初期有効手 4 マスのみ IsValidMove=true になることを確認する。
+    /// 初期盤面で黒の有効手: (2,3), (3,2), (4,5), (5,4)。
+    /// パス条件: IsValidMove=true のマスがこの 4 座標と完全一致すること。
+    /// </summary>
+    [Fact]
+    public void BoardSquares_ValidMovesHighlighted_OnHumanTurn()
+    {
+        using var vm = new GameViewModel(d => new FakeAI(d));
+
+        var expected = new HashSet<Position>
+        {
+            new(2, 3), new(3, 2), new(4, 5), new(5, 4)
+        };
+        var actual = vm.BoardSquares
+            .Where(sq => sq.IsValidMove)
+            .Select(sq => sq.Position)
+            .ToHashSet();
+
+        Assert.Equal(expected, actual);
+    }
+
+    /// <summary>
+    /// AI 思考中（IsAIThinking=true）は IsValidMove=true のマスが存在しないことを確認する。
+    /// パス条件: BlockingFakeAI がブロック中に BoardSquares に IsValidMove=true のマスがないこと。
+    /// </summary>
+    [Fact]
+    public void BoardSquares_NoValidMoveHighlighted_DuringAiThinking()
+    {
+        using var entered = new ManualResetEventSlim(false);
+        using var vm = new GameViewModel(d => new BlockingFakeAI(d, entered));
+
+        vm.HumanColorIndex = 1; // 白に変更 → AI（黒）が先手
+        Assert.True(entered.Wait(Timeout));
+        Assert.True(vm.IsAIThinking);
+
+        Assert.DoesNotContain(vm.BoardSquares, sq => sq.IsValidMove);
+    }
+
+    /// <summary>
+    /// 人間が (2,3) に着手した後、そのマスの Piece が Black になることを確認する。
+    /// パス条件: 着手後に BoardSquares[(2,3)].Piece が PlayerColor.Black であること。
+    /// </summary>
+    [Fact]
+    public void BoardSquares_StoneAppears_AfterHumanMove()
+    {
+        using var entered = new ManualResetEventSlim(false);
+        using var vm = new GameViewModel(d => new BlockingFakeAI(d, entered));
+
+        var target = vm.BoardSquares.First(sq => sq.Position == new Position(2, 3));
+        Assert.Equal(PlayerColor.Empty, target.Piece); // 着手前は空
+
+        vm.SquareClickedCommand.Execute(new Position(2, 3));
+        Assert.True(entered.Wait(Timeout));
+
+        Assert.Equal(PlayerColor.Black, target.Piece);
+    }
+
+    // ========== スコア更新 ==========
+
+    /// <summary>
+    /// 人間が有効手に着手するとスコア（BlackScore / WhiteScore）が変化することを確認する。
+    /// 黒が (2,3) に置くと (3,3) の白を裏返す: 黒 2→4, 白 2→1。
+    /// パス条件: BlackScore=4, WhiteScore=1 になること。
+    /// </summary>
+    [Fact]
+    public void Score_IncreasesAfterHumanMove()
+    {
+        using var entered = new ManualResetEventSlim(false);
+        using var vm = new GameViewModel(d => new BlockingFakeAI(d, entered));
+
+        Assert.Equal(2, vm.BlackScore);
+        Assert.Equal(2, vm.WhiteScore);
+
+        vm.SquareClickedCommand.Execute(new Position(2, 3));
+        Assert.True(entered.Wait(Timeout));
+
+        Assert.Equal(4, vm.BlackScore);
+        Assert.Equal(1, vm.WhiteScore);
+    }
+
+    // ========== CurrentPlayerDisplay ==========
+
+    /// <summary>
+    /// ゲーム開始直後、人間（黒）ターンの CurrentPlayerDisplay が正しい文字列を返すことを確認する。
+    /// パス条件: CurrentPlayerDisplay が "あなた（黒）のターン" であること。
+    /// </summary>
+    [Fact]
+    public void CurrentPlayerDisplay_ShowsHumanTurnText_AtGameStart()
+    {
+        using var vm = new GameViewModel(d => new FakeAI(d));
+        Assert.Equal("あなた（黒） のターン", vm.CurrentPlayerDisplay);
+    }
+
+    /// <summary>
+    /// AI（黒）が先手で思考中の CurrentPlayerDisplay が AI ターン文字列を返すことを確認する。
+    /// パス条件: BlockingFakeAI がブロック中に CurrentPlayerDisplay が "AI（黒）のターン" であること。
+    /// </summary>
+    [Fact]
+    public void CurrentPlayerDisplay_ShowsAiTurnText_WhenAiThinking()
+    {
+        using var entered = new ManualResetEventSlim(false);
+        using var vm = new GameViewModel(d => new BlockingFakeAI(d, entered));
+
+        vm.HumanColorIndex = 1; // 白に変更 → AI（黒）が先手
+        Assert.True(entered.Wait(Timeout));
+
+        Assert.Equal("AI（黒） のターン", vm.CurrentPlayerDisplay);
+    }
+
+    // ========== ゲーム外クリック ==========
+
+    /// <summary>
+    /// IsGameInProgress=false のとき SquareClicked しても StatusMessage が変わらないことを確認する。
+    /// パス条件: AI 起動失敗後にクリックしても StatusMessage が変化しないこと。
+    /// </summary>
+    [Fact]
+    public void SquareClicked_WhenGameNotInProgress_IsIgnored()
+    {
+        using var vm = new GameViewModel(_ => throw new InvalidOperationException("AI unavailable"));
+        Assert.False(vm.IsGameInProgress);
+
+        string statusBefore = vm.StatusMessage;
+        vm.SquareClickedCommand.Execute(new Position(2, 3));
+
+        Assert.Equal(statusBefore, vm.StatusMessage);
+    }
+
+    // ========== StatusMessage ==========
+
+    /// <summary>
+    /// ゲーム開始後の StatusMessage に「ゲーム開始」と人間・AI の色情報が含まれることを確認する。
+    /// パス条件: StatusMessage に "ゲーム開始" が含まれること。
+    /// </summary>
+    [Fact]
+    public void StatusMessage_ContainsGameStartInfo_AfterNewGame()
+    {
+        using var vm = new GameViewModel(d => new FakeAI(d));
+        Assert.Contains("ゲーム開始", vm.StatusMessage);
+    }
 }
 
 // ========== テスト専用 AI モック ==========
