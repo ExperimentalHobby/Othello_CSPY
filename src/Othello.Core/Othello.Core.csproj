@@ -5,6 +5,9 @@
     <RootNamespace>Technopro.Othello.Core</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- バージョンリソースの識別情報（共通バージョンは Directory.Build.props で定義） -->
+    <AssemblyTitle>Othello Core</AssemblyTitle>
+    <Description>オセロのゲームロジック・AI 連携ライブラリ</Description>
   </PropertyGroup>
 
   <ItemGroup>

@@ -15,6 +15,9 @@
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
     <!-- 自動 Bootstrap 初期化を無効化（Program.cs で明示的に TryInitialize を呼ぶ） -->
     <WindowsAppSdkBootstrapInitialize>false</WindowsAppSdkBootstrapInitialize>
+    <!-- バージョンリソースの識別情報（共通バージョンは Directory.Build.props で定義） -->
+    <AssemblyTitle>Othello WinUI3</AssemblyTitle>
+    <Description>オセロ WinUI3 版</Description>
   </PropertyGroup>
 
   <ItemGroup>

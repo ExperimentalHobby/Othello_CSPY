@@ -1,6 +1,6 @@
 [package]
 name = "othello_ai_rust"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 description = "Othello alpha-beta AI implemented in Rust, exposed to Python via PyO3"
 
@@ -20,3 +20,8 @@ python = ["dep:pyo3"]
 # extension-module: 実行時に Python 本体がシンボルを提供する前提でビルド（libpython を静的リンクしない）
 # abi3-py38       : Python 3.8 以上で共通利用できる安定 ABI 拡張を生成（C# が自動検出する Python バージョン差を吸収）
 pyo3 = { version = "0.27", features = ["extension-module", "abi3-py38"], optional = true }
+
+# winresource: Windows ビルド時に .pyd へ VERSIONINFO リソースを埋め込む（build.rs 参照）。
+# 非 Windows ターゲットには付与しないため、他プラットフォームのビルドには影響しない。
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"

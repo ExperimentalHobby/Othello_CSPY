@@ -6,6 +6,9 @@
     <RootNamespace>Technopro.Othello.Console</RootNamespace>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- バージョンリソースの識別情報（共通バージョンは Directory.Build.props で定義） -->
+    <AssemblyTitle>Othello Console</AssemblyTitle>
+    <Description>オセロ コンソール版</Description>
   </PropertyGroup>
 
   <ItemGroup>
