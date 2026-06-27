@@ -1,0 +1,22 @@
+<Project>
+
+  <!--
+    全 C# プロジェクト共通のバージョンメタデータ。
+    .NET SDK は既定（GenerateAssemblyInfo=true）でこれらを Win32 バージョンリソースとして
+    生成アセンブリ（.dll / .exe）へ埋め込む。エクスプローラーのプロパティ「詳細」タブで確認できる。
+  -->
+  <PropertyGroup>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <InformationalVersion>1.0.0</InformationalVersion>
+    <Product>Othello</Product>
+    <Copyright>Copyright (c) 2026 sadaaki</Copyright>
+    <!-- 会社名は空欄にする。Company を空文字にすると SDK がアセンブリ名にフォールバックして
+         CompanyName に埋め込まれてしまうため、Company 属性の生成自体を無効化し空欄にする。 -->
+    <GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>
+    <!-- InformationalVersion に git コミットハッシュ(+sha)を付与しない（ProductVersion を 1.0.0 に保つ） -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
+</Project>

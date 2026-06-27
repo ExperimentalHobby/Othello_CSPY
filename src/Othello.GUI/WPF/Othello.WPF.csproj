@@ -8,6 +8,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <DefineConstants>$(DefineConstants);WPF</DefineConstants>
+    <!-- バージョンリソースの識別情報（共通バージョンは Directory.Build.props で定義） -->
+    <AssemblyTitle>Othello WPF</AssemblyTitle>
+    <Description>オセロ WPF 版</Description>
   </PropertyGroup>
 
   <ItemGroup>
