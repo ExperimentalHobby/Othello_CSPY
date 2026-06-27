@@ -15,6 +15,7 @@ public class BoardSquareViewModel : ViewModelBase
     private bool _isValidMove;
     private bool _hasPiece;
     private bool _isBeingFlipped;
+    private bool _isHint;
 
     public PlayerColor Piece { get => _piece; set => SetProperty(ref _piece, value); }
 
@@ -24,6 +25,9 @@ public class BoardSquareViewModel : ViewModelBase
 
     /// <summary>着手後の反転アニメーション中であることを示すフラグ。UI 層がアニメーションを駆動するために使用する。</summary>
     public bool IsBeingFlipped { get => _isBeingFlipped; set => SetProperty(ref _isBeingFlipped, value); }
+
+    /// <summary>AI 推奨手（ヒント）であることを示すフラグ。人間のターン時のみ true になる。</summary>
+    public bool IsHint { get => _isHint; set => SetProperty(ref _isHint, value); }
 
     /// <summary>指定した盤面座標でマスを初期化する。</summary>
     /// <param name="position">このマスが対応する盤面上の座標（0〜7, 0〜7）。</param>

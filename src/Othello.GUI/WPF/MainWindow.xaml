@@ -33,6 +33,9 @@
                     Style="{StaticResource ActionButtonStyle}"/>
             <Button Content="戻す" Command="{Binding UndoCommand}"
                     Style="{StaticResource ActionButtonStyle}"/>
+            <ToggleButton Content="ヒント"
+                          IsChecked="{Binding IsHintEnabled, Mode=TwoWay}"
+                          Style="{StaticResource ActionButtonStyle}"/>
 
             <Separator Width="2" Background="{StaticResource SeparatorBrush}" Margin="10,0"/>
 
@@ -88,6 +91,8 @@
                                 <Grid Background="{StaticResource BoardGreenBrush}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
                                     <Ellipse Fill="{StaticResource ValidMoveHighlightBrush}" Opacity="0.6" Width="55" Height="55"
                                              Visibility="{Binding IsValidMove, Converter={StaticResource BoolToVisConverter}}"/>
+                                    <Ellipse Fill="{StaticResource HintHighlightBrush}" Opacity="0.75" Width="55" Height="55"
+                                             Visibility="{Binding IsHint, Converter={StaticResource BoolToVisConverter}}"/>
                                     <Ellipse Fill="{Binding Piece, Converter={StaticResource PlayerColorToBrushConverter}}" Stroke="#2a2a2a" StrokeThickness="2"
                                              Width="78" Height="78"
                                              RenderTransformOrigin="0.5,0.5"

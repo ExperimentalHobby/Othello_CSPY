@@ -22,6 +22,9 @@ public class GameViewModel : ViewModelBase, IDisposable
     /// <summary>石の反転アニメーション全体の所要時間（ミリ秒）。IsBeingFlipped が True を維持する時間。</summary>
     private const int FlipAnimationDurationMs = 300;
 
+    /// <summary>ヒント計算専用の C# AI（depth=2）。Python プロセス不要で即応答。</summary>
+    private readonly AlphaBetaAI _hintAi = new(DifficultyLevel.Easy);
+
     private readonly GameEngine _engine = new();
 
     /// <summary>難易度から AI 実装を生成するファクトリ（テスト時はモックを注入できる）。</summary>
@@ -39,6 +42,7 @@ public class GameViewModel : ViewModelBase, IDisposable
     private DifficultyLevel _difficulty  = DifficultyLevel.Medium;
     private bool   _isGameInProgress;
     private bool   _isAIThinking;
+    private bool   _isHintEnabled;
     private PlayerColor _humanColor = PlayerColor.Black;
 
     // Undo は RaiseCanExecuteChanged を呼べるよう RelayCommand 型で保持する
@@ -79,6 +83,27 @@ public class GameViewModel : ViewModelBase, IDisposable
     public bool IsSettingsEditable => !IsGameInProgress || _engine.IsInitialState;
 
     public bool IsAIThinking { get => _isAIThinking; set => SetProperty(ref _isAIThinking, value); }
+
+    /// <summary>
+    /// ヒント（AI 推奨手）表示のオン/オフ。
+    /// オンにすると人間ターン時に非同期でヒントを計算してボードに反映する。
+    /// </summary>
+    public bool IsHintEnabled
+    {
+        get => _isHintEnabled;
+        set
+        {
+            if (!SetProperty(ref _isHintEnabled, value)) return;
+            if (!value)
+            {
+                ClearHint();
+            }
+            else if (IsGameInProgress && _engine.CurrentPlayer == HumanColor)
+            {
+                _ = RefreshHintAsync(_cts!.Token);
+            }
+        }
+    }
 
     public PlayerColor HumanColor
     {
@@ -487,7 +512,39 @@ public class GameViewModel : ViewModelBase, IDisposable
         foreach (var square in BoardSquares)
             square.IsValidMove = validSet.Contains(square.Position);
 
+        ClearHint();
+        if (IsHintEnabled && IsGameInProgress && _engine.CurrentPlayer == HumanColor)
+            _ = RefreshHintAsync(_cts!.Token);
+
         UpdateCurrentPlayerDisplay();
+    }
+
+    /// <summary>
+    /// C# AI（depth=2）で推奨手を非同期計算し、該当マスの IsHint を true にする。
+    /// 人間ターン時のみ呼ばれ、IsHintEnabled が false になった時点でキャンセルされる。
+    /// </summary>
+    private async Task RefreshHintAsync(CancellationToken ct)
+    {
+        var board  = _engine.CurrentBoard.Clone();
+        var player = HumanColor;
+        Position hint;
+        try
+        {
+            hint = await Task.Run(() => _hintAi.GetBestMove(board, player), ct);
+        }
+        catch (OperationCanceledException) { return; }
+        catch { return; }
+
+        if (ct.IsCancellationRequested || !IsHintEnabled) return;
+
+        foreach (var sq in BoardSquares)
+            sq.IsHint = sq.Position == hint;
+    }
+
+    private void ClearHint()
+    {
+        foreach (var sq in BoardSquares)
+            sq.IsHint = false;
     }
 
     private void UpdateScoreBoardState()

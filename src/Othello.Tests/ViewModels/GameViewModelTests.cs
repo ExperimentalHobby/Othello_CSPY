@@ -573,6 +573,78 @@ public class GameViewModelTests
         using var vm = new GameViewModel(d => new FakeAI(d));
         Assert.Contains("ゲーム開始", vm.StatusMessage);
     }
+
+    // ========== ヒント機能テスト ==========
+
+    /// <summary>
+    /// IsHintEnabled が false（デフォルト）の時、全マスの IsHint が false のこと。
+    /// パス条件: ゲーム開始後に BoardSquares の全要素で IsHint = false であること。
+    /// </summary>
+    [Fact]
+    public void HintDisabled_AllSquaresIsHintFalse()
+    {
+        using var vm = new GameViewModel(d => new FakeAI(d));
+
+        Assert.False(vm.IsHintEnabled);
+        Assert.All(vm.BoardSquares, sq => Assert.False(sq.IsHint));
+    }
+
+    /// <summary>
+    /// IsHintEnabled を true にした後、人間のターン（黒、初期盤面）で
+    /// いずれか 1 マスの IsHint が true になること。
+    /// パス条件: 非同期でヒント計算が完了後、IsHint=true のマスがちょうど 1 つあること。
+    /// </summary>
+    [Fact]
+    public async Task HintEnabled_HumanTurn_ExactlyOneSquareIsHint()
+    {
+        using var vm = new GameViewModel(d => new FakeAI(d));
+        // デフォルトは人間=黒（先手）で人間ターンから開始
+
+        vm.IsHintEnabled = true;
+        await Task.Delay(500); // ヒント計算完了を待つ
+
+        Assert.Single(vm.BoardSquares, sq => sq.IsHint);
+    }
+
+    /// <summary>
+    /// ヒントが有効な状態で IsHintEnabled を false にすると、全マスの IsHint が false になること。
+    /// パス条件: IsHintEnabled を false にした後、全 BoardSquares で IsHint = false であること。
+    /// </summary>
+    [Fact]
+    public async Task HintEnabled_ThenDisabled_AllSquaresIsHintFalse()
+    {
+        using var vm = new GameViewModel(d => new FakeAI(d));
+
+        vm.IsHintEnabled = true;
+        await Task.Delay(500);
+
+        vm.IsHintEnabled = false;
+        await Task.Delay(50); // クリア反映を待つ
+
+        Assert.All(vm.BoardSquares, sq => Assert.False(sq.IsHint));
+    }
+
+    /// <summary>
+    /// AI ターン終了後（人間が着手 → AI が応答 → 再び人間ターン）にヒントが更新されること。
+    /// パス条件: AI 着手後に再び人間ターンになると IsHint=true のマスがちょうど 1 つあること。
+    /// </summary>
+    [Fact]
+    public async Task HintEnabled_AfterAiMove_HintRefreshed()
+    {
+        using var vm = new GameViewModel(d => new FakeAI(d));
+        vm.IsHintEnabled = true;
+        await Task.Delay(300); // 初期ヒント計算待ち
+
+        // 人間（黒）が着手
+        var humanMove = vm.BoardSquares.First(sq => sq.IsValidMove).Position;
+        vm.SquareClickedCommand.Execute(humanMove);
+
+        // AI（白）が応答して再び人間ターンになるまで待つ
+        await Task.Delay(1500);
+
+        // 人間ターンに戻ったらヒントが更新されているはず
+        Assert.Single(vm.BoardSquares, sq => sq.IsHint);
+    }
 }
 
 // ========== テスト専用 AI モック ==========
