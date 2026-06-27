@@ -35,7 +35,7 @@
                     Style="{StaticResource ActionButtonStyle}"/>
             <ToggleButton Content="ヒント"
                           IsChecked="{Binding IsHintEnabled, Mode=TwoWay}"
-                          Style="{StaticResource ActionButtonStyle}"/>
+                          Style="{StaticResource ActionToggleButtonStyle}"/>
 
             <Separator Width="2" Background="{StaticResource SeparatorBrush}" Margin="10,0"/>
 
