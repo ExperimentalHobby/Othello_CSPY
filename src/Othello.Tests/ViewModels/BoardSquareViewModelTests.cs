@@ -162,4 +162,33 @@ public class BoardSquareViewModelTests
 
         Assert.Equal("IsBeingFlipped", changedProp);
     }
+
+    // ========== IsHint ==========
+
+    /// <summary>
+    /// 初期状態で IsHint が false であることを確認する。
+    /// パス条件: 生成直後の IsHint が false であること。
+    /// </summary>
+    [Fact]
+    public void IsHint_DefaultFalse()
+    {
+        var sq = new BoardSquareViewModel(new Position(0, 0));
+        Assert.False(sq.IsHint);
+    }
+
+    /// <summary>
+    /// IsHint を変更すると "IsHint" の PropertyChanged が発火することを確認する。
+    /// パス条件: "IsHint" の PropertyChanged が発火すること。
+    /// </summary>
+    [Fact]
+    public void IsHint_RaisesPropertyChanged()
+    {
+        var sq = new BoardSquareViewModel(new Position(0, 0));
+        string? changedProp = null;
+        ((INotifyPropertyChanged)sq).PropertyChanged += (_, e) => changedProp = e.PropertyName;
+
+        sq.IsHint = true;
+
+        Assert.Equal("IsHint", changedProp);
+    }
 }

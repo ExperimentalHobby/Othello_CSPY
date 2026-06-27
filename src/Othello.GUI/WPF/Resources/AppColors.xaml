@@ -19,4 +19,7 @@
     <SolidColorBrush x:Key="AiBadgeBackgroundBrush"   Color="#1a1a2e"/>
     <SolidColorBrush x:Key="AiBadgeForegroundBrush"   Color="#7ec8e3"/>
 
+    <!-- Hint highlight -->
+    <SolidColorBrush x:Key="HintHighlightBrush"       Color="#6495ED"/>
+
 </ResourceDictionary>
