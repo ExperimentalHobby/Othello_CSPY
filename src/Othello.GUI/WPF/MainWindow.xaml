@@ -38,6 +38,12 @@
                           Style="{StaticResource ActionToggleButtonStyle}"/>
 
             <Separator Width="2" Background="{StaticResource SeparatorBrush}" Margin="10,0"/>
+            <Button Content="棋譜を保存" Click="OnSaveKifu"
+                    Style="{StaticResource ActionButtonStyle}"/>
+            <Button Content="棋譜を開く" Click="OnOpenKifu"
+                    Style="{StaticResource ActionButtonStyle}"/>
+
+            <Separator Width="2" Background="{StaticResource SeparatorBrush}" Margin="10,0"/>
 
             <TextBlock Text="難易度:" VerticalAlignment="Center" Margin="10,0" FontSize="12"/>
             <ComboBox Width="110" Margin="5" VerticalAlignment="Center" FontSize="12"

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Windows.Input;
 using Technopro.Othello.Core.AI;
 using Technopro.Othello.Core.Game;
+using Technopro.Othello.Core.Kifu;
 using Technopro.Othello.Core.Models;
 
 namespace Technopro.Othello.ViewModels;
@@ -47,6 +48,17 @@ public class GameViewModel : ViewModelBase, IDisposable
 
     // Undo は RaiseCanExecuteChanged を呼べるよう RelayCommand 型で保持する
     private readonly RelayCommand _undoCommand;
+
+    // --- 棋譜収集 ---
+    private readonly List<KifuMove> _kifuMoves = new();
+    private KifuRecord? _lastKifuRecord;
+
+    /// <summary>直近のゲームの棋譜。ゲーム終了後に設定され、新規ゲーム開始時に null にリセットされる。</summary>
+    public KifuRecord? LastKifuRecord
+    {
+        get => _lastKifuRecord;
+        private set => SetProperty(ref _lastKifuRecord, value);
+    }
 
     public ObservableCollection<BoardSquareViewModel> BoardSquares { get; } = new();
 
@@ -224,6 +236,7 @@ public class GameViewModel : ViewModelBase, IDisposable
         _cts?.Dispose();
         _cts = new CancellationTokenSource();
         IsAIThinking = false;
+        LastKifuRecord = null;
 
         (_ai as IDisposable)?.Dispose();
         _ai = null;
@@ -254,6 +267,7 @@ public class GameViewModel : ViewModelBase, IDisposable
         var cts = new CancellationTokenSource();
         _cts = cts;
         IsAIThinking = false;
+        LastKifuRecord = null;
 
         (_ai as IDisposable)?.Dispose();
         _ai = null;
@@ -293,6 +307,8 @@ public class GameViewModel : ViewModelBase, IDisposable
         AiEngineLabel = _ai!.EngineName;
 
         _engine.Initialize();
+        _kifuMoves.Clear();
+        LastKifuRecord = null;
         OnPropertyChanged(nameof(IsSettingsEditable));
         RefreshBoardDisplay();
         IsGameInProgress = true;
@@ -325,6 +341,8 @@ public class GameViewModel : ViewModelBase, IDisposable
             StatusMessage = result.Message;
             return;
         }
+
+        RecordMove(HumanColor, position);
 
         _ = AnimateFlipsAsync(result.FlippedPieces, _cts!.Token);
         NotifyIfPassed();
@@ -397,6 +415,7 @@ public class GameViewModel : ViewModelBase, IDisposable
             if (_engine.CurrentPlayer != AiColor) return;
 
             var moveResult = _engine.MakeMove(bestMove);
+            RecordMove(aiColor, bestMove);
             _ = AnimateFlipsAsync(moveResult.FlippedPieces, ct);
             NotifyIfPassed();
             OnPropertyChanged(nameof(IsSettingsEditable));
@@ -590,6 +609,25 @@ public class GameViewModel : ViewModelBase, IDisposable
             string winnerName = winner == HumanColor ? "あなた" : "AI";
             StatusMessage = $"{winnerName} の勝利 (黒: {blackCount}, 白: {whiteCount})";
         }
+
+        LastKifuRecord = new KifuRecord(
+            Version:    1,
+            PlayedAt:   DateTimeOffset.Now,
+            HumanColor: HumanColor,
+            Difficulty: Difficulty,
+            Result:     winner,
+            Moves:      _kifuMoves.AsReadOnly(),
+            FinalScore: new KifuFinalScore(blackCount, whiteCount));
+    }
+
+    /// <summary>
+    /// 着手を棋譜に追加する。MakeMove 後に呼ぶことで LastPassedPlayer のパス情報も記録する。
+    /// </summary>
+    private void RecordMove(PlayerColor player, Position position)
+    {
+        _kifuMoves.Add(new KifuMove(player, position.Row, position.Column));
+        if (_engine.LastPassedPlayer is { } passed)
+            _kifuMoves.Add(new KifuMove(passed, IsPass: true));
     }
 
     public void Dispose()
