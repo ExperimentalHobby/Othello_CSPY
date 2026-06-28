@@ -6,7 +6,10 @@ alpha_beta.py の探索木でリーフノードの評価値を算出するため
 
 評価方針:
     - 位置重み（WEIGHTS）: コーナーや辺など戦略的に重要なマスに高いスコアを付与する
+    - Stability（安定石）: ひっくり返せない石の差分を中盤評価に組み込む
+    - Frontier（フロンティア）: 空きマスに隣接する石（不安定の代理指標）の差分を評価に組み込む
     - Mobility（着手可能数）: 着手の選択肢が多いほど有利とみなす
+    - フェーズ切替: 空きマス数に応じて序盤/中盤/終盤で重みを動的に切り替える
     - 終局評価: 石数差で最終的な勝敗を大きな値で表現する
 """
 
@@ -29,15 +32,104 @@ WEIGHTS = [
     [100, -20, 10,  5,  5, 10, -20, 100],
 ]
 
+# 安定石判定に用いる 4 軸（横・縦・斜め2方向）
+_AXES = [(0, 1), (1, 0), (1, 1), (1, -1)]
+
+# フロンティア判定に用いる 8 方向
+_DIRS8 = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
+
+
+def _count_empty(board):
+    """盤面上の空きマス数を返す。フェーズ判定に使用する。"""
+    return sum(1 for r in range(BOARD_SIZE) for c in range(BOARD_SIZE) if board[r][c] == 0)
+
+
+def _is_half_axis_stable(board, stable, r, c, dr, dc):
+    """(r, c) の (dr, dc) 半軸方向が安定しているかを返す。
+
+    安定条件（いずれか）:
+    1. 逆方向 (-dr,-dc) が即座に盤外 → 逆側からの挟み込みアンカーが存在できない
+    2. (dr,dc) 方向が即座に盤外 → この方向は端
+    3. (dr,dc) 方向の隣接マスが安定石
+    4. (dr,dc) 方向の全ラインに空きなし → 配置不能
+    """
+    # 条件 1: 逆方向が盤外 → この半軸への攻撃のアンカーが存在できない
+    opp_r, opp_c = r - dr, c - dc
+    if not (0 <= opp_r < BOARD_SIZE and 0 <= opp_c < BOARD_SIZE):
+        return True
+
+    # 条件 2: この方向が即座に盤外
+    nr, nc = r + dr, c + dc
+    if not (0 <= nr < BOARD_SIZE and 0 <= nc < BOARD_SIZE):
+        return True
+
+    # 条件 3: 隣接マスが安定石
+    if stable[nr][nc]:
+        return True
+
+    # 条件 4: この方向の全ラインに空きなし
+    tr, tc = nr, nc
+    while 0 <= tr < BOARD_SIZE and 0 <= tc < BOARD_SIZE:
+        if board[tr][tc] == 0:
+            return False
+        tr += dr
+        tc += dc
+    return True
+
+
+def _axis_stable(board, stable, r, c, dr, dc):
+    """4 軸のうち 1 軸について安定判定を行う（両半軸ともに安定なら True）。"""
+    return (_is_half_axis_stable(board, stable, r, c, dr, dc) and
+            _is_half_axis_stable(board, stable, r, c, -dr, -dc))
+
+
+def count_stable(board, player):
+    """player の安定石（絶対にひっくり返せない石）の数を返す。
+
+    コーナー起点の flood-fill: 4 軸すべてで安定している石を安定石とし、
+    変化がなくなるまで繰り返し伝播させる。
+    """
+    stable = [[False] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+    changed = True
+    while changed:
+        changed = False
+        for r in range(BOARD_SIZE):
+            for c in range(BOARD_SIZE):
+                if stable[r][c] or board[r][c] != player:
+                    continue
+                if all(_axis_stable(board, stable, r, c, dr, dc) for dr, dc in _AXES):
+                    stable[r][c] = True
+                    changed = True
+    return sum(1 for r in range(BOARD_SIZE) for c in range(BOARD_SIZE) if stable[r][c])
+
+
+def count_frontier(board, player):
+    """player の石のうち、空きマスに隣接している石（フロンティア）の数を返す。
+
+    フロンティアは不安定性の代理指標。少ないほど守りやすい盤面とみなす。
+    """
+    count = 0
+    for r in range(BOARD_SIZE):
+        for c in range(BOARD_SIZE):
+            if board[r][c] == player:
+                if any(
+                    0 <= r + dr < BOARD_SIZE and 0 <= c + dc < BOARD_SIZE
+                    and board[r + dr][c + dc] == 0
+                    for dr, dc in _DIRS8
+                ):
+                    count += 1
+    return count
+
 
 def evaluate(board, player):
     """
     中盤の盤面を評価し、AI（player）にとっての評価値を返す。
     値が大きいほど player にとって有利な状態を示す。
 
-    評価要素:
-        1. 位置重み合計（自分の石 - 相手の石）
-        2. Mobility（自分の有効手数 - 相手の有効手数）× 10
+    空きマス数によってフェーズを切り替え、重みを動的に変化させる:
+        序盤（empty > 44）: 位置重み + Mobility × 20
+        中盤（20 ≤ empty ≤ 44）: 位置重み + Mobility × 10 + Stability × 25 + Frontier 差 × 5
+        終盤（empty < 20）: 石数差 × 10 + 位置重み + Mobility × 10
 
     Args:
         board (list[list[int]]): 評価対象の盤面
@@ -47,22 +139,35 @@ def evaluate(board, player):
         int: 評価値（正 → player 有利、負 → 相手有利）
     """
     opp = opponent(player)
-    score = 0
+    empty = _count_empty(board)
 
-    # 1. 位置重みの合計差を計算する
+    # 位置重みスコア（全フェーズ共通）
+    weight_score = 0
     for r in range(BOARD_SIZE):
         for c in range(BOARD_SIZE):
             if board[r][c] == player:
-                score += WEIGHTS[r][c]   # 自分の石は加算
+                weight_score += WEIGHTS[r][c]
             elif board[r][c] == opp:
-                score -= WEIGHTS[r][c]   # 相手の石は減算
+                weight_score -= WEIGHTS[r][c]
 
-    # 2. Mobility: 自分の着手数が相手より多いほど有利（件数のみ数えて高速化）
-    my_moves  = count_valid_moves(board, player)
-    opp_moves = count_valid_moves(board, opp)
-    score += (my_moves - opp_moves) * 10  # 係数 10 で位置重みと重みのバランスを取る
+    # Mobility スコア（全フェーズ共通）
+    mobility = count_valid_moves(board, player) - count_valid_moves(board, opp)
 
-    return score
+    if empty > 44:
+        # 序盤: Mobility を強調して選択肢の多さを重視する
+        return weight_score + mobility * 20
+
+    if empty < 20:
+        # 終盤: 石数差を主成分とする
+        my_count  = sum(1 for r in range(BOARD_SIZE) for c in range(BOARD_SIZE) if board[r][c] == player)
+        opp_count = sum(1 for r in range(BOARD_SIZE) for c in range(BOARD_SIZE) if board[r][c] == opp)
+        return (my_count - opp_count) * 10 + weight_score + mobility * 10
+
+    # 中盤: Stability + Frontier + Mobility を組み合わせる
+    stability_score = (count_stable(board, player) - count_stable(board, opp)) * 25
+    # フロンティアは少ないほど良い（相手のフロンティアが多いほど有利）
+    frontier_score = (count_frontier(board, opp) - count_frontier(board, player)) * 5
+    return weight_score + mobility * 10 + stability_score + frontier_score
 
 
 def evaluate_final(board, player, depth=0):
