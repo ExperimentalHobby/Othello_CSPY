@@ -176,27 +176,162 @@ fn make_move(board: &Board, r: usize, c: usize, player: i8) -> Board {
     new_board
 }
 
-/// 中盤評価: 位置重みの差 + mobility 差（×10）を player 視点で返す（evaluator.evaluate と同一）。
-fn evaluate(board: &Board, player: i8) -> i32 {
-    let opp = opponent(player);
-    let mut score = 0i32;
+/// 安定石判定の半軸チェック（evaluator.py の _is_half_axis_stable と同一）。
+///
+/// 条件 1: 逆方向 (-dr,-dc) が盤外 → 攻撃アンカーが存在できない
+/// 条件 2: (dr,dc) 方向が即座に盤外 → 端
+/// 条件 3: (dr,dc) 方向の隣が安定石
+/// 条件 4: (dr,dc) 方向のラインに空きなし
+fn is_half_axis_stable(
+    board: &Board,
+    stable: &[bool; SIZE * SIZE],
+    r: i32,
+    c: i32,
+    dr: i32,
+    dc: i32,
+) -> bool {
+    // 条件 1: 逆方向が盤外
+    let opp_r = r - dr;
+    let opp_c = c - dc;
+    if opp_r < 0 || opp_r >= SIZE as i32 || opp_c < 0 || opp_c >= SIZE as i32 {
+        return true;
+    }
+    // 条件 2: この方向が即座に盤外
+    let nr = r + dr;
+    let nc = c + dc;
+    if nr < 0 || nr >= SIZE as i32 || nc < 0 || nc >= SIZE as i32 {
+        return true;
+    }
+    // 条件 3: 隣が安定石
+    if stable[idx(nr as usize, nc as usize)] {
+        return true;
+    }
+    // 条件 4: この方向の全ラインに空きなし
+    let mut tr = nr;
+    let mut tc = nc;
+    while tr >= 0 && tr < SIZE as i32 && tc >= 0 && tc < SIZE as i32 {
+        if board[idx(tr as usize, tc as usize)] == EMPTY {
+            return false;
+        }
+        tr += dr;
+        tc += dc;
+    }
+    true
+}
 
-    for r in 0..SIZE {
-        for c in 0..SIZE {
-            let v = board[idx(r, c)];
-            if v == player {
-                score += WEIGHTS[r][c];
-            } else if v == opp {
-                score -= WEIGHTS[r][c];
+/// 指定軸で安定しているかを返す（両半軸ともに安定なら true）。
+fn is_axis_stable(
+    board: &Board,
+    stable: &[bool; SIZE * SIZE],
+    r: i32,
+    c: i32,
+    dr: i32,
+    dc: i32,
+) -> bool {
+    is_half_axis_stable(board, stable, r, c, dr, dc)
+        && is_half_axis_stable(board, stable, r, c, -dr, -dc)
+}
+
+/// player の安定石数を返す（evaluator.count_stable と同一）。
+/// 4 軸すべてで安定している石を安定石とし、変化がなくなるまで flood-fill する。
+fn count_stable(board: &Board, player: i8) -> i32 {
+    let mut stable = [false; SIZE * SIZE];
+    let axes: [(i32, i32); 4] = [(0, 1), (1, 0), (1, 1), (1, -1)];
+
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for r in 0..SIZE {
+            for c in 0..SIZE {
+                let i = idx(r, c);
+                if stable[i] || board[i] != player {
+                    continue;
+                }
+                if axes.iter().all(|&(dr, dc)| {
+                    is_axis_stable(board, &stable, r as i32, c as i32, dr, dc)
+                }) {
+                    stable[i] = true;
+                    changed = true;
+                }
             }
         }
     }
 
+    stable.iter().filter(|&&s| s).count() as i32
+}
+
+/// player のフロンティア石数（空きマスに隣接する石）を返す（evaluator.count_frontier と同一）。
+fn count_frontier(board: &Board, player: i8) -> i32 {
+    let mut count = 0i32;
+    for r in 0..SIZE {
+        for c in 0..SIZE {
+            if board[idx(r, c)] != player {
+                continue;
+            }
+            if DIRS.iter().any(|&(dr, dc)| {
+                let nr = r as i32 + dr;
+                let nc = c as i32 + dc;
+                nr >= 0
+                    && nr < SIZE as i32
+                    && nc >= 0
+                    && nc < SIZE as i32
+                    && board[idx(nr as usize, nc as usize)] == EMPTY
+            }) {
+                count += 1;
+            }
+        }
+    }
+    count
+}
+
+/// 中盤評価: フェーズ切替付き評価関数（evaluator.evaluate と同一）。
+///
+/// 空きマス数によってフェーズを切り替える:
+///   序盤（empty > 44）: 位置重み + Mobility × 20
+///   中盤（20 ≤ empty ≤ 44）: 位置重み + Mobility × 10 + Stability × 25 + Frontier 差 × 5
+///   終盤（empty < 20）: 石数差 × 10 + 位置重み + Mobility × 10
+fn evaluate(board: &Board, player: i8) -> i32 {
+    let opp = opponent(player);
+
+    // 位置重みスコア（全フェーズ共通）
+    let mut weight_score = 0i32;
+    let mut my_count = 0i32;
+    let mut opp_count = 0i32;
+    let mut empty = 0i32;
+    for r in 0..SIZE {
+        for c in 0..SIZE {
+            let v = board[idx(r, c)];
+            if v == player {
+                weight_score += WEIGHTS[r][c];
+                my_count += 1;
+            } else if v == opp {
+                weight_score -= WEIGHTS[r][c];
+                opp_count += 1;
+            } else {
+                empty += 1;
+            }
+        }
+    }
+
+    // Mobility スコア（全フェーズ共通）
     let my_moves = count_valid_moves(board, player);
     let opp_moves = count_valid_moves(board, opp);
-    score += (my_moves - opp_moves) * 10;
+    let mobility = my_moves - opp_moves;
 
-    score
+    if empty > 44 {
+        // 序盤: Mobility を強調
+        return weight_score + mobility * 20;
+    }
+
+    if empty < 20 {
+        // 終盤: 石数差を主成分とする
+        return (my_count - opp_count) * 10 + weight_score + mobility * 10;
+    }
+
+    // 中盤: Stability + Frontier + Mobility
+    let stability_score = (count_stable(board, player) - count_stable(board, opp)) * 25;
+    let frontier_score = (count_frontier(board, opp) - count_frontier(board, player)) * 5;
+    weight_score + mobility * 10 + stability_score + frontier_score
 }
 
 /// 終局評価: 石数差で勝敗を表現し、残り depth を加味して「早い決着」を選好する
@@ -604,6 +739,68 @@ mod tests {
         let _ = make_move(&board, 2, 3, BLACK);
         assert_eq!(board[idx(2, 3)], EMPTY);
         assert_eq!(board[idx(3, 3)], WHITE);
+    }
+
+    #[test]
+    fn count_stable_corner_is_stable() {
+        // コーナーに置かれた石は安定石としてカウントされる
+        let mut board: Board = [EMPTY; SIZE * SIZE];
+        board[idx(0, 0)] = BLACK;
+        assert!(count_stable(&board, BLACK) >= 1);
+    }
+
+    #[test]
+    fn count_stable_isolated_center_is_zero() {
+        // 孤立した中央の石は安定石ではない
+        let mut board: Board = [EMPTY; SIZE * SIZE];
+        board[idx(3, 3)] = BLACK;
+        assert_eq!(count_stable(&board, BLACK), 0);
+    }
+
+    #[test]
+    fn count_stable_full_top_edge_all_stable() {
+        // 上辺を黒で埋めると全 8 マスが安定石になる
+        let mut board: Board = [EMPTY; SIZE * SIZE];
+        for c in 0..SIZE {
+            board[idx(0, c)] = BLACK;
+        }
+        assert_eq!(count_stable(&board, BLACK), 8);
+    }
+
+    #[test]
+    fn count_stable_opponent_corner_not_counted() {
+        // 相手コーナーは自分の安定石に含まれない
+        let mut board: Board = [EMPTY; SIZE * SIZE];
+        board[idx(0, 0)] = WHITE;
+        assert_eq!(count_stable(&board, BLACK), 0);
+    }
+
+    #[test]
+    fn count_stable_all_same_color_all_stable() {
+        // 全マス同色で 64 石が安定石
+        let board = filled_board(BLACK);
+        assert_eq!(count_stable(&board, BLACK), 64);
+    }
+
+    #[test]
+    fn count_frontier_empty_board_is_zero() {
+        let board: Board = [EMPTY; SIZE * SIZE];
+        assert_eq!(count_frontier(&board, BLACK), 0);
+    }
+
+    #[test]
+    fn count_frontier_isolated_piece_is_one() {
+        // 中央の孤立石は全方向に空きがある → フロンティア 1
+        let mut board: Board = [EMPTY; SIZE * SIZE];
+        board[idx(4, 4)] = BLACK;
+        assert_eq!(count_frontier(&board, BLACK), 1);
+    }
+
+    #[test]
+    fn count_frontier_opponent_not_counted() {
+        let mut board: Board = [EMPTY; SIZE * SIZE];
+        board[idx(4, 4)] = WHITE;
+        assert_eq!(count_frontier(&board, BLACK), 0);
     }
 
     #[test]

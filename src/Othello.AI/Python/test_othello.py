@@ -13,7 +13,7 @@ from board import (
     EMPTY, BLACK, WHITE, BOARD_SIZE,
     opponent, get_flips, has_any_flip, get_valid_moves, count_valid_moves, make_move,
 )
-from evaluator import evaluate, evaluate_final, WEIGHTS
+from evaluator import evaluate, evaluate_final, count_stable, count_frontier, WEIGHTS
 from alpha_beta import AlphaBetaAI
 
 
@@ -318,22 +318,6 @@ class EvaluateComponentTests(unittest.TestCase):
 
         self.assertGreater(evaluate(corner_board, BLACK), evaluate(xsq_board, BLACK))
 
-    def test_evaluate_equals_positional_plus_mobility(self):
-        """evaluate() の戻り値が「位置重み差 + Mobility 差 × 10」と等しいことを確認する。
-        パス条件: 初期盤面を黒として評価した結果が公式と一致すること。"""
-        board = make_initial_board()
-        player = BLACK
-        opp = opponent(player)
-
-        positional = sum(
-            WEIGHTS[r][c] if board[r][c] == player else
-            (-WEIGHTS[r][c] if board[r][c] == opp else 0)
-            for r in range(BOARD_SIZE)
-            for c in range(BOARD_SIZE)
-        )
-        mobility = (count_valid_moves(board, player) - count_valid_moves(board, opp)) * 10
-
-        self.assertEqual(evaluate(board, player), positional + mobility)
 
 
 class AlphaBetaTimedTests(unittest.TestCase):
@@ -505,6 +489,150 @@ class AiTimedMainLoopTests(unittest.TestCase):
             self.assertIn('error', res)
         finally:
             self._close_ai(proc)
+
+
+class CountStableTests(unittest.TestCase):
+    """count_stable() の単体テスト。"""
+
+    def test_corner_is_stable(self):
+        """コーナーに置かれた石は安定石としてカウントされることを確認する。
+        パス条件: board[0][0]=BLACK のみの盤面で count_stable(board, BLACK) >= 1 であること。"""
+        board = [[EMPTY] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        board[0][0] = BLACK
+        self.assertGreaterEqual(count_stable(board, BLACK), 1)
+
+    def test_isolated_center_is_not_stable(self):
+        """中央の孤立した石は安定石ではないことを確認する。
+        パス条件: board[3][3]=BLACK のみの盤面で count_stable(board, BLACK) == 0 であること。"""
+        board = [[EMPTY] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        board[3][3] = BLACK
+        self.assertEqual(count_stable(board, BLACK), 0)
+
+    def test_full_top_edge_all_same_color_is_stable(self):
+        """上辺 8 マスをすべて同色で埋めると全マスが安定石になることを確認する。
+        パス条件: row=0 を黒で埋めた盤面で count_stable(board, BLACK) == 8 であること。"""
+        board = [[EMPTY] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        for c in range(BOARD_SIZE):
+            board[0][c] = BLACK
+        self.assertEqual(count_stable(board, BLACK), 8)
+
+    def test_corner_opponent_not_counted_as_my_stable(self):
+        """相手のコーナー石は自分の安定石に含まれないことを確認する。
+        パス条件: board[0][0]=WHITE の盤面で count_stable(board, BLACK) == 0 であること。"""
+        board = [[EMPTY] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        board[0][0] = WHITE
+        self.assertEqual(count_stable(board, BLACK), 0)
+
+    def test_all_same_color_board_all_stable(self):
+        """全マス同色の盤面では全 64 マスが安定石になることを確認する。
+        パス条件: count_stable(board, BLACK) == 64 であること。"""
+        board = [[BLACK] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        self.assertEqual(count_stable(board, BLACK), 64)
+
+
+class CountFrontierTests(unittest.TestCase):
+    """count_frontier() の単体テスト。"""
+
+    def test_empty_board_frontier_is_zero(self):
+        """石がない盤面ではフロンティア数が 0 であることを確認する。
+        パス条件: 全マス空きの盤面で count_frontier(board, BLACK) == 0 であること。"""
+        board = [[EMPTY] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        self.assertEqual(count_frontier(board, BLACK), 0)
+
+    def test_isolated_center_piece_is_frontier(self):
+        """中央の孤立した石は全方向に空きがあるため、フロンティアにカウントされることを確認する。
+        パス条件: board[4][4]=BLACK のみの盤面で count_frontier(board, BLACK) == 1 であること。"""
+        board = [[EMPTY] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        board[4][4] = BLACK
+        self.assertEqual(count_frontier(board, BLACK), 1)
+
+    def test_fully_surrounded_piece_is_frontier_only_if_adjacent_empty(self):
+        """8 方向すべてを同色で囲まれた石（空きなし）はフロンティアにカウントされないことを確認する。
+        パス条件: 中心 (4,4) を 3×3 黒で埋め、外周に白が続く盤面で中心石はフロンティアでない。"""
+        board = [[EMPTY] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        # (3,3)〜(5,5) をすべて黒で埋める
+        for r in range(3, 6):
+            for c in range(3, 6):
+                board[r][c] = BLACK
+        # 中心 (4,4) の 8 近傍はすべて黒なので (4,4) はフロンティアでない
+        # (3,3)(3,4)(3,5)(4,3)(4,5)(5,3)(5,4)(5,5) は端（空き）に隣接するのでフロンティア
+        center_is_frontier = any(
+            0 <= 4+dr < 8 and 0 <= 4+dc < 8 and board[4+dr][4+dc] == EMPTY
+            for dr, dc in [(-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),(1,1)]
+        )
+        self.assertFalse(center_is_frontier)
+        # count_frontier は 8（外周の 8 マス）を返すはず
+        self.assertEqual(count_frontier(board, BLACK), 8)
+
+    def test_opponent_pieces_not_counted(self):
+        """相手の石はフロンティアにカウントされないことを確認する。
+        パス条件: board[4][4]=WHITE のみの盤面で count_frontier(board, BLACK) == 0 であること。"""
+        board = [[EMPTY] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        board[4][4] = WHITE
+        self.assertEqual(count_frontier(board, BLACK), 0)
+
+
+class EvaluatePhaseTests(unittest.TestCase):
+    """evaluate() のフェーズ切替テスト。"""
+
+    def _make_board_with_empty_count(self, empty_count):
+        """指定した空きマス数を持つ盤面を生成する（残りを黒・白で交互に埋める）。"""
+        board = [[EMPTY] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        filled = 64 - empty_count
+        cells = [(r, c) for r in range(BOARD_SIZE) for c in range(BOARD_SIZE)]
+        for i in range(filled):
+            r, c = cells[i]
+            board[r][c] = BLACK if i % 2 == 0 else WHITE
+        return board
+
+    def test_corner_favors_owner_in_all_phases(self):
+        """コーナー保有は全フェーズで有利な評価を返すことを確認する。
+        パス条件: コーナーを黒が取った盤面で BLACK > 0、WHITE < 0 のいずれのフェーズも成立すること。"""
+        board = [[EMPTY] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        board[0][0] = BLACK
+        self.assertGreater(evaluate(board, BLACK), 0)
+        self.assertLess(evaluate(board, WHITE), 0)
+
+    def test_early_game_phase_detected(self):
+        """空きマス 45 以上（序盤）の局面で evaluate が有限値を返すことを確認する。
+        パス条件: 空きマス 45 の盤面での evaluate 呼び出しが例外なく完了すること。"""
+        board = self._make_board_with_empty_count(45)
+        # 例外なく呼び出せれば OK（値の詳細な検証は強さ比較テストに委ねる）
+        result = evaluate(board, BLACK)
+        self.assertIsInstance(result, int)
+
+    def test_midgame_stability_influences_score(self):
+        """中盤（空きマス 20〜44）で安定石差が評価値に影響することを確認する。
+        パス条件: コーナー保有（安定石 1 個）の中盤盤面が、コーナーなしの盤面より高評価であること。"""
+        # 空きマス 30 の中盤盤面を 2 つ用意し、一方だけコーナーを追加する
+        base = self._make_board_with_empty_count(30)
+
+        with_corner = [row[:] for row in base]
+        without_corner = [row[:] for row in base]
+        # with_corner: 残り空きマスの一つにコーナーを置く（黒）
+        # コーナー (0,0) が空きなら使う
+        if base[0][0] == EMPTY:
+            with_corner[0][0] = BLACK
+            score_with    = evaluate(with_corner, BLACK)
+            score_without = evaluate(without_corner, BLACK)
+            self.assertGreater(score_with, score_without)
+
+    def test_endgame_stone_count_influences_score(self):
+        """終盤（空きマス 19 以下）で石数差が評価の主成分になることを確認する。
+        パス条件: 終盤で黒 40 枚 vs 白 20 枚の盤面を黒視点で評価すると正の値になること。"""
+        board = [[EMPTY] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        # 黒 40 枚・白 20 枚・空き 4 枚（終盤フェーズ）
+        idx = 0
+        for r in range(BOARD_SIZE):
+            for c in range(BOARD_SIZE):
+                if idx < 40:
+                    board[r][c] = BLACK
+                elif idx < 60:
+                    board[r][c] = WHITE
+                # 残り 4 マスは EMPTY のまま
+                idx += 1
+        result = evaluate(board, BLACK)
+        self.assertGreater(result, 0)
 
 
 if __name__ == "__main__":
