@@ -216,6 +216,64 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- スコア推移グラフ -->
+                    <Border Background="#1a3010" CornerRadius="5">
+                        <StackPanel Margin="10" Spacing="4">
+                            <TextBlock Text="スコア推移" FontSize="13" FontWeight="Bold"
+                                       Foreground="White"/>
+
+                            <!-- 凡例 -->
+                            <StackPanel Orientation="Horizontal" Spacing="3">
+                                <Ellipse Width="8" Height="8" Fill="#222222" Stroke="#cccccc"
+                                         StrokeThickness="1.5" VerticalAlignment="Center"/>
+                                <TextBlock Text="黒" FontSize="9" Foreground="#cccccc"
+                                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <Ellipse Width="8" Height="8" Fill="White" Stroke="White"
+                                         StrokeThickness="1" VerticalAlignment="Center"/>
+                                <TextBlock Text="白（破線）" FontSize="9" Foreground="White"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <!-- グラフ本体：Y軸ラベル + Canvas -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="20"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Y軸ラベル（石数） -->
+                                <Grid Grid.Column="0">
+                                    <TextBlock Text="64" FontSize="8" Foreground="#cccccc"
+                                               VerticalAlignment="Top" HorizontalAlignment="Right"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="石" FontSize="8" Foreground="#cccccc"
+                                               VerticalAlignment="Center" HorizontalAlignment="Right"
+                                               Margin="0,0,2,0"/>
+                                    <TextBlock Text="0" FontSize="8" Foreground="#cccccc"
+                                               VerticalAlignment="Bottom" HorizontalAlignment="Right"
+                                               Margin="0,0,2,0"/>
+                                </Grid>
+
+                                <Canvas Grid.Column="1" x:Name="ScoreCanvas" Height="100"
+                                        Background="#0d1f0a"
+                                        SizeChanged="OnScoreCanvasSizeChanged">
+                                    <Line x:Name="MidLine" Stroke="#555555" StrokeThickness="1"
+                                          StrokeDashArray="4 4" Y1="0" Y2="0" X1="0" X2="0"/>
+                                    <Polyline x:Name="BlackScoreLine" Stroke="#cccccc"
+                                              StrokeThickness="2"/>
+                                    <Polyline x:Name="WhiteScoreLine" Stroke="White"
+                                              StrokeThickness="2" StrokeDashArray="5 3"/>
+                                    <Line x:Name="CurrentMoveLine" Stroke="Yellow" StrokeThickness="1"
+                                          Opacity="0.5" Y1="0" Y2="0" X1="0" X2="0"/>
+                                </Canvas>
+                            </Grid>
+
+                            <!-- X軸ラベル（手数） -->
+                            <TextBlock Text="手数 →" FontSize="8" Foreground="#cccccc"
+                                       HorizontalAlignment="Right"/>
+                        </StackPanel>
+                    </Border>
+
                     <!-- ルール説明 -->
                     <Border Background="#1a3010" CornerRadius="5">
                         <StackPanel Margin="10" Spacing="3">

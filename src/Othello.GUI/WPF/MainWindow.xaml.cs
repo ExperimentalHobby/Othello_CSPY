@@ -1,6 +1,8 @@
+using System.Collections.Specialized;
 using System.IO;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
 using Microsoft.Win32;
 using Technopro.Othello.Core.Kifu;
 using Technopro.Othello.ViewModels;
@@ -18,8 +20,52 @@ public partial class MainWindow : Window
         _vm = new GameViewModel();
         DataContext = _vm;
 
-        Loaded  += async (_, _) => await _vm.StartNewGameAsync();
+        Loaded  += async (_, _) =>
+        {
+            await _vm.StartNewGameAsync();
+            _vm.ScoreHistory.CollectionChanged += OnScoreHistoryChanged;
+            RedrawScoreGraph();
+        };
         Closed  += (_, _) => (_vm as IDisposable)?.Dispose();
+    }
+
+    private void OnScoreHistoryChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        => RedrawScoreGraph();
+
+    private void OnScoreCanvasSizeChanged(object sender, SizeChangedEventArgs e)
+        => RedrawScoreGraph();
+
+    private void RedrawScoreGraph()
+    {
+        var history = _vm.ScoreHistory;
+        var w = ScoreCanvas.ActualWidth;
+        var h = ScoreCanvas.ActualHeight;
+        if (w <= 0 || h <= 0 || history.Count == 0) return;
+
+        double xScale = history.Count > 1 ? w / (history.Count - 1) : w;
+        double yScale = h / 64.0;
+
+        // 中央線（石数 32 の位置）
+        double midY = h - 32 * yScale;
+        MidLine.X1 = 0; MidLine.X2 = w;
+        MidLine.Y1 = midY; MidLine.Y2 = midY;
+
+        // 黒・白ラインの点を構築
+        var blackPoints = new PointCollection(history.Count);
+        var whitePoints = new PointCollection(history.Count);
+        for (int i = 0; i < history.Count; i++)
+        {
+            double x = history.Count > 1 ? i * xScale : 0;
+            blackPoints.Add(new Point(x, h - history[i].BlackCount * yScale));
+            whitePoints.Add(new Point(x, h - history[i].WhiteCount * yScale));
+        }
+        BlackScoreLine.Points = blackPoints;
+        WhiteScoreLine.Points = whitePoints;
+
+        // 現在手縦線
+        double cx = history.Count > 1 ? (history.Count - 1) * xScale : 0;
+        CurrentMoveLine.X1 = cx; CurrentMoveLine.X2 = cx;
+        CurrentMoveLine.Y1 = 0;  CurrentMoveLine.Y2 = h;
     }
 
     private void OnTimeLimitSecondsLostFocus(object sender, RoutedEventArgs e)

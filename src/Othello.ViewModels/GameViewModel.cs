@@ -55,6 +55,9 @@ public class GameViewModel : ViewModelBase, IDisposable
     private readonly List<KifuMove> _kifuMoves = new();
     private KifuRecord? _lastKifuRecord;
 
+    // --- スコア推移 ---
+    public ObservableCollection<ScorePoint> ScoreHistory { get; } = new();
+
     // --- 制限時間 ---
     private bool   _isTimeLimitEnabled;
     private int    _timeLimitSeconds;
@@ -376,6 +379,8 @@ public class GameViewModel : ViewModelBase, IDisposable
         _engine.Initialize();
         _kifuMoves.Clear();
         LastKifuRecord = null;
+        ScoreHistory.Clear();
+        RecordCurrentScore();
         OnPropertyChanged(nameof(IsSettingsEditable));
         RefreshBoardDisplay();
         IsGameInProgress = true;
@@ -410,6 +415,7 @@ public class GameViewModel : ViewModelBase, IDisposable
         }
 
         RecordMove(HumanColor, position);
+        RecordCurrentScore();
 
         _ = AnimateFlipsAsync(result.FlippedPieces, _cts!.Token);
         NotifyIfPassed();
@@ -483,6 +489,7 @@ public class GameViewModel : ViewModelBase, IDisposable
 
             var moveResult = _engine.MakeMove(bestMove);
             RecordMove(aiColor, bestMove);
+            RecordCurrentScore();
             _ = AnimateFlipsAsync(moveResult.FlippedPieces, ct);
             NotifyIfPassed();
             OnPropertyChanged(nameof(IsSettingsEditable));
@@ -543,8 +550,16 @@ public class GameViewModel : ViewModelBase, IDisposable
         if (!_engine.Undo())
             return;
 
+        var undoCount = 1;
         if (_engine.GameState.IsGameInProgress() && _engine.CurrentPlayer == AiColor)
+        {
             _engine.Undo();
+            undoCount = 2;
+        }
+
+        // 初期エントリ (index 0) を残したまま末尾から削除する
+        for (int i = 0; i < undoCount && ScoreHistory.Count > 1; i++)
+            ScoreHistory.RemoveAt(ScoreHistory.Count - 1);
 
         OnPropertyChanged(nameof(IsSettingsEditable));
         RefreshBoardDisplay();
@@ -777,6 +792,19 @@ public class GameViewModel : ViewModelBase, IDisposable
         _kifuMoves.Add(new KifuMove(player, position.Row, position.Column));
         if (_engine.LastPassedPlayer is { } passed)
             _kifuMoves.Add(new KifuMove(passed, IsPass: true));
+    }
+
+    private void RecordCurrentScore()
+    {
+        int black = 0, white = 0;
+        for (int r = 0; r < 8; r++)
+            for (int c = 0; c < 8; c++)
+            {
+                var piece = _engine.CurrentBoard.GetPiece(r, c);
+                if (piece == PlayerColor.Black) black++;
+                else if (piece == PlayerColor.White) white++;
+            }
+        ScoreHistory.Add(new ScorePoint(ScoreHistory.Count, black, white));
     }
 
     public void Dispose()
