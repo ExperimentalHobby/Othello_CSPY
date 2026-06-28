@@ -33,6 +33,9 @@ public class GameViewModel : ViewModelBase, IDisposable
     /// <summary>難易度から AI 実装を生成するファクトリ（テスト時はモックを注入できる）。</summary>
     private readonly Func<DifficultyLevel, IAIStrategy> _aiFactory;
 
+    /// <summary>CPU vs CPU モード専用 AI ファクトリ（既定は AlphaBetaAI）。</summary>
+    private readonly Func<DifficultyLevel, IAIStrategy> _cpuVsCpuAiFactory;
+
     /// <summary>現在のゲームで使用している AI（IDisposable なら破棄時に Dispose する）。</summary>
     private IAIStrategy? _ai;
     private CancellationTokenSource? _cts;
@@ -47,9 +50,17 @@ public class GameViewModel : ViewModelBase, IDisposable
     private bool   _isAIThinking;
     private bool   _isHintEnabled;
     private PlayerColor _humanColor = PlayerColor.Black;
+    private GameMode _gameMode = GameMode.HumanVsCpu;
+    private DifficultyLevel _blackDifficulty = DifficultyLevel.Medium;
+    private DifficultyLevel _whiteDifficulty = DifficultyLevel.Medium;
+    private bool _isPaused;
+    private int _cpuVsCpuDelayIndex = 1; // 0=500ms, 1=1000ms, 2=2000ms, 3=3000ms
+    private IAIStrategy? _blackCpuAi;
+    private IAIStrategy? _whiteCpuAi;
 
     // Undo は RaiseCanExecuteChanged を呼べるよう RelayCommand 型で保持する
     private readonly RelayCommand _undoCommand;
+    private readonly RelayCommand _pauseCommand;
 
     // --- 棋譜収集 ---
     private readonly List<KifuMove> _kifuMoves = new();
@@ -220,9 +231,160 @@ public class GameViewModel : ViewModelBase, IDisposable
 
     private PlayerColor AiColor => HumanColor.Opponent();
 
+    /// <summary>
+    /// 現在の対戦モード。
+    /// CpuVsCpu に切り替えると現在のゲームを中断して「新規ゲーム待ち」状態に移行する。
+    /// HumanVsCpu に切り替えると即座に新規ゲームを開始する。
+    /// </summary>
+    public GameMode GameMode
+    {
+        get => _gameMode;
+        set
+        {
+            if (!SetProperty(ref _gameMode, value)) return;
+            OnPropertyChanged(nameof(GameModeIndex));
+            OnPropertyChanged(nameof(IsCpuVsCpu));
+            OnPropertyChanged(nameof(IsHumanVsCpu));
+
+            if (IsCpuVsCpu)
+                StopCurrentGameForModeChange();
+            else
+                _ = StartNewGameAsync();
+        }
+    }
+
+    /// <summary>対戦モード ComboBox とバインドする 0 始まりインデックス（HumanVsCpu=0, CpuVsCpu=1）。</summary>
+    public int GameModeIndex
+    {
+        get => (int)_gameMode;
+        set => GameMode = (GameMode)value;
+    }
+
+    /// <summary>
+    /// CPU vs CPU モードへの切替時に現在のゲームを中断し「新規ゲーム待ち」状態に移行する。
+    /// ゲーム進行中でも呼び出し可能。
+    /// </summary>
+    private void StopCurrentGameForModeChange()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+        IsAIThinking = false;
+        IsPaused = false;
+
+        (_ai as IDisposable)?.Dispose();
+        _ai = null;
+        _blackCpuAi = null;
+        _whiteCpuAi = null;
+
+        IsGameInProgress = false;
+        _engine.Initialize();
+        _kifuMoves.Clear();
+        LastKifuRecord = null;
+        ScoreHistory.Clear();
+        RecordCurrentScore();
+        OnPropertyChanged(nameof(IsSettingsEditable));
+        OnPropertyChanged(nameof(IsTimeLimitEditable));
+        RefreshBoardDisplay();
+        StatusMessage = "新規ゲームボタンで CPU vs CPU 対戦を開始してください";
+        UpdateScoreBoardState();
+    }
+
+    /// <summary>現在 CPU vs CPU モードかどうか。</summary>
+    public bool IsCpuVsCpu => _gameMode == GameMode.CpuVsCpu;
+
+    /// <summary>現在 人間 vs CPU モードかどうか。</summary>
+    public bool IsHumanVsCpu => _gameMode == GameMode.HumanVsCpu;
+
+    /// <summary>CPU vs CPU 時の黒AI難易度。初手前であれば変更と同時にゲームを再起動する。</summary>
+    public DifficultyLevel BlackDifficulty
+    {
+        get => _blackDifficulty;
+        set
+        {
+            if (!SetProperty(ref _blackDifficulty, value)) return;
+            OnPropertyChanged(nameof(BlackDifficultyIndex));
+            if (IsCpuVsCpu) RestartIfConfiguringBeforeFirstMove();
+        }
+    }
+
+    /// <summary>黒の難易度 ComboBox とバインドする 0 始まりインデックス（Easy=0, Normal=1, Hard=2）。</summary>
+    public int BlackDifficultyIndex
+    {
+        get => (int)_blackDifficulty - 1;
+        set => BlackDifficulty = (DifficultyLevel)(value + 1);
+    }
+
+    /// <summary>CPU vs CPU 時の白AI難易度。初手前であれば変更と同時にゲームを再起動する。</summary>
+    public DifficultyLevel WhiteDifficulty
+    {
+        get => _whiteDifficulty;
+        set
+        {
+            if (!SetProperty(ref _whiteDifficulty, value)) return;
+            OnPropertyChanged(nameof(WhiteDifficultyIndex));
+            if (IsCpuVsCpu) RestartIfConfiguringBeforeFirstMove();
+        }
+    }
+
+    /// <summary>白の難易度 ComboBox とバインドする 0 始まりインデックス（Easy=0, Normal=1, Hard=2）。</summary>
+    public int WhiteDifficultyIndex
+    {
+        get => (int)_whiteDifficulty - 1;
+        set => WhiteDifficulty = (DifficultyLevel)(value + 1);
+    }
+
+    private static readonly int[] CpuVsCpuDelayOptions = { 500, 1000, 2000, 3000 };
+
+    /// <summary>自動再生速度 ComboBox とバインドする 0 始まりインデックス（0=500ms, 1=1000ms, 2=2000ms, 3=3000ms）。</summary>
+    public int CpuVsCpuDelayIndex
+    {
+        get => _cpuVsCpuDelayIndex;
+        set
+        {
+            if (!SetProperty(ref _cpuVsCpuDelayIndex, Math.Clamp(value, 0, 3))) return;
+            _cpuVsCpuDelayMs = CpuVsCpuDelayOptions[_cpuVsCpuDelayIndex];
+            OnPropertyChanged(nameof(CpuVsCpuDelayMs));
+        }
+    }
+
+    /// <summary>
+    /// 現在の自動再生待機時間（ms）。インデックスから計算する。
+    /// internal set: テスト時に 0 を設定して遅延をスキップできる。
+    /// </summary>
+    public int CpuVsCpuDelayMs
+    {
+        get => _cpuVsCpuDelayMs;
+        internal set => SetProperty(ref _cpuVsCpuDelayMs, value);
+    }
+
+    private int _cpuVsCpuDelayMs = 1000;
+
+    /// <summary>CPU vs CPU が一時停止中かどうか。</summary>
+    public bool IsPaused
+    {
+        get => _isPaused;
+        private set
+        {
+            if (!SetProperty(ref _isPaused, value)) return;
+            OnPropertyChanged(nameof(PauseButtonContent));
+        }
+    }
+
+    /// <summary>
+    /// 一時停止 / 再開ボタンのラベル。
+    /// 初手前の一時停止状態（新規ゲーム直後）は「開始」、途中一時停止は「再開」と表示する。
+    /// </summary>
+    public string PauseButtonContent => _isPaused
+        ? (_engine.IsInitialState ? "開始" : "再開")
+        : "一時停止";
+
     public ICommand NewGameCommand { get; }
     public ICommand SquareClickedCommand { get; }
     public ICommand UndoCommand => _undoCommand;
+
+    /// <summary>CPU vs CPU モードの一時停止 / 再開コマンド。</summary>
+    public ICommand PauseCommand => _pauseCommand;
 
     /// <summary>
     /// 既定のコンストラクタ。実際の Python AI を使用する。
@@ -235,9 +397,12 @@ public class GameViewModel : ViewModelBase, IDisposable
     /// </summary>
     /// <param name="aiFactory">難易度から IAIStrategy を生成するファクトリ。null の場合は Python AI を使う。</param>
     /// <param name="startDeferred">true のとき StartNewGame() をコンストラクタから呼ばない（View 側の Loaded イベントで呼び出す）。</param>
-    public GameViewModel(Func<DifficultyLevel, IAIStrategy>? aiFactory, bool startDeferred = false, OthelloSettings? settings = null)
+    /// <param name="settings">設定ファイル（null の場合はファイルから読み込む）。</param>
+    /// <param name="cpuVsCpuAiFactory">CPU vs CPU モード専用 AI ファクトリ。null の場合は AlphaBetaAI を使う。テストで FakeAI を差し込める。</param>
+    public GameViewModel(Func<DifficultyLevel, IAIStrategy>? aiFactory, bool startDeferred = false, OthelloSettings? settings = null, Func<DifficultyLevel, IAIStrategy>? cpuVsCpuAiFactory = null)
     {
         _aiFactory = aiFactory ?? CreateDefaultAI;
+        _cpuVsCpuAiFactory = cpuVsCpuAiFactory ?? (d => new AlphaBetaAI(d));
 
         // 設定ファイルから制限時間を読み込む（注入されなければファイルまたはデフォルト 30 秒）
         var loadedSettings = settings ?? OthelloSettingsManager.Load();
@@ -249,7 +414,8 @@ public class GameViewModel : ViewModelBase, IDisposable
         SquareClickedCommand = new RelayCommand<Position>(SquareClicked);
 
         _undoCommand = new RelayCommand(OnUndo, () =>
-            _engine.GameState.IsGameInProgress() && !IsAIThinking);
+            !IsCpuVsCpu && _engine.GameState.IsGameInProgress() && !IsAIThinking);
+        _pauseCommand = new RelayCommand(() => IsPaused = !_isPaused);
 
         InitializeBoard();
 
@@ -283,7 +449,7 @@ public class GameViewModel : ViewModelBase, IDisposable
     protected override void OnPropertyChanged(string? propertyName = null)
     {
         base.OnPropertyChanged(propertyName);
-        if (propertyName is nameof(IsAIThinking) or nameof(IsGameInProgress))
+        if (propertyName is nameof(IsAIThinking) or nameof(IsGameInProgress) or nameof(IsCpuVsCpu))
             _undoCommand?.RaiseCanExecuteChanged();
     }
 
@@ -337,10 +503,22 @@ public class GameViewModel : ViewModelBase, IDisposable
         var cts = new CancellationTokenSource();
         _cts = cts;
         IsAIThinking = false;
+        IsPaused = false;
         LastKifuRecord = null;
 
         (_ai as IDisposable)?.Dispose();
         _ai = null;
+        _blackCpuAi = null;
+        _whiteCpuAi = null;
+
+        // CPU vs CPU モード: AI を同期生成（AlphaBetaAI は I/O なし・再入チェック不要）
+        if (IsCpuVsCpu)
+        {
+            _blackCpuAi = _cpuVsCpuAiFactory(BlackDifficulty);
+            _whiteCpuAi = _cpuVsCpuAiFactory(WhiteDifficulty);
+            ApplyNewGameState();
+            return;
+        }
 
         IAIStrategy? newAi = null;
         try
@@ -372,9 +550,7 @@ public class GameViewModel : ViewModelBase, IDisposable
     /// </summary>
     private void ApplyNewGameState()
     {
-        // EngineName は各 IAIStrategy 実装が自己報告する（F7）
-        // PythonSubprocessAI はコンストラクタで IsRustAvailable を評価済み（I/O なし）
-        AiEngineLabel = _ai!.EngineName;
+        AiEngineLabel = IsCpuVsCpu ? "AI vs AI" : _ai!.EngineName;
 
         _engine.Initialize();
         _kifuMoves.Clear();
@@ -386,17 +562,30 @@ public class GameViewModel : ViewModelBase, IDisposable
         RefreshBoardDisplay();
         IsGameInProgress = true;
 
-        string humanStr = HumanColor.ToDisplayString();
-        string aiStr    = AiColor.ToDisplayString();
-        StatusMessage = $"ゲーム開始 - あなた: {humanStr}, AI: {aiStr}";
-        UpdateScoreBoardState();
+        if (IsCpuVsCpu)
+        {
+            // 新規ゲーム直後は「開始」ボタン待ちの一時停止状態にする。
+            // これにより初手が打たれる前に対戦モードを変更できる余地を確保する。
+            IsPaused = true;
+            StatusMessage = $"黒: {BlackDifficulty.ToDisplayString()}, 白: {WhiteDifficulty.ToDisplayString()} — 開始ボタンで対戦を始めてください";
+            UpdateScoreBoardState();
+            _ = ProcessCpuVsCpuTurnAsync(_cts!.Token);
+        }
+        else
+        {
+            string humanStr = HumanColor.ToDisplayString();
+            string aiStr    = AiColor.ToDisplayString();
+            StatusMessage = $"ゲーム開始 - あなた: {humanStr}, AI: {aiStr}";
+            UpdateScoreBoardState();
 
-        if (AiColor == PlayerColor.Black)
-            _ = ProcessAIMoveAsync(_cts!.Token);
+            if (AiColor == PlayerColor.Black)
+                _ = ProcessAIMoveAsync(_cts!.Token);
+        }
     }
 
     private void SquareClicked(Position pos)
     {
+        if (IsCpuVsCpu) return;
         if (!IsGameInProgress || IsAIThinking)
             return;
 
@@ -535,6 +724,68 @@ public class GameViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
+    /// CPU vs CPU モードの自動対戦ループ。ゲーム終了まで黒・白交互に AI 着手を繰り返す。
+    /// <see cref="IsPaused"/> が true の間は 100ms ごとにポーリングして待機する。
+    /// </summary>
+    private async Task ProcessCpuVsCpuTurnAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (_engine.GameState.IsGameInProgress())
+            {
+                while (_isPaused)
+                    await Task.Delay(100, ct);
+
+                ct.ThrowIfCancellationRequested();
+                if (!_engine.GameState.IsGameInProgress()) break;
+
+                var currentColor = _engine.CurrentPlayer;
+                var ai = currentColor == PlayerColor.Black ? _blackCpuAi : _whiteCpuAi;
+                if (ai == null) break;
+
+                IsAIThinking = true;
+                StatusMessage = $"AI（{currentColor.ToDisplayString()}）が考え中...";
+
+                await Task.Delay(CpuVsCpuDelayMs, ct);
+
+                var aiColor = currentColor;
+                var aiRef   = ai;
+                var bestMove = await Task.Run(() => aiRef.GetBestMove(_engine.CurrentBoard, aiColor), ct);
+
+                ct.ThrowIfCancellationRequested();
+                if (_engine.CurrentPlayer != currentColor) break;
+
+                var moveResult = _engine.MakeMove(bestMove);
+                RecordMove(currentColor, bestMove);
+                RecordCurrentScore();
+                _ = AnimateFlipsAsync(moveResult.FlippedPieces, ct);
+                NotifyIfPassed();
+                OnPropertyChanged(nameof(IsSettingsEditable));
+                OnPropertyChanged(nameof(IsTimeLimitEditable));
+                RefreshBoardDisplay();
+                UpdateScoreBoardState();
+
+                IsAIThinking = false;
+            }
+
+            if (!ct.IsCancellationRequested)
+                EndGame();
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            if (ct.IsCancellationRequested) return;
+            StatusMessage = $"CPU vs CPU エラー: {ex.Message}";
+            IsGameInProgress = false;
+        }
+        finally
+        {
+            if (!ct.IsCancellationRequested)
+                IsAIThinking = false;
+        }
+    }
+
+    /// <summary>
     /// 直前のターン遷移で強制パスが発生していたら、その旨をステータスに表示する。
     /// </summary>
     private void NotifyIfPassed()
@@ -542,7 +793,7 @@ public class GameViewModel : ViewModelBase, IDisposable
         if (_engine.LastPassedPlayer is not { } passed)
             return;
 
-        string who = passed == HumanColor
+        string who = !IsCpuVsCpu && passed == HumanColor
             ? $"あなた（{passed.ToDisplayString()}）"
             : $"AI（{passed.ToDisplayString()}）";
         StatusMessage = $"{who} は打てる場所がないためパスしました";
@@ -610,7 +861,7 @@ public class GameViewModel : ViewModelBase, IDisposable
             }
         }
 
-        var validSet = _engine.CurrentPlayer == HumanColor
+        var validSet = !IsCpuVsCpu && _engine.CurrentPlayer == HumanColor
             ? new HashSet<Position>(_engine.GetValidMoves(HumanColor))
             : new HashSet<Position>();
 
@@ -618,7 +869,7 @@ public class GameViewModel : ViewModelBase, IDisposable
             square.IsValidMove = validSet.Contains(square.Position);
 
         ClearHint();
-        if (IsHintEnabled && IsGameInProgress && _engine.CurrentPlayer == HumanColor)
+        if (IsHintEnabled && !IsCpuVsCpu && IsGameInProgress && _engine.CurrentPlayer == HumanColor)
             _ = RefreshHintAsync(_cts!.Token);
 
         UpdateCurrentPlayerDisplay();
@@ -643,7 +894,7 @@ public class GameViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(IsTimerWarning));
         OnPropertyChanged(nameof(RemainingSecondsText));
 
-        if (!IsTimeLimitEnabled || !IsGameInProgress || _engine.CurrentPlayer != HumanColor)
+        if (!IsTimeLimitEnabled || !IsGameInProgress || _engine.CurrentPlayer != HumanColor || IsCpuVsCpu)
             return;
 
         var cts = new CancellationTokenSource();
@@ -745,18 +996,34 @@ public class GameViewModel : ViewModelBase, IDisposable
     {
         if (_engine.GameState.IsGameInProgress())
         {
-            bool isHumanTurn = _engine.CurrentPlayer == HumanColor;
-            string name = isHumanTurn
-                ? $"あなた（{HumanColor.ToDisplayString()}）"
-                : $"AI（{AiColor.ToDisplayString()}）";
-            CurrentPlayerDisplay = $"{name} のターン";
+            if (IsCpuVsCpu)
+            {
+                CurrentPlayerDisplay = $"AI（{_engine.CurrentPlayer.ToDisplayString()}）のターン";
+            }
+            else
+            {
+                bool isHumanTurn = _engine.CurrentPlayer == HumanColor;
+                string name = isHumanTurn
+                    ? $"あなた（{HumanColor.ToDisplayString()}）"
+                    : $"AI（{AiColor.ToDisplayString()}）";
+                CurrentPlayerDisplay = $"{name} のターン";
+            }
         }
         else
         {
             var (winner, _, _) = _engine.GetResult();
-            CurrentPlayerDisplay = winner == null
-                ? "引き分け"
-                : (winner == HumanColor ? "あなたの勝利!" : "AI の勝利!");
+            if (IsCpuVsCpu)
+            {
+                CurrentPlayerDisplay = winner == null
+                    ? "引き分け"
+                    : $"AI（{winner.Value.ToDisplayString()}）の勝利!";
+            }
+            else
+            {
+                CurrentPlayerDisplay = winner == null
+                    ? "引き分け"
+                    : (winner == HumanColor ? "あなたの勝利!" : "AI の勝利!");
+            }
         }
     }
 
@@ -766,23 +1033,28 @@ public class GameViewModel : ViewModelBase, IDisposable
 
         (_ai as IDisposable)?.Dispose();
         _ai = null;
+        _blackCpuAi = null;
+        _whiteCpuAi = null;
 
         var (winner, blackCount, whiteCount) = _engine.GetResult();
-        if (winner == null)
+        if (IsCpuVsCpu)
         {
-            StatusMessage = $"引き分け (黒: {blackCount}, 白: {whiteCount})";
+            StatusMessage = winner == null
+                ? $"引き分け (黒: {blackCount}, 白: {whiteCount})"
+                : $"AI（{winner.Value.ToDisplayString()}）の勝利 (黒: {blackCount}, 白: {whiteCount})";
         }
         else
         {
-            string winnerName = winner == HumanColor ? "あなた" : "AI";
-            StatusMessage = $"{winnerName} の勝利 (黒: {blackCount}, 白: {whiteCount})";
+            StatusMessage = winner == null
+                ? $"引き分け (黒: {blackCount}, 白: {whiteCount})"
+                : $"{(winner == HumanColor ? "あなた" : "AI")} の勝利 (黒: {blackCount}, 白: {whiteCount})";
         }
 
         LastKifuRecord = new KifuRecord(
             Version:    1,
             PlayedAt:   DateTimeOffset.Now,
-            HumanColor: HumanColor,
-            Difficulty: Difficulty,
+            HumanColor: IsCpuVsCpu ? PlayerColor.Black : HumanColor,
+            Difficulty: IsCpuVsCpu ? BlackDifficulty : Difficulty,
             Result:     winner,
             Moves:      _kifuMoves.AsReadOnly(),
             FinalScore: new KifuFinalScore(blackCount, whiteCount));
@@ -819,5 +1091,7 @@ public class GameViewModel : ViewModelBase, IDisposable
 
         (_ai as IDisposable)?.Dispose();
         _ai = null;
+        _blackCpuAi = null;
+        _whiteCpuAi = null;
     }
 }

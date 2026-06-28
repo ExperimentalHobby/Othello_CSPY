@@ -31,77 +31,138 @@
             <Separator Width="2" Background="{StaticResource SeparatorBrush}" Margin="4,0"/>
             <Button Content="新規ゲーム" Command="{Binding NewGameCommand}"
                     Style="{StaticResource ActionButtonStyle}"/>
+            <!-- CPU vs CPU 専用: 開始/一時停止（新規ゲームの直隣に配置） -->
+            <Button Content="{Binding PauseButtonContent}"
+                    Command="{Binding PauseCommand}"
+                    Style="{StaticResource ActionButtonStyle}"
+                    Visibility="{Binding IsCpuVsCpu, Converter={StaticResource BoolToVisConverter}}"/>
             <Button Content="戻す" Command="{Binding UndoCommand}"
                     Style="{StaticResource ActionButtonStyle}"/>
             <ToggleButton Content="ヒント"
                           IsChecked="{Binding IsHintEnabled, Mode=TwoWay}"
                           Style="{StaticResource ActionToggleButtonStyle}"/>
 
-            <Separator Width="2" Background="{StaticResource SeparatorBrush}" Margin="10,0"/>
+            <Separator Width="2" Background="{StaticResource SeparatorBrush}" Margin="5,0"/>
             <Button Content="棋譜を保存" Click="OnSaveKifu"
                     Style="{StaticResource ActionButtonStyle}"/>
             <Button Content="棋譜を開く" Click="OnOpenKifu"
                     Style="{StaticResource ActionButtonStyle}"/>
 
-            <Separator Width="2" Background="{StaticResource SeparatorBrush}" Margin="10,0"/>
+            <Separator Width="2" Background="{StaticResource SeparatorBrush}" Margin="5,0"/>
 
-            <TextBlock Text="難易度:" VerticalAlignment="Center" Margin="10,0" FontSize="12"/>
-            <ComboBox Width="110" Margin="5" VerticalAlignment="Center" FontSize="12"
+            <!-- 対戦モード -->
+            <TextBlock Text="対戦モード:" VerticalAlignment="Center" Margin="5,0" FontSize="12"/>
+            <ComboBox Width="110" Margin="4,0" VerticalAlignment="Center" FontSize="12"
                       Style="{StaticResource MenuComboBoxStyle}"
                       ItemContainerStyle="{StaticResource MenuComboBoxItemStyle}"
-                      SelectedIndex="{Binding DifficultyIndex, Mode=TwoWay}"
+                      SelectedIndex="{Binding GameModeIndex, Mode=TwoWay}"
                       IsEnabled="{Binding IsSettingsEditable}">
-                <ComboBoxItem Content="イージー"/>
-                <ComboBoxItem Content="ノーマル"/>
-                <ComboBoxItem Content="ハード"/>
+                <ComboBoxItem Content="人間 vs CPU"/>
+                <ComboBoxItem Content="CPU vs CPU"/>
             </ComboBox>
 
-            <Separator Width="2" Background="{StaticResource SeparatorBrush}" Margin="10,0"/>
+            <Separator Width="2" Background="{StaticResource SeparatorBrush}" Margin="5,0"/>
 
-            <!-- 制限時間モード -->
-            <ToggleButton Content="制限時間"
-                          IsChecked="{Binding IsTimeLimitEnabled, Mode=TwoWay}"
-                          IsEnabled="{Binding IsTimeLimitEditable}"
-                          Style="{StaticResource ActionToggleButtonStyle}"/>
-            <TextBox x:Name="TimeLimitSecondsBox"
-                     Width="50" Margin="4,0" VerticalAlignment="Center" FontSize="12"
-                     Text="{Binding TimeLimitSeconds, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
-                     IsEnabled="{Binding IsTimeLimitEditable}"
-                     LostFocus="OnTimeLimitSecondsLostFocus"
-                     KeyDown="OnTimeLimitSecondsKeyDown"
-                     HorizontalContentAlignment="Center"/>
-            <TextBlock Text="秒" VerticalAlignment="Center" FontSize="12"/>
-            <TextBlock Text=" 残り:" VerticalAlignment="Center" FontSize="12"
-                       Visibility="{Binding IsTimerRunning, Converter={StaticResource BoolToVisConverter}}"/>
-            <TextBlock VerticalAlignment="Center" FontSize="13" FontWeight="Bold" Margin="2,0"
-                       Visibility="{Binding IsTimerRunning, Converter={StaticResource BoolToVisConverter}}">
-                <TextBlock.Text>
-                    <MultiBinding StringFormat="{}{0}秒">
-                        <Binding Path="RemainingSeconds"/>
-                    </MultiBinding>
-                </TextBlock.Text>
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsTimerWarning}" Value="True">
-                                <Setter Property="Foreground" Value="Red"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
+            <!-- 人間 vs CPU 専用コントロール -->
+            <StackPanel Orientation="Horizontal"
+                        Visibility="{Binding IsHumanVsCpu, Converter={StaticResource BoolToVisConverter}}">
+                <TextBlock Text="難易度:" VerticalAlignment="Center" Margin="5,0" FontSize="12"/>
+                <ComboBox Width="100" Margin="4,0" VerticalAlignment="Center" FontSize="12"
+                          Style="{StaticResource MenuComboBoxStyle}"
+                          ItemContainerStyle="{StaticResource MenuComboBoxItemStyle}"
+                          SelectedIndex="{Binding DifficultyIndex, Mode=TwoWay}"
+                          IsEnabled="{Binding IsSettingsEditable}">
+                    <ComboBoxItem Content="イージー"/>
+                    <ComboBoxItem Content="ノーマル"/>
+                    <ComboBoxItem Content="ハード"/>
+                </ComboBox>
 
-            <Separator Width="2" Background="{StaticResource SeparatorBrush}" Margin="10,0"/>
+                <Separator Width="2" Background="{StaticResource SeparatorBrush}" Margin="5,0"/>
 
-            <TextBlock Text="あなたの色:" VerticalAlignment="Center" Margin="10,0" FontSize="12"/>
-            <ComboBox Width="110" Margin="5" VerticalAlignment="Center" FontSize="12"
-                      Style="{StaticResource MenuComboBoxStyle}"
-                      ItemContainerStyle="{StaticResource MenuComboBoxItemStyle}"
-                      SelectedIndex="{Binding HumanColorIndex, Mode=TwoWay}"
-                      IsEnabled="{Binding IsSettingsEditable}">
-                <ComboBoxItem Content="黒（先手）"/>
-                <ComboBoxItem Content="白（後手）"/>
-            </ComboBox>
+                <!-- 制限時間モード -->
+                <ToggleButton Content="制限時間"
+                              IsChecked="{Binding IsTimeLimitEnabled, Mode=TwoWay}"
+                              IsEnabled="{Binding IsTimeLimitEditable}"
+                              Style="{StaticResource ActionToggleButtonStyle}"/>
+                <TextBox x:Name="TimeLimitSecondsBox"
+                         Width="50" Margin="4,0" VerticalAlignment="Center" FontSize="12"
+                         Text="{Binding TimeLimitSeconds, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                         IsEnabled="{Binding IsTimeLimitEditable}"
+                         LostFocus="OnTimeLimitSecondsLostFocus"
+                         KeyDown="OnTimeLimitSecondsKeyDown"
+                         HorizontalContentAlignment="Center"/>
+                <TextBlock Text="秒" VerticalAlignment="Center" FontSize="12"/>
+                <TextBlock Text=" 残り:" VerticalAlignment="Center" FontSize="12"
+                           Visibility="{Binding IsTimerRunning, Converter={StaticResource BoolToVisConverter}}"/>
+                <TextBlock VerticalAlignment="Center" FontSize="13" FontWeight="Bold" Margin="2,0"
+                           Visibility="{Binding IsTimerRunning, Converter={StaticResource BoolToVisConverter}}">
+                    <TextBlock.Text>
+                        <MultiBinding StringFormat="{}{0}秒">
+                            <Binding Path="RemainingSeconds"/>
+                        </MultiBinding>
+                    </TextBlock.Text>
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsTimerWarning}" Value="True">
+                                    <Setter Property="Foreground" Value="Red"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <Separator Width="2" Background="{StaticResource SeparatorBrush}" Margin="5,0"/>
+
+                <TextBlock Text="あなたの色:" VerticalAlignment="Center" Margin="5,0" FontSize="12"/>
+                <ComboBox Width="100" Margin="4,0" VerticalAlignment="Center" FontSize="12"
+                          Style="{StaticResource MenuComboBoxStyle}"
+                          ItemContainerStyle="{StaticResource MenuComboBoxItemStyle}"
+                          SelectedIndex="{Binding HumanColorIndex, Mode=TwoWay}"
+                          IsEnabled="{Binding IsSettingsEditable}">
+                    <ComboBoxItem Content="黒（先手）"/>
+                    <ComboBoxItem Content="白（後手）"/>
+                </ComboBox>
+            </StackPanel>
+
+            <!-- CPU vs CPU 専用コントロール -->
+            <StackPanel Orientation="Horizontal"
+                        Visibility="{Binding IsCpuVsCpu, Converter={StaticResource BoolToVisConverter}}">
+                <TextBlock Text="黒:" VerticalAlignment="Center" Margin="5,0,3,0" FontSize="12"/>
+                <ComboBox Width="90" Margin="3,4" VerticalAlignment="Center" FontSize="12"
+                          Style="{StaticResource MenuComboBoxStyle}"
+                          ItemContainerStyle="{StaticResource MenuComboBoxItemStyle}"
+                          SelectedIndex="{Binding BlackDifficultyIndex, Mode=TwoWay}"
+                          IsEnabled="{Binding IsSettingsEditable}">
+                    <ComboBoxItem Content="イージー"/>
+                    <ComboBoxItem Content="ノーマル"/>
+                    <ComboBoxItem Content="ハード"/>
+                </ComboBox>
+                <TextBlock Text="白:" VerticalAlignment="Center" Margin="5,0,3,0" FontSize="12"/>
+                <ComboBox Width="90" Margin="3,4" VerticalAlignment="Center" FontSize="12"
+                          Style="{StaticResource MenuComboBoxStyle}"
+                          ItemContainerStyle="{StaticResource MenuComboBoxItemStyle}"
+                          SelectedIndex="{Binding WhiteDifficultyIndex, Mode=TwoWay}"
+                          IsEnabled="{Binding IsSettingsEditable}">
+                    <ComboBoxItem Content="イージー"/>
+                    <ComboBoxItem Content="ノーマル"/>
+                    <ComboBoxItem Content="ハード"/>
+                </ComboBox>
+
+                <Separator Width="2" Background="{StaticResource SeparatorBrush}" Margin="5,0"/>
+
+                <TextBlock Text="速度:" VerticalAlignment="Center" Margin="5,0,3,0" FontSize="12"/>
+                <ComboBox Width="115" Margin="3,5" VerticalAlignment="Center" FontSize="12"
+                          Style="{StaticResource MenuComboBoxStyle}"
+                          ItemContainerStyle="{StaticResource MenuComboBoxItemStyle}"
+                          SelectedIndex="{Binding CpuVsCpuDelayIndex, Mode=TwoWay}">
+                    <ComboBoxItem Content="高速 (0.5秒)"/>
+                    <ComboBoxItem Content="標準 (1秒)"/>
+                    <ComboBoxItem Content="低速 (2秒)"/>
+                    <ComboBoxItem Content="最遅 (3秒)"/>
+                </ComboBox>
+
+            </StackPanel>
         </StackPanel>
 
         <!-- メインコンテンツ -->
