@@ -58,6 +58,41 @@
 
             <Separator Width="2" Background="{StaticResource SeparatorBrush}" Margin="10,0"/>
 
+            <!-- 制限時間モード -->
+            <ToggleButton Content="制限時間"
+                          IsChecked="{Binding IsTimeLimitEnabled, Mode=TwoWay}"
+                          IsEnabled="{Binding IsTimeLimitEditable}"
+                          Style="{StaticResource ActionToggleButtonStyle}"/>
+            <TextBox x:Name="TimeLimitSecondsBox"
+                     Width="50" Margin="4,0" VerticalAlignment="Center" FontSize="12"
+                     Text="{Binding TimeLimitSeconds, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                     IsEnabled="{Binding IsTimeLimitEditable}"
+                     LostFocus="OnTimeLimitSecondsLostFocus"
+                     KeyDown="OnTimeLimitSecondsKeyDown"
+                     HorizontalContentAlignment="Center"/>
+            <TextBlock Text="秒" VerticalAlignment="Center" FontSize="12"/>
+            <TextBlock Text=" 残り:" VerticalAlignment="Center" FontSize="12"
+                       Visibility="{Binding IsTimerRunning, Converter={StaticResource BoolToVisConverter}}"/>
+            <TextBlock VerticalAlignment="Center" FontSize="13" FontWeight="Bold" Margin="2,0"
+                       Visibility="{Binding IsTimerRunning, Converter={StaticResource BoolToVisConverter}}">
+                <TextBlock.Text>
+                    <MultiBinding StringFormat="{}{0}秒">
+                        <Binding Path="RemainingSeconds"/>
+                    </MultiBinding>
+                </TextBlock.Text>
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsTimerWarning}" Value="True">
+                                <Setter Property="Foreground" Value="Red"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <Separator Width="2" Background="{StaticResource SeparatorBrush}" Margin="10,0"/>
+
             <TextBlock Text="あなたの色:" VerticalAlignment="Center" Margin="10,0" FontSize="12"/>
             <ComboBox Width="110" Margin="5" VerticalAlignment="Center" FontSize="12"
                       Style="{StaticResource MenuComboBoxStyle}"

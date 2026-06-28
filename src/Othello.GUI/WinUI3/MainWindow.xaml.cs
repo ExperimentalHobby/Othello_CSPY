@@ -130,6 +130,30 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void OnTimeLimitSecondsLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox tb)
+        {
+            var expr = tb.GetBindingExpression(TextBox.TextProperty);
+            expr?.UpdateSource();
+        }
+        _viewModel.SaveTimeLimitSettings();
+    }
+
+    private void OnTimeLimitSecondsKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            if (sender is TextBox tb)
+            {
+                var expr = tb.GetBindingExpression(TextBox.TextProperty);
+                expr?.UpdateSource();
+            }
+            _viewModel.SaveTimeLimitSettings();
+            e.Handled = true;
+        }
+    }
+
     private async void OnSaveKifu(object sender, RoutedEventArgs e)
     {
         var record = _viewModel.LastKifuRecord;
