@@ -190,8 +190,12 @@
                                        Foreground="White"/>
                             <TextBlock Text="{Binding CurrentPlayerDisplay}" FontSize="13"
                                        Foreground="White" TextWrapping="Wrap"/>
-                            <TextBlock Text="AI が考え中..." FontSize="11" Foreground="Yellow"
-                                       Visibility="{Binding IsAIThinking, Converter={StaticResource BoolToVisConverter}}"/>
+                            <!-- 固定高で囲むことで Collapsed/Visible 切替時のレイアウトシフトを防ぐ -->
+                            <Grid Height="16">
+                                <TextBlock Text="AI が考え中..." FontSize="11" Foreground="Yellow"
+                                           VerticalAlignment="Center"
+                                           Visibility="{Binding IsAIThinking, Converter={StaticResource BoolToVisConverter}}"/>
+                            </Grid>
                         </StackPanel>
                     </Border>
 
