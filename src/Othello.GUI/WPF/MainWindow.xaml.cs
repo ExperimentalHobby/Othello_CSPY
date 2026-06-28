@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Input;
 using Microsoft.Win32;
 using Technopro.Othello.Core.Kifu;
 using Technopro.Othello.ViewModels;
@@ -19,6 +20,23 @@ public partial class MainWindow : Window
 
         Loaded  += async (_, _) => await _vm.StartNewGameAsync();
         Closed  += (_, _) => (_vm as IDisposable)?.Dispose();
+    }
+
+    private void OnTimeLimitSecondsLostFocus(object sender, RoutedEventArgs e)
+    {
+        // TextBox の値をバインディング更新してから設定を保存する
+        TimeLimitSecondsBox.GetBindingExpression(System.Windows.Controls.TextBox.TextProperty)?.UpdateSource();
+        _vm.SaveTimeLimitSettings();
+    }
+
+    private void OnTimeLimitSecondsKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            TimeLimitSecondsBox.GetBindingExpression(System.Windows.Controls.TextBox.TextProperty)?.UpdateSource();
+            _vm.SaveTimeLimitSettings();
+            e.Handled = true;
+        }
     }
 
     private async void OnSaveKifu(object sender, RoutedEventArgs e)

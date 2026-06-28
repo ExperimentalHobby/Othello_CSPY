@@ -5,6 +5,8 @@ using Technopro.Othello.Core.AI;
 using Technopro.Othello.Core.Game;
 using Technopro.Othello.Core.Kifu;
 using Technopro.Othello.Core.Models;
+using Technopro.Othello.Core.Rules;
+using Technopro.Othello.Core.Settings;
 
 namespace Technopro.Othello.ViewModels;
 
@@ -53,12 +55,62 @@ public class GameViewModel : ViewModelBase, IDisposable
     private readonly List<KifuMove> _kifuMoves = new();
     private KifuRecord? _lastKifuRecord;
 
+    // --- 制限時間 ---
+    private bool   _isTimeLimitEnabled;
+    private int    _timeLimitSeconds;
+    private int    _remainingSeconds;
+    private CancellationTokenSource? _timerCts;
+
     /// <summary>直近のゲームの棋譜。ゲーム終了後に設定され、新規ゲーム開始時に null にリセットされる。</summary>
     public KifuRecord? LastKifuRecord
     {
         get => _lastKifuRecord;
         private set => SetProperty(ref _lastKifuRecord, value);
     }
+
+    /// <summary>制限時間モードが有効かどうか。ゲーム開始前のみ変更可能。</summary>
+    public bool IsTimeLimitEnabled
+    {
+        get => _isTimeLimitEnabled;
+        set => SetProperty(ref _isTimeLimitEnabled, value);
+    }
+
+    /// <summary>1 手あたりの制限時間（秒）。ゲーム開始前のみ変更可能。</summary>
+    public int TimeLimitSeconds
+    {
+        get => _timeLimitSeconds;
+        set
+        {
+            if (value < 1) value = 1;
+            SetProperty(ref _timeLimitSeconds, value);
+        }
+    }
+
+    /// <summary>現在の TimeLimitSeconds を設定ファイルに保存する。UI 層から TextBox 確定時に呼ぶ。</summary>
+    public void SaveTimeLimitSettings()
+        => OthelloSettingsManager.Save(new OthelloSettings { TimeLimitSeconds = _timeLimitSeconds });
+
+    /// <summary>現在の手番の残り秒数。制限時間 OFF または AI ターン中は 0。</summary>
+    public int RemainingSeconds
+    {
+        get => _remainingSeconds;
+        private set => SetProperty(ref _remainingSeconds, value);
+    }
+
+    /// <summary>ゲームが開始していない間のみ制限時間設定を変更できる。</summary>
+    public bool IsTimeLimitEditable => !IsGameInProgress;
+
+    /// <summary>タイマーが動いているかどうか（制限時間表示の可視性に使う）。</summary>
+    public bool IsTimerRunning => RemainingSeconds > 0;
+
+    /// <summary>残り時間が 10 秒以下かどうか（UI の色変化トリガー）。</summary>
+    public bool IsTimerWarning => RemainingSeconds > 0 && RemainingSeconds <= 10;
+
+    /// <summary>残り時間テキスト（WinUI3 など MultiBinding が使えない環境向け）。</summary>
+    public string RemainingSecondsText => $"{RemainingSeconds}秒";
+
+    /// <summary>テスト用: 現在の盤面を返す（ViewModel 外から操作できるよう公開）。</summary>
+    internal Board EngineCurrentBoard => _engine.CurrentBoard;
 
     public ObservableCollection<BoardSquareViewModel> BoardSquares { get; } = new();
 
@@ -78,7 +130,13 @@ public class GameViewModel : ViewModelBase, IDisposable
     {
         get => _difficulty;
         // 初手前（設定変更可能な間）に難易度を変えたら、新しい難易度で AI を作り直すため再起動する
-        set { if (SetProperty(ref _difficulty, value)) RestartIfConfiguringBeforeFirstMove(); }
+        set
+        {
+            if (!SetProperty(ref _difficulty, value)) return;
+            // 難易度に応じて制限時間モードのデフォルト値を更新する
+            IsTimeLimitEnabled = value == DifficultyLevel.Hard;
+            RestartIfConfiguringBeforeFirstMove();
+        }
     }
 
     public bool IsGameInProgress
@@ -87,7 +145,10 @@ public class GameViewModel : ViewModelBase, IDisposable
         set
         {
             if (SetProperty(ref _isGameInProgress, value))
+            {
                 OnPropertyChanged(nameof(IsSettingsEditable));
+                OnPropertyChanged(nameof(IsTimeLimitEditable));
+            }
         }
     }
 
@@ -171,9 +232,15 @@ public class GameViewModel : ViewModelBase, IDisposable
     /// </summary>
     /// <param name="aiFactory">難易度から IAIStrategy を生成するファクトリ。null の場合は Python AI を使う。</param>
     /// <param name="startDeferred">true のとき StartNewGame() をコンストラクタから呼ばない（View 側の Loaded イベントで呼び出す）。</param>
-    public GameViewModel(Func<DifficultyLevel, IAIStrategy>? aiFactory, bool startDeferred = false)
+    public GameViewModel(Func<DifficultyLevel, IAIStrategy>? aiFactory, bool startDeferred = false, OthelloSettings? settings = null)
     {
         _aiFactory = aiFactory ?? CreateDefaultAI;
+
+        // 設定ファイルから制限時間を読み込む（注入されなければファイルまたはデフォルト 30 秒）
+        var loadedSettings = settings ?? OthelloSettingsManager.Load();
+        _timeLimitSeconds  = loadedSettings.TimeLimitSeconds;
+        // 初期難易度（Medium）に従い制限時間モードは OFF
+        _isTimeLimitEnabled = _difficulty == DifficultyLevel.Hard;
 
         NewGameCommand       = new RelayCommand(() => _ = StartNewGameAsync());
         SquareClickedCommand = new RelayCommand<Position>(SquareClicked);
@@ -536,6 +603,88 @@ public class GameViewModel : ViewModelBase, IDisposable
             _ = RefreshHintAsync(_cts!.Token);
 
         UpdateCurrentPlayerDisplay();
+
+        // 人間ターン開始時にタイマーを（再）起動する
+        RestartTurnTimer();
+    }
+
+    // ===== 制限時間タイマー =====
+
+    /// <summary>
+    /// 人間ターン開始時にカウントダウンタイマーを起動する。
+    /// 制限時間 OFF または AI ターンの場合は起動しない。
+    /// </summary>
+    private void RestartTurnTimer()
+    {
+        _timerCts?.Cancel();
+        _timerCts?.Dispose();
+        _timerCts = null;
+        RemainingSeconds = 0;
+        OnPropertyChanged(nameof(IsTimerRunning));
+        OnPropertyChanged(nameof(IsTimerWarning));
+        OnPropertyChanged(nameof(RemainingSecondsText));
+
+        if (!IsTimeLimitEnabled || !IsGameInProgress || _engine.CurrentPlayer != HumanColor)
+            return;
+
+        var cts = new CancellationTokenSource();
+        _timerCts = cts;
+        _ = RunTurnTimerAsync(cts.Token);
+    }
+
+    /// <summary>タイマーを停止して残り時間を 0 にリセットする。</summary>
+    private void StopTurnTimer()
+    {
+        _timerCts?.Cancel();
+        _timerCts?.Dispose();
+        _timerCts = null;
+        RemainingSeconds = 0;
+        OnPropertyChanged(nameof(IsTimerRunning));
+        OnPropertyChanged(nameof(IsTimerWarning));
+        OnPropertyChanged(nameof(RemainingSecondsText));
+    }
+
+    /// <summary>
+    /// 1 秒ごとにカウントダウンし、0 になったら有効手[0]を強制着手する。
+    /// UI スレッドの SynchronizationContext で再開するため Dispatcher.Invoke 不要。
+    /// </summary>
+    private async Task RunTurnTimerAsync(CancellationToken ct)
+    {
+        RemainingSeconds = TimeLimitSeconds;
+        OnPropertyChanged(nameof(IsTimerRunning));
+        OnPropertyChanged(nameof(IsTimerWarning));
+
+        try
+        {
+            while (RemainingSeconds > 0)
+            {
+                await Task.Delay(1000, ct);
+                RemainingSeconds--;
+                OnPropertyChanged(nameof(IsTimerRunning));
+                OnPropertyChanged(nameof(IsTimerWarning));
+                OnPropertyChanged(nameof(RemainingSecondsText));
+            }
+        }
+        catch (OperationCanceledException) { return; }
+
+        // 時間切れ
+        if (IsGameInProgress && _engine.CurrentPlayer == HumanColor)
+        {
+            StatusMessage = "時間切れ！自動着手します";
+            await ForcePlayForTestAsync();
+        }
+    }
+
+    /// <summary>
+    /// 有効手[0]を強制着手する。時間切れ処理とテストから呼ぶ。
+    /// </summary>
+    public async Task ForcePlayForTestAsync()
+    {
+        var validMoves = OthelloRules.GetValidMoves(_engine.CurrentBoard, HumanColor);
+        if (validMoves.Count == 0) return;
+        HandlePlayerMove(validMoves[0]);
+        // AI 応答を少し待つ（テストで AI が動く時間を確保）
+        await Task.Delay(10);
     }
 
     /// <summary>
