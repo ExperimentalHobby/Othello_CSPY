@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
@@ -12,6 +13,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Technopro.Othello.Core.Kifu;
 using Technopro.Othello.ViewModels;
+using Windows.Foundation;
 using Windows.Storage.Pickers;
 
 namespace Technopro.Othello.WinUI3;
@@ -36,7 +38,12 @@ public sealed partial class MainWindow : Window
         {
             root.DataContext = _viewModel;
             // Loaded 後に非同期でゲーム開始することでウィンドウ表示をブロックしない
-            root.Loaded += async (_, _) => await _viewModel.StartNewGameAsync();
+            root.Loaded += async (_, _) =>
+            {
+                await _viewModel.StartNewGameAsync();
+                _viewModel.ScoreHistory.CollectionChanged += OnScoreHistoryChanged;
+                RedrawScoreGraph();
+            };
         }
 
         // ウィンドウサイズ・位置を設定
@@ -130,28 +137,66 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void OnScoreHistoryChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        => RedrawScoreGraph();
+
+    private void OnScoreCanvasSizeChanged(object sender, SizeChangedEventArgs e)
+        => RedrawScoreGraph();
+
+    private void RedrawScoreGraph()
+    {
+        var history = _viewModel.ScoreHistory;
+        var w = ScoreCanvas.ActualWidth;
+        var h = ScoreCanvas.ActualHeight;
+        if (w <= 0 || h <= 0 || history.Count == 0) return;
+
+        double xScale = history.Count > 1 ? w / (history.Count - 1) : w;
+        double yScale = h / 64.0;
+
+        // 中央ガイド線（石数 32）
+        double midY = h - 32 * yScale;
+        MidLine.X1 = 0; MidLine.X2 = w;
+        MidLine.Y1 = midY; MidLine.Y2 = midY;
+
+        var blackPoints = new PointCollection();
+        var whitePoints = new PointCollection();
+        for (int i = 0; i < history.Count; i++)
+        {
+            double x = history.Count > 1 ? i * xScale : 0;
+            blackPoints.Add(new Point(x, h - history[i].BlackCount * yScale));
+            whitePoints.Add(new Point(x, h - history[i].WhiteCount * yScale));
+        }
+        BlackScoreLine.Points = blackPoints;
+        WhiteScoreLine.Points = whitePoints;
+
+        double cx = history.Count > 1 ? (history.Count - 1) * xScale : 0;
+        CurrentMoveLine.X1 = cx; CurrentMoveLine.X2 = cx;
+        CurrentMoveLine.Y1 = 0;  CurrentMoveLine.Y2 = h;
+    }
+
     private void OnTimeLimitSecondsLostFocus(object sender, RoutedEventArgs e)
     {
         if (sender is TextBox tb)
-        {
-            var expr = tb.GetBindingExpression(TextBox.TextProperty);
-            expr?.UpdateSource();
-        }
+            ApplyTimeLimitFromTextBox(tb);
         _viewModel.SaveTimeLimitSettings();
     }
 
     private void OnTimeLimitSecondsKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
-        if (e.Key == Windows.System.VirtualKey.Enter)
+        if (e.Key == Windows.System.VirtualKey.Enter && sender is TextBox tb)
         {
-            if (sender is TextBox tb)
-            {
-                var expr = tb.GetBindingExpression(TextBox.TextProperty);
-                expr?.UpdateSource();
-            }
+            ApplyTimeLimitFromTextBox(tb);
             _viewModel.SaveTimeLimitSettings();
             e.Handled = true;
         }
+    }
+
+    private void ApplyTimeLimitFromTextBox(TextBox tb)
+    {
+        if (int.TryParse(tb.Text, out int seconds) && seconds >= 1)
+            _viewModel.TimeLimitSeconds = seconds;
+        else
+            tb.Text = _viewModel.TimeLimitSeconds.ToString();
     }
 
     private async void OnSaveKifu(object sender, RoutedEventArgs e)

@@ -14,5 +14,6 @@
     <Compile Include="$(MSBuildThisFileDirectory)BoardSquareViewModel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GameViewModel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)KifuViewModel.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)ScorePoint.cs" />
   </ItemGroup>
 </Project>
