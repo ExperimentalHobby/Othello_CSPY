@@ -6,8 +6,9 @@ namespace Technopro.Othello.WPF.Converters;
 
 /// <summary>
 /// bool 値を Visibility に変換する XAML バインディング用コンバーター。
-/// true → Visible、false → Hidden に変換する。
-/// IsValidMove（有効手ハイライト）や HasPiece（石の表示）のバインディングで使用する。
+/// true → Visible、false → Collapsed に変換する。
+/// Collapsed はレイアウト上のスペースも解放するため、
+/// パネルの表示切替（IsCpuVsCpu / IsHumanVsCpu）に使うとスペースが詰まる。
 /// </summary>
 public class BoolToVisibilityConverter : IValueConverter
 {
@@ -18,9 +19,9 @@ public class BoolToVisibilityConverter : IValueConverter
     /// <param name="targetType">使用しない</param>
     /// <param name="parameter">使用しない</param>
     /// <param name="culture">使用しない</param>
-    /// <returns>true → Visible、false または非 bool → Hidden</returns>
+    /// <returns>true → Visible、false または非 bool → Collapsed</returns>
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        value is bool b && b ? Visibility.Visible : Visibility.Hidden;
+        value is bool b && b ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>
     /// Visibility から bool に逆変換する（TwoWay バインディング用）。

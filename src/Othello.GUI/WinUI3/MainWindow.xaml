@@ -51,6 +51,11 @@
             <Rectangle Width="2" Fill="#666666" Margin="4,5" VerticalAlignment="Stretch"/>
             <Button Content="新規ゲーム" Command="{Binding NewGameCommand}"
                     Style="{StaticResource MenuButtonStyle}"/>
+            <!-- CPU vs CPU 専用: 開始/一時停止（新規ゲームの直隣に配置） -->
+            <Button Content="{Binding PauseButtonContent}"
+                    Command="{Binding PauseCommand}"
+                    Style="{StaticResource MenuButtonStyle}"
+                    Visibility="{Binding IsCpuVsCpu, Converter={StaticResource BoolToVisConverter}}"/>
             <Button Content="戻す" Command="{Binding UndoCommand}"
                     Style="{StaticResource MenuButtonStyle}"/>
             <ToggleButton Content="ヒント"
@@ -67,60 +72,12 @@
 
             <Rectangle Width="2" Fill="#666666" Margin="10,5" VerticalAlignment="Stretch"/>
 
-            <TextBlock Text="難易度:" VerticalAlignment="Center" Margin="10,0,5,0"
-                       Foreground="White" FontSize="12"/>
-            <!-- RequestedTheme="Light": ダーク背景でも ComboBox が見えるようライトテーマで描画 -->
-            <ComboBox Width="110" Margin="5,0" VerticalAlignment="Center" FontSize="12"
-                      RequestedTheme="Light"
-                      SelectedIndex="{Binding DifficultyIndex, Mode=TwoWay}"
-                      IsEnabled="{Binding IsSettingsEditable}">
-                <ComboBox.Resources>
-                    <SolidColorBrush x:Key="ComboBoxBackground"             Color="White"/>
-                    <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver"  Color="#f0f0f0"/>
-                    <SolidColorBrush x:Key="ComboBoxBackgroundPressed"      Color="#e0e0e0"/>
-                    <SolidColorBrush x:Key="ComboBoxBackgroundDisabled"     Color="#e8e8e8"/>
-                    <SolidColorBrush x:Key="ComboBoxDropDownBackground"     Color="White"/>
-                    <SolidColorBrush x:Key="ComboBoxForeground"             Color="Black"/>
-                    <SolidColorBrush x:Key="ComboBoxForegroundDisabled"     Color="#505050"/>
-                    <SolidColorBrush x:Key="ComboBoxBorderBrushDisabled"    Color="#b0b0b0"/>
-                </ComboBox.Resources>
-                <ComboBoxItem Content="イージー"/>
-                <ComboBoxItem Content="ノーマル"/>
-                <ComboBoxItem Content="ハード"/>
-            </ComboBox>
-
-            <Rectangle Width="2" Fill="#666666" Margin="10,5" VerticalAlignment="Stretch"/>
-
-            <!-- 制限時間モード -->
-            <ToggleButton Content="制限時間"
-                          IsChecked="{Binding IsTimeLimitEnabled, Mode=TwoWay}"
-                          IsEnabled="{Binding IsTimeLimitEditable}"
-                          Background="#4a7c2f" Foreground="White"
-                          FontSize="12" Padding="10,5" Margin="5,0"
-                          VerticalAlignment="Center"/>
-            <TextBox x:Name="TimeLimitSecondsBox"
-                     Width="50" Margin="4,0" VerticalAlignment="Center" FontSize="12"
-                     Text="{Binding TimeLimitSeconds, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
-                     IsEnabled="{Binding IsTimeLimitEditable}"
-                     LostFocus="OnTimeLimitSecondsLostFocus"
-                     KeyDown="OnTimeLimitSecondsKeyDown"
-                     RequestedTheme="Light"
-                     TextAlignment="Center"/>
-            <TextBlock Text="秒" VerticalAlignment="Center" Foreground="White" FontSize="12"/>
-            <TextBlock Text=" 残り:" VerticalAlignment="Center" Foreground="White" FontSize="12"
-                       Visibility="{Binding IsTimerRunning, Converter={StaticResource BoolToVisConverter}}"/>
-            <TextBlock Text="{Binding RemainingSecondsText}"
-                       VerticalAlignment="Center" FontSize="13" FontWeight="Bold" Margin="2,0"
-                       Foreground="White"
-                       Visibility="{Binding IsTimerRunning, Converter={StaticResource BoolToVisConverter}}"/>
-
-            <Rectangle Width="2" Fill="#666666" Margin="10,5" VerticalAlignment="Stretch"/>
-
-            <TextBlock Text="あなたの色:" VerticalAlignment="Center" Margin="10,0,5,0"
+            <!-- 対戦モード -->
+            <TextBlock Text="対戦モード:" VerticalAlignment="Center" Margin="10,0,5,0"
                        Foreground="White" FontSize="12"/>
             <ComboBox Width="120" Margin="5,0" VerticalAlignment="Center" FontSize="12"
                       RequestedTheme="Light"
-                      SelectedIndex="{Binding HumanColorIndex, Mode=TwoWay}"
+                      SelectedIndex="{Binding GameModeIndex, Mode=TwoWay}"
                       IsEnabled="{Binding IsSettingsEditable}">
                 <ComboBox.Resources>
                     <SolidColorBrush x:Key="ComboBoxBackground"             Color="White"/>
@@ -132,9 +89,152 @@
                     <SolidColorBrush x:Key="ComboBoxForegroundDisabled"     Color="#505050"/>
                     <SolidColorBrush x:Key="ComboBoxBorderBrushDisabled"    Color="#b0b0b0"/>
                 </ComboBox.Resources>
-                <ComboBoxItem Content="黒（先手）"/>
-                <ComboBoxItem Content="白（後手）"/>
+                <ComboBoxItem Content="人間 vs CPU"/>
+                <ComboBoxItem Content="CPU vs CPU"/>
             </ComboBox>
+
+            <Rectangle Width="2" Fill="#666666" Margin="10,5" VerticalAlignment="Stretch"/>
+
+            <!-- 人間 vs CPU 専用コントロール -->
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                        Visibility="{Binding IsHumanVsCpu, Converter={StaticResource BoolToVisConverter}}">
+                <TextBlock Text="難易度:" VerticalAlignment="Center" Margin="10,0,5,0"
+                           Foreground="White" FontSize="12"/>
+                <ComboBox Width="110" Margin="5,0" VerticalAlignment="Center" FontSize="12"
+                          RequestedTheme="Light"
+                          SelectedIndex="{Binding DifficultyIndex, Mode=TwoWay}"
+                          IsEnabled="{Binding IsSettingsEditable}">
+                    <ComboBox.Resources>
+                        <SolidColorBrush x:Key="ComboBoxBackground"             Color="White"/>
+                        <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver"  Color="#f0f0f0"/>
+                        <SolidColorBrush x:Key="ComboBoxBackgroundPressed"      Color="#e0e0e0"/>
+                        <SolidColorBrush x:Key="ComboBoxBackgroundDisabled"     Color="#e8e8e8"/>
+                        <SolidColorBrush x:Key="ComboBoxDropDownBackground"     Color="White"/>
+                        <SolidColorBrush x:Key="ComboBoxForeground"             Color="Black"/>
+                        <SolidColorBrush x:Key="ComboBoxForegroundDisabled"     Color="#505050"/>
+                        <SolidColorBrush x:Key="ComboBoxBorderBrushDisabled"    Color="#b0b0b0"/>
+                    </ComboBox.Resources>
+                    <ComboBoxItem Content="イージー"/>
+                    <ComboBoxItem Content="ノーマル"/>
+                    <ComboBoxItem Content="ハード"/>
+                </ComboBox>
+
+                <Rectangle Width="2" Fill="#666666" Margin="10,5" VerticalAlignment="Stretch"/>
+
+                <!-- 制限時間モード -->
+                <ToggleButton Content="制限時間"
+                              IsChecked="{Binding IsTimeLimitEnabled, Mode=TwoWay}"
+                              IsEnabled="{Binding IsTimeLimitEditable}"
+                              Background="#4a7c2f" Foreground="White"
+                              FontSize="12" Padding="10,5" Margin="5,0"
+                              VerticalAlignment="Center"/>
+                <TextBox x:Name="TimeLimitSecondsBox"
+                         Width="50" Margin="4,0" VerticalAlignment="Center" FontSize="12"
+                         Text="{Binding TimeLimitSeconds, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                         IsEnabled="{Binding IsTimeLimitEditable}"
+                         LostFocus="OnTimeLimitSecondsLostFocus"
+                         KeyDown="OnTimeLimitSecondsKeyDown"
+                         RequestedTheme="Light"
+                         TextAlignment="Center"/>
+                <TextBlock Text="秒" VerticalAlignment="Center" Foreground="White" FontSize="12"/>
+                <TextBlock Text=" 残り:" VerticalAlignment="Center" Foreground="White" FontSize="12"
+                           Visibility="{Binding IsTimerRunning, Converter={StaticResource BoolToVisConverter}}"/>
+                <TextBlock Text="{Binding RemainingSecondsText}"
+                           VerticalAlignment="Center" FontSize="13" FontWeight="Bold" Margin="2,0"
+                           Foreground="White"
+                           Visibility="{Binding IsTimerRunning, Converter={StaticResource BoolToVisConverter}}"/>
+
+                <Rectangle Width="2" Fill="#666666" Margin="10,5" VerticalAlignment="Stretch"/>
+
+                <TextBlock Text="あなたの色:" VerticalAlignment="Center" Margin="10,0,5,0"
+                           Foreground="White" FontSize="12"/>
+                <ComboBox Width="120" Margin="5,0" VerticalAlignment="Center" FontSize="12"
+                          RequestedTheme="Light"
+                          SelectedIndex="{Binding HumanColorIndex, Mode=TwoWay}"
+                          IsEnabled="{Binding IsSettingsEditable}">
+                    <ComboBox.Resources>
+                        <SolidColorBrush x:Key="ComboBoxBackground"             Color="White"/>
+                        <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver"  Color="#f0f0f0"/>
+                        <SolidColorBrush x:Key="ComboBoxBackgroundPressed"      Color="#e0e0e0"/>
+                        <SolidColorBrush x:Key="ComboBoxBackgroundDisabled"     Color="#e8e8e8"/>
+                        <SolidColorBrush x:Key="ComboBoxDropDownBackground"     Color="White"/>
+                        <SolidColorBrush x:Key="ComboBoxForeground"             Color="Black"/>
+                        <SolidColorBrush x:Key="ComboBoxForegroundDisabled"     Color="#505050"/>
+                        <SolidColorBrush x:Key="ComboBoxBorderBrushDisabled"    Color="#b0b0b0"/>
+                    </ComboBox.Resources>
+                    <ComboBoxItem Content="黒（先手）"/>
+                    <ComboBoxItem Content="白（後手）"/>
+                </ComboBox>
+            </StackPanel>
+
+            <!-- CPU vs CPU 専用コントロール -->
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                        Visibility="{Binding IsCpuVsCpu, Converter={StaticResource BoolToVisConverter}}">
+                <TextBlock Text="黒:" VerticalAlignment="Center" Margin="10,0,3,0"
+                           Foreground="White" FontSize="12"/>
+                <ComboBox Width="90" Margin="3,0" VerticalAlignment="Center" FontSize="12"
+                          RequestedTheme="Light"
+                          SelectedIndex="{Binding BlackDifficultyIndex, Mode=TwoWay}"
+                          IsEnabled="{Binding IsSettingsEditable}">
+                    <ComboBox.Resources>
+                        <SolidColorBrush x:Key="ComboBoxBackground"             Color="White"/>
+                        <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver"  Color="#f0f0f0"/>
+                        <SolidColorBrush x:Key="ComboBoxBackgroundPressed"      Color="#e0e0e0"/>
+                        <SolidColorBrush x:Key="ComboBoxBackgroundDisabled"     Color="#e8e8e8"/>
+                        <SolidColorBrush x:Key="ComboBoxDropDownBackground"     Color="White"/>
+                        <SolidColorBrush x:Key="ComboBoxForeground"             Color="Black"/>
+                        <SolidColorBrush x:Key="ComboBoxForegroundDisabled"     Color="#505050"/>
+                        <SolidColorBrush x:Key="ComboBoxBorderBrushDisabled"    Color="#b0b0b0"/>
+                    </ComboBox.Resources>
+                    <ComboBoxItem Content="イージー"/>
+                    <ComboBoxItem Content="ノーマル"/>
+                    <ComboBoxItem Content="ハード"/>
+                </ComboBox>
+                <TextBlock Text="白:" VerticalAlignment="Center" Margin="8,0,3,0"
+                           Foreground="White" FontSize="12"/>
+                <ComboBox Width="90" Margin="3,0" VerticalAlignment="Center" FontSize="12"
+                          RequestedTheme="Light"
+                          SelectedIndex="{Binding WhiteDifficultyIndex, Mode=TwoWay}"
+                          IsEnabled="{Binding IsSettingsEditable}">
+                    <ComboBox.Resources>
+                        <SolidColorBrush x:Key="ComboBoxBackground"             Color="White"/>
+                        <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver"  Color="#f0f0f0"/>
+                        <SolidColorBrush x:Key="ComboBoxBackgroundPressed"      Color="#e0e0e0"/>
+                        <SolidColorBrush x:Key="ComboBoxBackgroundDisabled"     Color="#e8e8e8"/>
+                        <SolidColorBrush x:Key="ComboBoxDropDownBackground"     Color="White"/>
+                        <SolidColorBrush x:Key="ComboBoxForeground"             Color="Black"/>
+                        <SolidColorBrush x:Key="ComboBoxForegroundDisabled"     Color="#505050"/>
+                        <SolidColorBrush x:Key="ComboBoxBorderBrushDisabled"    Color="#b0b0b0"/>
+                    </ComboBox.Resources>
+                    <ComboBoxItem Content="イージー"/>
+                    <ComboBoxItem Content="ノーマル"/>
+                    <ComboBoxItem Content="ハード"/>
+                </ComboBox>
+
+                <Rectangle Width="2" Fill="#666666" Margin="10,5" VerticalAlignment="Stretch"/>
+
+                <TextBlock Text="速度:" VerticalAlignment="Center" Margin="10,0,3,0"
+                           Foreground="White" FontSize="12"/>
+                <ComboBox Width="115" Margin="3,0" VerticalAlignment="Center" FontSize="12"
+                          RequestedTheme="Light"
+                          SelectedIndex="{Binding CpuVsCpuDelayIndex, Mode=TwoWay}">
+                    <ComboBox.Resources>
+                        <SolidColorBrush x:Key="ComboBoxBackground"             Color="White"/>
+                        <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver"  Color="#f0f0f0"/>
+                        <SolidColorBrush x:Key="ComboBoxBackgroundPressed"      Color="#e0e0e0"/>
+                        <SolidColorBrush x:Key="ComboBoxBackgroundDisabled"     Color="#e8e8e8"/>
+                        <SolidColorBrush x:Key="ComboBoxDropDownBackground"     Color="White"/>
+                        <SolidColorBrush x:Key="ComboBoxForeground"             Color="Black"/>
+                        <SolidColorBrush x:Key="ComboBoxForegroundDisabled"     Color="#505050"/>
+                        <SolidColorBrush x:Key="ComboBoxBorderBrushDisabled"    Color="#b0b0b0"/>
+                    </ComboBox.Resources>
+                    <ComboBoxItem Content="高速 (0.5秒)"/>
+                    <ComboBoxItem Content="標準 (1秒)"/>
+                    <ComboBoxItem Content="低速 (2秒)"/>
+                    <ComboBoxItem Content="最遅 (3秒)"/>
+                </ComboBox>
+
+            </StackPanel>
         </StackPanel>
 
         <!-- メインコンテンツ -->
