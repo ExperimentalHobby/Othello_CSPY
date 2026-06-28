@@ -13,5 +13,6 @@
     <Compile Include="$(MSBuildThisFileDirectory)RelayCommand.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)BoardSquareViewModel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)GameViewModel.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)KifuViewModel.cs" />
   </ItemGroup>
 </Project>

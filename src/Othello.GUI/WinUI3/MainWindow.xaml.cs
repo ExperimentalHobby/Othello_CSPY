@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Numerics;
 using Microsoft.UI.Windowing;
@@ -9,7 +10,9 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
+using Technopro.Othello.Core.Kifu;
 using Technopro.Othello.ViewModels;
+using Windows.Storage.Pickers;
 
 namespace Technopro.Othello.WinUI3;
 
@@ -125,6 +128,65 @@ public sealed partial class MainWindow : Window
             foreach (var d in FindDescendants<T>(child))
                 yield return d;
         }
+    }
+
+    private async void OnSaveKifu(object sender, RoutedEventArgs e)
+    {
+        var record = _viewModel.LastKifuRecord;
+        if (record is null)
+        {
+            var noKifuDlg = new ContentDialog
+            {
+                Title   = "棋譜を保存",
+                Content = "保存できる棋譜がありません。ゲームを終了させてください。",
+                CloseButtonText = "OK",
+                XamlRoot = this.Content.XamlRoot,
+            };
+            await noKifuDlg.ShowAsync();
+            return;
+        }
+
+        var picker = new FileSavePicker();
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
+        picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
+        picker.FileTypeChoices.Add("棋譜ファイル", new[] { ".json" });
+        picker.SuggestedFileName = $"kifu_{record.PlayedAt.LocalDateTime:yyyyMMdd_HHmmss}";
+
+        var file = await picker.PickSaveFileAsync();
+        if (file != null)
+        {
+            await KifuSerializer.SaveAsync(record, file.Path);
+        }
+    }
+
+    private async void OnOpenKifu(object sender, RoutedEventArgs e)
+    {
+        var picker = new FileOpenPicker();
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
+        picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
+        picker.FileTypeFilter.Add(".json");
+
+        var file = await picker.PickSingleFileAsync();
+        if (file == null) return;
+
+        var record = await KifuSerializer.LoadAsync(file.Path);
+        if (record is null)
+        {
+            var errDlg = new ContentDialog
+            {
+                Title   = "棋譜を開く",
+                Content = "棋譜ファイルを読み込めませんでした。",
+                CloseButtonText = "OK",
+                XamlRoot = this.Content.XamlRoot,
+            };
+            await errDlg.ShowAsync();
+            return;
+        }
+
+        var player = new KifuPlayer(record);
+        var vm     = new KifuViewModel(player, record);
+        var win    = new KifuWindow(vm);
+        win.Activate();
     }
 
     private void OnBoardBorderSizeChanged(object sender, SizeChangedEventArgs e)

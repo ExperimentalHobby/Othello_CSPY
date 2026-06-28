@@ -60,6 +60,12 @@
                           VerticalAlignment="Center"/>
 
             <Rectangle Width="2" Fill="#666666" Margin="10,5" VerticalAlignment="Stretch"/>
+            <Button Content="棋譜を保存" Click="OnSaveKifu"
+                    Style="{StaticResource MenuButtonStyle}"/>
+            <Button Content="棋譜を開く" Click="OnOpenKifu"
+                    Style="{StaticResource MenuButtonStyle}"/>
+
+            <Rectangle Width="2" Fill="#666666" Margin="10,5" VerticalAlignment="Stretch"/>
 
             <TextBlock Text="難易度:" VerticalAlignment="Center" Margin="10,0,5,0"
                        Foreground="White" FontSize="12"/>
