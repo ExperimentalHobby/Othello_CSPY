@@ -100,8 +100,8 @@ public class GameViewModel : ViewModelBase, IDisposable
         private set => SetProperty(ref _remainingSeconds, value);
     }
 
-    /// <summary>ゲームが開始していない間のみ制限時間設定を変更できる。</summary>
-    public bool IsTimeLimitEditable => !IsGameInProgress;
+    /// <summary>初手前またはゲーム終了後のみ制限時間設定を変更できる。</summary>
+    public bool IsTimeLimitEditable => !IsGameInProgress || _engine.IsInitialState;
 
     /// <summary>タイマーが動いているかどうか（制限時間表示の可視性に使う）。</summary>
     public bool IsTimerRunning => RemainingSeconds > 0;
@@ -382,6 +382,7 @@ public class GameViewModel : ViewModelBase, IDisposable
         ScoreHistory.Clear();
         RecordCurrentScore();
         OnPropertyChanged(nameof(IsSettingsEditable));
+        OnPropertyChanged(nameof(IsTimeLimitEditable));
         RefreshBoardDisplay();
         IsGameInProgress = true;
 
@@ -420,6 +421,7 @@ public class GameViewModel : ViewModelBase, IDisposable
         _ = AnimateFlipsAsync(result.FlippedPieces, _cts!.Token);
         NotifyIfPassed();
         OnPropertyChanged(nameof(IsSettingsEditable));
+        OnPropertyChanged(nameof(IsTimeLimitEditable));
         RefreshBoardDisplay();
         _ = CheckAndProcessNextTurnAsync(_cts!.Token);
     }
@@ -493,6 +495,7 @@ public class GameViewModel : ViewModelBase, IDisposable
             _ = AnimateFlipsAsync(moveResult.FlippedPieces, ct);
             NotifyIfPassed();
             OnPropertyChanged(nameof(IsSettingsEditable));
+            OnPropertyChanged(nameof(IsTimeLimitEditable));
             RefreshBoardDisplay();
             UpdateScoreBoardState();
 
@@ -562,6 +565,7 @@ public class GameViewModel : ViewModelBase, IDisposable
             ScoreHistory.RemoveAt(ScoreHistory.Count - 1);
 
         OnPropertyChanged(nameof(IsSettingsEditable));
+        OnPropertyChanged(nameof(IsTimeLimitEditable));
         RefreshBoardDisplay();
         UpdateScoreBoardState();
     }

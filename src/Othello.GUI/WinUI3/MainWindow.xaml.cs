@@ -177,25 +177,26 @@ public sealed partial class MainWindow : Window
     private void OnTimeLimitSecondsLostFocus(object sender, RoutedEventArgs e)
     {
         if (sender is TextBox tb)
-        {
-            var expr = tb.GetBindingExpression(TextBox.TextProperty);
-            expr?.UpdateSource();
-        }
+            ApplyTimeLimitFromTextBox(tb);
         _viewModel.SaveTimeLimitSettings();
     }
 
     private void OnTimeLimitSecondsKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
-        if (e.Key == Windows.System.VirtualKey.Enter)
+        if (e.Key == Windows.System.VirtualKey.Enter && sender is TextBox tb)
         {
-            if (sender is TextBox tb)
-            {
-                var expr = tb.GetBindingExpression(TextBox.TextProperty);
-                expr?.UpdateSource();
-            }
+            ApplyTimeLimitFromTextBox(tb);
             _viewModel.SaveTimeLimitSettings();
             e.Handled = true;
         }
+    }
+
+    private void ApplyTimeLimitFromTextBox(TextBox tb)
+    {
+        if (int.TryParse(tb.Text, out int seconds) && seconds >= 1)
+            _viewModel.TimeLimitSeconds = seconds;
+        else
+            tb.Text = _viewModel.TimeLimitSeconds.ToString();
     }
 
     private async void OnSaveKifu(object sender, RoutedEventArgs e)
