@@ -22,7 +22,7 @@ public class TimeLimitTests
     }
 
     private static GameViewModel MakeVm(DifficultyLevel diff = DifficultyLevel.Medium)
-        => new(d => new FakeAI(d), settings: new OthelloSettings()) { DifficultyIndex = (int)diff - 1 };
+        => new(d => new FakeAI(d), settings: new OthelloSettings()) { DifficultyIndex = (int)diff };
 
     // ===== IsTimeLimitEnabled の難易度連動 =====
 
@@ -39,13 +39,13 @@ public class TimeLimitTests
 
     /// <summary>
     /// 難易度を Hard に変更すると IsTimeLimitEnabled が true になることを確認する。
-    /// パス条件: DifficultyIndex = 2 後 IsTimeLimitEnabled == true。
+    /// パス条件: DifficultyIndex = 3 後 IsTimeLimitEnabled == true。
     /// </summary>
     [Fact]
     public void SetDifficulty_Hard_EnablesTimeLimit()
     {
         var vm = MakeVm(DifficultyLevel.Medium);
-        vm.DifficultyIndex = 2; // Hard
+        vm.DifficultyIndex = 3; // Hard（Beginner=0, Easy=1, Normal=2, Hard=3, Expert=4）
         Assert.True(vm.IsTimeLimitEnabled);
     }
 
@@ -57,7 +57,7 @@ public class TimeLimitTests
     public void SetDifficulty_Easy_DisablesTimeLimit()
     {
         var vm = MakeVm(DifficultyLevel.Hard);
-        vm.DifficultyIndex = 0; // Easy
+        vm.DifficultyIndex = 1; // Easy（Beginner=0, Easy=1）
         Assert.False(vm.IsTimeLimitEnabled);
     }
 

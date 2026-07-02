@@ -20,6 +20,16 @@ public class StatsViewModel : ViewModelBase
         ResetCommand = new RelayCommand(OnReset);
     }
 
+    // ── Beginner ─────────────────────────────────────────────────────────────
+    /// <summary>Beginner 難易度の勝利数</summary>
+    public int BeginnerWins    => _stats.Beginner.Wins;
+    /// <summary>Beginner 難易度の敗北数</summary>
+    public int BeginnerLosses  => _stats.Beginner.Losses;
+    /// <summary>Beginner 難易度の総ゲーム数</summary>
+    public int BeginnerTotal   => _stats.Beginner.TotalGames;
+    /// <summary>Beginner 難易度の勝率テキスト</summary>
+    public string BeginnerWinRate => FormatRate(_stats.Beginner.WinRate);
+
     // ── Easy ─────────────────────────────────────────────────────────────────
     /// <summary>Easy 難易度の勝利数</summary>
     public int EasyWins    => _stats.Easy.Wins;
@@ -50,10 +60,21 @@ public class StatsViewModel : ViewModelBase
     /// <summary>Hard 難易度の勝率テキスト</summary>
     public string HardWinRate => FormatRate(_stats.Hard.WinRate);
 
+    // ── Expert ───────────────────────────────────────────────────────────────
+    /// <summary>Expert 難易度の勝利数</summary>
+    public int ExpertWins   => _stats.Expert.Wins;
+    /// <summary>Expert 難易度の敗北数</summary>
+    public int ExpertLosses => _stats.Expert.Losses;
+    /// <summary>Expert 難易度の総ゲーム数</summary>
+    public int ExpertTotal  => _stats.Expert.TotalGames;
+    /// <summary>Expert 難易度の勝率テキスト</summary>
+    public string ExpertWinRate => FormatRate(_stats.Expert.WinRate);
+
     // ── 通算 ─────────────────────────────────────────────────────────────────
     /// <summary>全難易度の総ゲーム数</summary>
     public int TotalGames =>
-        _stats.Easy.TotalGames + _stats.Normal.TotalGames + _stats.Hard.TotalGames;
+        _stats.Beginner.TotalGames + _stats.Easy.TotalGames + _stats.Normal.TotalGames
+        + _stats.Hard.TotalGames + _stats.Expert.TotalGames;
 
     /// <summary>現在の連勝数</summary>
     public int CurrentStreak  => _stats.CurrentStreak;

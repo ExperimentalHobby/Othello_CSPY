@@ -15,14 +15,20 @@ public class GameStats
     /// <summary>最終更新日時</summary>
     public DateTimeOffset LastUpdated { get; set; } = DateTimeOffset.Now;
 
+    /// <summary>Beginner 難易度の統計</summary>
+    public DifficultyStats Beginner { get; set; } = new();
+
     /// <summary>Easy 難易度の統計</summary>
     public DifficultyStats Easy { get; set; } = new();
 
-    /// <summary>Normal 難易度の統計</summary>
+    /// <summary>Normal 難易度の統計（DifficultyLevel.Medium に対応）</summary>
     public DifficultyStats Normal { get; set; } = new();
 
     /// <summary>Hard 難易度の統計</summary>
     public DifficultyStats Hard { get; set; } = new();
+
+    /// <summary>Expert 難易度の統計</summary>
+    public DifficultyStats Expert { get; set; } = new();
 
     /// <summary>最高石数差（人間が勝ったゲームの最大 |黒-白|）</summary>
     public int BestWinMargin { get; set; }
@@ -36,9 +42,11 @@ public class GameStats
     /// <summary>難易度に対応する DifficultyStats を返す。</summary>
     public DifficultyStats GetByDifficulty(DifficultyLevel level) => level switch
     {
-        DifficultyLevel.Easy   => Easy,
-        DifficultyLevel.Medium => Normal,
-        DifficultyLevel.Hard   => Hard,
+        DifficultyLevel.Beginner => Beginner,
+        DifficultyLevel.Easy     => Easy,
+        DifficultyLevel.Medium   => Normal,
+        DifficultyLevel.Hard     => Hard,
+        DifficultyLevel.Expert   => Expert,
         _ => throw new ArgumentOutOfRangeException(nameof(level), level, null)
     };
 
