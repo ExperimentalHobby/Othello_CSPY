@@ -173,8 +173,8 @@ public class CpuVsCpuTests
         var vm = new GameViewModel(aiFactory: _ => new FakeAI(), startDeferred: true);
         vm.GameMode = GameMode.CpuVsCpu;
 
-        vm.BlackDifficultyIndex = 0; // Easy
-        vm.WhiteDifficultyIndex = 2; // Hard
+        vm.BlackDifficultyIndex = 1; // Easy（Beginner=0, Easy=1）
+        vm.WhiteDifficultyIndex = 3; // Hard（Hard=3）
 
         Assert.Equal(DifficultyLevel.Easy, vm.BlackDifficulty);
         Assert.Equal(DifficultyLevel.Hard, vm.WhiteDifficulty);

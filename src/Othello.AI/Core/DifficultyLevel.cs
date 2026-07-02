@@ -6,12 +6,16 @@ namespace Technopro.Othello.Core.AI;
 /// </summary>
 public enum DifficultyLevel
 {
+    /// <summary>超初級: 探索深さ 1（ほぼ即座）</summary>
+    Beginner = 0,
     /// <summary>初級: 探索深さ 2（即座に完了）</summary>
     Easy = 1,
     /// <summary>中級: 探索深さ 5（1〜2 秒程度）</summary>
     Medium = 2,
     /// <summary>上級: 探索深さ 10（最大 8 秒、反復深化 <c>time_ms=8000</c>）</summary>
-    Hard = 3
+    Hard = 3,
+    /// <summary>超上級: 探索深さ 12（最大 15 秒、反復深化 <c>time_ms=15000</c>）</summary>
+    Expert = 4
 }
 
 /// <summary>
@@ -27,11 +31,13 @@ public static class DifficultyLevelExtensions
     /// <returns>探索深さ（Easy:2, Medium:5, Hard:10）</returns>
     public static int GetSearchDepth(this DifficultyLevel difficulty) => difficulty switch
     {
-        DifficultyLevel.Easy   => 2,
-        DifficultyLevel.Medium => 5,
-        DifficultyLevel.Hard   => 10,
+        DifficultyLevel.Beginner => 1,
+        DifficultyLevel.Easy     => 2,
+        DifficultyLevel.Medium   => 5,
+        DifficultyLevel.Hard     => 10,
+        DifficultyLevel.Expert   => 12,
         // 想定外の値はデフォルトの中級深さで処理する
-        _                      => 5
+        _                        => 5
     };
 
     /// <summary>
@@ -41,8 +47,9 @@ public static class DifficultyLevelExtensions
     /// </summary>
     public static int? GetTimeLimitMs(this DifficultyLevel difficulty) => difficulty switch
     {
-        DifficultyLevel.Hard => 8000,
-        _                    => null
+        DifficultyLevel.Hard   => 8000,
+        DifficultyLevel.Expert => 15000,
+        _                      => null
     };
 
     /// <summary>
@@ -52,9 +59,11 @@ public static class DifficultyLevelExtensions
     /// <returns>"イージー" / "ノーマル" / "ハード" のいずれか</returns>
     public static string ToDisplayString(this DifficultyLevel difficulty) => difficulty switch
     {
-        DifficultyLevel.Easy   => "イージー",
-        DifficultyLevel.Medium => "ノーマル",
-        DifficultyLevel.Hard   => "ハード",
-        _                      => "不明"
+        DifficultyLevel.Beginner => "ビギナー",
+        DifficultyLevel.Easy     => "イージー",
+        DifficultyLevel.Medium   => "ノーマル",
+        DifficultyLevel.Hard     => "ハード",
+        DifficultyLevel.Expert   => "エキスパート",
+        _                        => "不明"
     };
 }

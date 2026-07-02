@@ -115,15 +115,19 @@ else
 static DifficultyLevel SelectDifficulty()
 {
     Console.WriteLine("難易度を選択してください:");
+    Console.WriteLine("  0. ビギナー");
     Console.WriteLine("  1. イージー");
     Console.WriteLine("  2. ノーマル");
     Console.WriteLine("  3. ハード");
-    Console.Write("選択 [1-3, デフォルト: 2]: ");
+    Console.WriteLine("  4. エキスパート");
+    Console.Write("選択 [0-4, デフォルト: 2]: ");
 
     return Console.ReadLine()?.Trim() switch
     {
+        "0" => DifficultyLevel.Beginner,
         "1" => DifficultyLevel.Easy,
         "3" => DifficultyLevel.Hard,
+        "4" => DifficultyLevel.Expert,
         _   => DifficultyLevel.Medium  // 2 または不正入力はノーマルに統一する
     };
 }

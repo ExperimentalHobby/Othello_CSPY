@@ -218,13 +218,13 @@ public partial class GameViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    /// 難易度 ComboBox とバインドする 0 始まりインデックス（Easy=0, Normal=1, Hard=2）。
-    /// <see cref="DifficultyLevel"/> は 1 始まりのため ±1 変換を行う。
+    /// 難易度 ComboBox とバインドする 0 始まりインデックス（Beginner=0, Easy=1, Normal=2, Hard=3, Expert=4）。
+    /// <see cref="DifficultyLevel"/> の整数値と 1:1 対応。
     /// </summary>
     public int DifficultyIndex
     {
-        get => (int)Difficulty - 1;
-        set => Difficulty = (DifficultyLevel)(value + 1);
+        get => (int)Difficulty;
+        set => Difficulty = (DifficultyLevel)value;
     }
 
     /// <summary>
@@ -315,11 +315,11 @@ public partial class GameViewModel : ViewModelBase, IDisposable
         }
     }
 
-    /// <summary>黒の難易度 ComboBox とバインドする 0 始まりインデックス（Easy=0, Normal=1, Hard=2）。</summary>
+    /// <summary>黒の難易度 ComboBox とバインドする 0 始まりインデックス（Beginner=0, Easy=1, Normal=2, Hard=3, Expert=4）。</summary>
     public int BlackDifficultyIndex
     {
-        get => (int)_blackDifficulty - 1;
-        set => BlackDifficulty = (DifficultyLevel)(value + 1);
+        get => (int)_blackDifficulty;
+        set => BlackDifficulty = (DifficultyLevel)value;
     }
 
     /// <summary>CPU vs CPU 時の白AI難易度。初手前であれば変更と同時にゲームを再起動する。</summary>
@@ -334,11 +334,11 @@ public partial class GameViewModel : ViewModelBase, IDisposable
         }
     }
 
-    /// <summary>白の難易度 ComboBox とバインドする 0 始まりインデックス（Easy=0, Normal=1, Hard=2）。</summary>
+    /// <summary>白の難易度 ComboBox とバインドする 0 始まりインデックス（Beginner=0, Easy=1, Normal=2, Hard=3, Expert=4）。</summary>
     public int WhiteDifficultyIndex
     {
-        get => (int)_whiteDifficulty - 1;
-        set => WhiteDifficulty = (DifficultyLevel)(value + 1);
+        get => (int)_whiteDifficulty;
+        set => WhiteDifficulty = (DifficultyLevel)value;
     }
 
     private static readonly int[] CpuVsCpuDelayOptions = { 500, 1000, 2000, 3000 };

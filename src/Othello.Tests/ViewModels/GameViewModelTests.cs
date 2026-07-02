@@ -97,11 +97,17 @@ public class GameViewModelTests
     {
         using var vm = new GameViewModel(d => new FakeAI(d));
 
+        // Beginner=0, Easy=1, Normal=2, Hard=3, Expert=4
         vm.DifficultyIndex = 0;
+        Assert.Equal(DifficultyLevel.Beginner, vm.Difficulty);
+        vm.DifficultyIndex = 1;
         Assert.Equal(DifficultyLevel.Easy, vm.Difficulty);
-        vm.DifficultyIndex = 2;
+        vm.DifficultyIndex = 3;
         Assert.Equal(DifficultyLevel.Hard, vm.Difficulty);
-        Assert.Equal(2, vm.DifficultyIndex);
+        Assert.Equal(3, vm.DifficultyIndex);
+        vm.DifficultyIndex = 4;
+        Assert.Equal(DifficultyLevel.Expert, vm.Difficulty);
+        Assert.Equal(4, vm.DifficultyIndex);
 
         vm.HumanColorIndex = 0;
         Assert.Equal(PlayerColor.Black, vm.HumanColor);
@@ -123,7 +129,7 @@ public class GameViewModelTests
 
         Assert.Equal(1, created);
 
-        vm.DifficultyIndex = 2; // Hard へ変更 → 初期状態なので非同期再起動
+        vm.DifficultyIndex = 3; // Hard へ変更（index 3 = Hard）→ 初期状態なので非同期再起動
 
         // 非同期再起動の完了を待機（FakeAI の生成は瞬時なので短時間で確認できる）
         Assert.True(SpinWait.SpinUntil(() => Volatile.Read(ref created) == 2, Timeout));
