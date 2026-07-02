@@ -7,6 +7,7 @@ using Technopro.Othello.Core.Kifu;
 using Technopro.Othello.Core.Models;
 using Technopro.Othello.Core.Rules;
 using Technopro.Othello.Core.Settings;
+using Technopro.Othello.Core.Stats;
 
 namespace Technopro.Othello.ViewModels;
 
@@ -16,7 +17,7 @@ namespace Technopro.Othello.ViewModels;
 /// UI へのデータバインディングを通じてゲームの状態を表示する。
 /// WPF・WinUI3 両方から参照される共有 ViewModel。
 /// </summary>
-public class GameViewModel : ViewModelBase, IDisposable
+public partial class GameViewModel : ViewModelBase, IDisposable
 {
     /// <summary>AI 着手前に挿入する演出用待機時間（ミリ秒）。</summary>
     private const int AiMoveDelayMs = 300;
@@ -68,6 +69,12 @@ public class GameViewModel : ViewModelBase, IDisposable
 
     // --- スコア推移 ---
     public ObservableCollection<ScorePoint> ScoreHistory { get; } = new();
+
+    // --- 棋力統計 ---
+    private readonly IStatsRepository _statsRepo;
+
+    /// <summary>棋力評価・統計 ViewModel（右パネルにバインドする）。</summary>
+    public StatsViewModel Stats { get; }
 
     // --- 制限時間 ---
     private bool   _isTimeLimitEnabled;
@@ -399,10 +406,13 @@ public class GameViewModel : ViewModelBase, IDisposable
     /// <param name="startDeferred">true のとき StartNewGame() をコンストラクタから呼ばない（View 側の Loaded イベントで呼び出す）。</param>
     /// <param name="settings">設定ファイル（null の場合はファイルから読み込む）。</param>
     /// <param name="cpuVsCpuAiFactory">CPU vs CPU モード専用 AI ファクトリ。null の場合は AlphaBetaAI を使う。テストで FakeAI を差し込める。</param>
-    public GameViewModel(Func<DifficultyLevel, IAIStrategy>? aiFactory, bool startDeferred = false, OthelloSettings? settings = null, Func<DifficultyLevel, IAIStrategy>? cpuVsCpuAiFactory = null)
+    /// <param name="statsRepository">棋力統計リポジトリ。null の場合はファイル永続化実装を使う。</param>
+    public GameViewModel(Func<DifficultyLevel, IAIStrategy>? aiFactory, bool startDeferred = false, OthelloSettings? settings = null, Func<DifficultyLevel, IAIStrategy>? cpuVsCpuAiFactory = null, IStatsRepository? statsRepository = null)
     {
         _aiFactory = aiFactory ?? CreateDefaultAI;
         _cpuVsCpuAiFactory = cpuVsCpuAiFactory ?? (d => new AlphaBetaAI(d));
+        _statsRepo = statsRepository ?? new StatsRepository();
+        Stats = new StatsViewModel(_statsRepo);
 
         // 設定ファイルから制限時間を読み込む（注入されなければファイルまたはデフォルト 30 秒）
         var loadedSettings = settings ?? OthelloSettingsManager.Load();
@@ -1058,6 +1068,23 @@ public class GameViewModel : ViewModelBase, IDisposable
             Result:     winner,
             Moves:      _kifuMoves.AsReadOnly(),
             FinalScore: new KifuFinalScore(blackCount, whiteCount));
+
+        RecordStatsIfHumanGame(winner, blackCount, whiteCount);
+    }
+
+    private void RecordStatsIfHumanGame(PlayerColor? winner, int blackCount, int whiteCount)
+    {
+        if (IsCpuVsCpu) return;
+
+        var moveCount = _kifuMoves.Count(m => !m.IsPass);
+        var winMargin = winner == HumanColor
+            ? Math.Abs(blackCount - whiteCount)
+            : 0;
+
+        var stats = _statsRepo.Load();
+        stats.RecordResult(winner, HumanColor, Difficulty, moveCount, winMargin);
+        _statsRepo.Save(stats);
+        Stats.Refresh();
     }
 
     /// <summary>

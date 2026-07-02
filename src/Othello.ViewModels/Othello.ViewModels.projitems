@@ -15,5 +15,6 @@
     <Compile Include="$(MSBuildThisFileDirectory)GameViewModel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)KifuViewModel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ScorePoint.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)StatsViewModel.cs" />
   </ItemGroup>
 </Project>

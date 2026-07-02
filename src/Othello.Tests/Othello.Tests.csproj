@@ -37,4 +37,9 @@
        WPF 定数は付与しないため RelayCommand は手動 CanExecute 通知パスでコンパイルされる。 -->
   <Import Project="..\Othello.ViewModels\Othello.ViewModels.projitems" Label="Shared" />
 
+  <!-- テスト専用 GameViewModel 拡張（GameEngine の internal API へアクセスするため Tests のみに含める） -->
+  <ItemGroup>
+    <Compile Include="..\Othello.ViewModels\GameViewModel.TestHelpers.cs" />
+  </ItemGroup>
+
 </Project>

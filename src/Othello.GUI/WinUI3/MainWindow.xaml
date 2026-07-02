@@ -378,6 +378,88 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- 棋力統計 -->
+                    <Border Background="#1a3010" CornerRadius="5">
+                        <StackPanel Margin="10" Spacing="4" DataContext="{Binding Stats}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="棋力統計" FontSize="13" FontWeight="Bold" Foreground="White"/>
+                                <Button Grid.Column="1" Content="リセット"
+                                        Command="{Binding ResetCommand}"
+                                        FontSize="10" Padding="6,2"
+                                        Background="#2a3a2a" Foreground="#cccccc"/>
+                            </Grid>
+
+                            <!-- 難易度別テーブル -->
+                            <Grid RowSpacing="2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="28"/>
+                                    <ColumnDefinition Width="28"/>
+                                    <ColumnDefinition Width="28"/>
+                                    <ColumnDefinition Width="42"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition/>
+                                    <RowDefinition/>
+                                    <RowDefinition/>
+                                    <RowDefinition/>
+                                </Grid.RowDefinitions>
+
+                                <!-- ヘッダー -->
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="難易度" FontSize="10" Foreground="#aaaaaa"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="勝" FontSize="10" Foreground="#aaaaaa" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="負" FontSize="10" Foreground="#aaaaaa" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Row="0" Grid.Column="3" Text="引" FontSize="10" Foreground="#aaaaaa" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Row="0" Grid.Column="4" Text="勝率" FontSize="10" Foreground="#aaaaaa" HorizontalAlignment="Right"/>
+
+                                <!-- Easy -->
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Easy" FontSize="11" Foreground="#cccccc"/>
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding EasyWins}" FontSize="11" Foreground="#88ff88" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding EasyLosses}" FontSize="11" Foreground="#ff8888" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding EasyTotal}" FontSize="11" Foreground="#cccccc" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Row="1" Grid.Column="4" Text="{Binding EasyWinRate}" FontSize="11" Foreground="#ffdd88" HorizontalAlignment="Right"/>
+
+                                <!-- Normal -->
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Normal" FontSize="11" Foreground="#cccccc"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding NormalWins}" FontSize="11" Foreground="#88ff88" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding NormalLosses}" FontSize="11" Foreground="#ff8888" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Row="2" Grid.Column="3" Text="{Binding NormalTotal}" FontSize="11" Foreground="#cccccc" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Row="2" Grid.Column="4" Text="{Binding NormalWinRate}" FontSize="11" Foreground="#ffdd88" HorizontalAlignment="Right"/>
+
+                                <!-- Hard -->
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Hard" FontSize="11" Foreground="#cccccc"/>
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding HardWins}" FontSize="11" Foreground="#88ff88" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Row="3" Grid.Column="2" Text="{Binding HardLosses}" FontSize="11" Foreground="#ff8888" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Row="3" Grid.Column="3" Text="{Binding HardTotal}" FontSize="11" Foreground="#cccccc" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Row="3" Grid.Column="4" Text="{Binding HardWinRate}" FontSize="11" Foreground="#ffdd88" HorizontalAlignment="Right"/>
+                            </Grid>
+
+                            <!-- 通算サマリー -->
+                            <StackPanel Spacing="2">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <TextBlock Text="通算:" FontSize="10" Foreground="#aaaaaa"/>
+                                    <TextBlock Text="{Binding TotalGames}" FontSize="10" Foreground="#cccccc"/>
+                                    <TextBlock Text="戦" FontSize="10" Foreground="#aaaaaa"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <TextBlock Text="連勝:" FontSize="10" Foreground="#aaaaaa"/>
+                                    <TextBlock Text="{Binding CurrentStreak}" FontSize="10" Foreground="#88ff88"/>
+                                    <TextBlock Text="(最高:" FontSize="10" Foreground="#aaaaaa"/>
+                                    <TextBlock Text="{Binding MaxStreak}" FontSize="10" Foreground="#ffdd88"/>
+                                    <TextBlock Text=")" FontSize="10" Foreground="#aaaaaa"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <TextBlock Text="最大石差:" FontSize="10" Foreground="#aaaaaa"/>
+                                    <TextBlock Text="{Binding BestWinMargin}" FontSize="10" Foreground="#ffdd88"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
                     <!-- ルール説明 -->
                     <Border Background="#1a3010" CornerRadius="5">
                         <StackPanel Margin="10" Spacing="3">
