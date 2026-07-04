@@ -31,6 +31,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         this.InitializeComponent();
+        WindowBackdropHelper.Apply(this);
 
         _viewModel = new GameViewModel();
         // WinUI3 は Window に DataContext がないため、XAML ルート要素に設定する

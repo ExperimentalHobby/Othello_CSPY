@@ -6,7 +6,9 @@
     xmlns:conv="using:Technopro.Othello.WinUI3.Converters"
     Title="Othello (オセロ) - WinUI3">
 
-    <Grid Background="#2d5016">
+    <!-- Background 未指定 = Mica/Acrylic（WindowBackdropHelper）が透けて見える。
+         各パネルは個別に不透明な Background を持つため視認性への影響はない -->
+    <Grid>
         <Grid.Resources>
             <conv:BoolToVisibilityConverter x:Key="BoolToVisConverter"/>
             <conv:InverseBooleanConverter x:Key="InverseBoolConverter"/>
