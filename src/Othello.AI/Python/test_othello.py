@@ -15,6 +15,7 @@ from board import (
 )
 from evaluator import evaluate, evaluate_final, count_stable, count_frontier, WEIGHTS
 from alpha_beta import AlphaBetaAI
+import ai as ai_module
 
 
 def make_initial_board():
@@ -633,6 +634,64 @@ class EvaluatePhaseTests(unittest.TestCase):
                 idx += 1
         result = evaluate(board, BLACK)
         self.assertGreater(result, 0)
+
+
+class _RecordingAI:
+    """decide_move() のテスト用フェイク AI。呼び出しの有無・引数を記録する。"""
+
+    def __init__(self):
+        self.get_best_move_called = False
+        self.get_best_move_timed_called = False
+
+    def get_best_move(self, board, player, depth):
+        self.get_best_move_called = True
+        return (0, 2)  # 定石にもテスト対象局面にも存在しないダミー座標
+
+    def get_best_move_timed(self, board, player, max_depth, time_ms):
+        self.get_best_move_timed_called = True
+        return (0, 2)
+
+
+class DecideMoveTests(unittest.TestCase):
+    """ai.py の decide_move()（定石参照 → 通常探索フォールバック）のテスト。"""
+
+    def test_book_hit_returns_book_move_without_calling_search(self):
+        """定石にヒットする局面（初期盤面・黒番）では、探索関数を呼ばずに定石手を返すことを確認する。
+        パス条件: 戻り値が (4, 5)=f5 で、get_best_move / get_best_move_timed が呼ばれないこと。"""
+        board = make_initial_board()
+        fake_ai = _RecordingAI()
+
+        move = ai_module.decide_move(fake_ai, board, BLACK, depth=5, time_ms=None)
+
+        self.assertEqual(move, (4, 5))
+        self.assertFalse(fake_ai.get_best_move_called)
+        self.assertFalse(fake_ai.get_best_move_timed_called)
+
+    def test_book_miss_with_time_ms_calls_timed_search(self):
+        """定石にない局面で time_ms 指定時は get_best_move_timed が呼ばれることを確認する。
+        パス条件: get_best_move_timed が呼ばれ、get_best_move は呼ばれないこと。"""
+        board = make_initial_board()
+        board = make_move(board, 2, 3, BLACK)  # d3: 定石（f5始まり）には存在しない手
+        fake_ai = _RecordingAI()
+
+        move = ai_module.decide_move(fake_ai, board, WHITE, depth=5, time_ms=3000)
+
+        self.assertEqual(move, (0, 2))
+        self.assertTrue(fake_ai.get_best_move_timed_called)
+        self.assertFalse(fake_ai.get_best_move_called)
+
+    def test_book_miss_without_time_ms_calls_fixed_depth_search(self):
+        """定石にない局面で time_ms が None の場合は get_best_move が呼ばれることを確認する。
+        パス条件: get_best_move が呼ばれ、get_best_move_timed は呼ばれないこと。"""
+        board = make_initial_board()
+        board = make_move(board, 2, 3, BLACK)  # d3: 定石（f5始まり）には存在しない手
+        fake_ai = _RecordingAI()
+
+        move = ai_module.decide_move(fake_ai, board, WHITE, depth=5, time_ms=None)
+
+        self.assertEqual(move, (0, 2))
+        self.assertTrue(fake_ai.get_best_move_called)
+        self.assertFalse(fake_ai.get_best_move_timed_called)
 
 
 if __name__ == "__main__":
