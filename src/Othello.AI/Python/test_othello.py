@@ -16,6 +16,7 @@ from board import (
 from evaluator import evaluate, evaluate_final, count_stable, count_frontier, WEIGHTS
 from alpha_beta import AlphaBetaAI
 import ai as ai_module
+import alpha_beta_py
 
 
 def make_initial_board():
@@ -692,6 +693,141 @@ class DecideMoveTests(unittest.TestCase):
         self.assertEqual(move, (0, 2))
         self.assertTrue(fake_ai.get_best_move_called)
         self.assertFalse(fake_ai.get_best_move_timed_called)
+
+
+class TranspositionTableTests(unittest.TestCase):
+    """alpha_beta_py の TT（トランスポジションテーブル）意味論のテスト。
+
+    _alpha_beta を直接呼び出し、tt 辞書に手動でエントリを仕込むことで、
+    EXACT / LOWER_BOUND / UPPER_BOUND の扱いが C# 版と同じ意味論であることを検証する。
+    """
+
+    def setUp(self):
+        self.ai = alpha_beta_py.AlphaBetaAI()
+        self.board = make_initial_board()
+
+    def test_exact_entry_with_sufficient_depth_is_returned_without_research(self):
+        """depth 十分な EXACT エントリがあれば、そのスコアがそのまま返ることを確認する。
+        パス条件: 明らかに間違った値を仕込んだ EXACT エントリがそのまま返ること（再探索していない証拠）。"""
+        key = (alpha_beta_py._zobrist_hash(self.board), True)
+        fake_score = 999999
+        tt = {key: (fake_score, 10, alpha_beta_py._NodeType.EXACT)}
+
+        score = self.ai._alpha_beta(self.board, 3, float('-inf'), float('inf'), True, BLACK, tt)
+
+        self.assertEqual(score, fake_score)
+
+    def test_entry_with_insufficient_depth_is_ignored(self):
+        """depth 不足のエントリは無視され、実際の探索によって正しい評価値が返ることを確認する。
+        パス条件: 明らかに間違った値を仕込んでも depth 不足なら戻り値が一致しないこと。"""
+        key = (alpha_beta_py._zobrist_hash(self.board), True)
+        fake_score = 999999
+        tt = {key: (fake_score, 0, alpha_beta_py._NodeType.EXACT)}  # depth=0 < 要求 depth=2
+
+        score = self.ai._alpha_beta(self.board, 2, float('-inf'), float('inf'), True, BLACK, tt)
+
+        self.assertNotEqual(score, fake_score)
+
+    def test_lower_bound_entry_only_narrows_alpha_not_returned_directly(self):
+        """LOWER_BOUND エントリは alpha を更新するだけで、即座に戻り値として使われないことを確認する
+        （EXACT との違い）。
+        パス条件: 明らかに低い偽の LOWER_BOUND を仕込んでも、alpha>=beta にならない限り
+        戻り値がその値と一致しないこと（実際の探索結果が返ること）。"""
+        key = (alpha_beta_py._zobrist_hash(self.board), True)
+        fake_bound = -999999
+        tt = {key: (fake_bound, 10, alpha_beta_py._NodeType.LOWER_BOUND)}
+
+        score = self.ai._alpha_beta(self.board, 3, float('-inf'), float('inf'), True, BLACK, tt)
+
+        self.assertNotEqual(score, fake_bound)
+
+    def test_upper_bound_entry_only_narrows_beta_not_returned_directly(self):
+        """UPPER_BOUND エントリは beta を更新するだけで、即座に戻り値として使われないことを確認する。
+        パス条件: 明らかに高い偽の UPPER_BOUND を仕込んでも、alpha>=beta にならない限り
+        戻り値がその値と一致しないこと（実際の探索結果が返ること）。"""
+        key = (alpha_beta_py._zobrist_hash(self.board), True)
+        fake_bound = 999999
+        tt = {key: (fake_bound, 10, alpha_beta_py._NodeType.UPPER_BOUND)}
+
+        score = self.ai._alpha_beta(self.board, 3, float('-inf'), float('inf'), True, BLACK, tt)
+
+        self.assertNotEqual(score, fake_bound)
+
+    def test_cached_lower_bound_causes_immediate_cutoff_when_alpha_exceeds_beta(self):
+        """TT の下界値によって alpha が beta 以上になった場合、探索をスキップしてその下界値が
+        そのまま返ることを確認する（fail-high 誤用ではなく、正しいカットオフ経路）。
+        パス条件: 戻り値が仕込んだ下界値と一致すること。"""
+        key = (alpha_beta_py._zobrist_hash(self.board), True)
+        cached_score = 50
+        tt = {key: (cached_score, 10, alpha_beta_py._NodeType.LOWER_BOUND)}
+
+        # beta を cached_score 以下に設定 → alpha が cached_score まで上がった時点で alpha >= beta
+        score = self.ai._alpha_beta(self.board, 3, float('-inf'), cached_score, True, BLACK, tt)
+
+        self.assertEqual(score, cached_score)
+
+    def test_forced_pass_returns_legal_move(self):
+        """強制パス局面を含む探索で、TT 導入後も例外なく合法手が返ることを確認する。
+        パス条件: get_best_move が黒の合法手（コーナー）を返すこと。"""
+        board = [[BLACK] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        board[0][0] = EMPTY
+        board[0][1] = WHITE
+        board[7][7] = EMPTY
+        board[7][6] = WHITE
+
+        move = self.ai.get_best_move(board, BLACK, depth=4)
+
+        self.assertIn(move, [(0, 0), (7, 7)])
+
+
+class TranspositionTableEquivalenceTests(unittest.TestCase):
+    """TT 導入前後で着手選択が変わらないことを確認する挙動不変性テスト。
+
+    tt_golden_master.json は TT 実装前の alpha_beta_py.AlphaBetaAI で自己対局を行い
+    採取した (board, player, depth[, time_ms]) -> 着手 のスナップショット。
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        import json
+        import os
+        data_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                  'test_data', 'tt_golden_master.json')
+        with open(data_path, encoding='utf-8') as f:
+            cls.records = json.load(f)
+
+    def test_fixed_depth_moves_match_golden_master(self):
+        """time_ms を含まない全記録で、get_best_move の戻り値が採取時と一致することを確認する。
+        パス条件: 全記録で着手が一致すること。"""
+        ai = alpha_beta_py.AlphaBetaAI()
+        checked = 0
+        for record in self.records:
+            if 'time_ms' in record:
+                continue
+            move = ai.get_best_move(record['board'], record['player'], record['depth'])
+            expected = tuple(record['move']) if record['move'] is not None else None
+            self.assertEqual(
+                move, expected,
+                msg=f"不一致: depth={record['depth']} player={record['player']}")
+            checked += 1
+        self.assertGreater(checked, 0)
+
+    def test_timed_moves_match_golden_master(self):
+        """time_ms を含む記録で、get_best_move_timed の戻り値が採取時と一致することを確認する。
+        パス条件: 全記録で着手が一致すること。"""
+        ai = alpha_beta_py.AlphaBetaAI()
+        checked = 0
+        for record in self.records:
+            if 'time_ms' not in record:
+                continue
+            move = ai.get_best_move_timed(record['board'], record['player'],
+                                           record['depth'], record['time_ms'])
+            expected = tuple(record['move']) if record['move'] is not None else None
+            self.assertEqual(
+                move, expected,
+                msg=f"不一致: depth={record['depth']} player={record['player']}")
+            checked += 1
+        self.assertGreater(checked, 0)
 
 
 if __name__ == "__main__":
