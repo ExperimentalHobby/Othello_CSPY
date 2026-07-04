@@ -276,7 +276,8 @@
                                                  Visibility="{Binding IsValidMove, Converter={StaticResource BoolToVisConverter}}"/>
                                         <Ellipse Fill="#6495ED" Opacity="0.75" Width="62" Height="62"
                                                  Visibility="{Binding IsHint, Converter={StaticResource BoolToVisConverter}}"/>
-                                        <Ellipse Fill="{Binding Piece, Converter={StaticResource PlayerColorToBrushConverter}}"
+                                        <Ellipse Tag="Stone"
+                                                 Fill="{Binding Piece, Converter={StaticResource PlayerColorToBrushConverter}}"
                                                  Stroke="#2a2a2a" StrokeThickness="2"
                                                  Width="88" Height="88"
                                                  Visibility="{Binding HasPiece, Converter={StaticResource BoolToVisConverter}}"/>

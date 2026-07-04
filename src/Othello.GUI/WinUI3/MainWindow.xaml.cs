@@ -95,15 +95,16 @@ public sealed partial class MainWindow : Window
 
     /// <summary>
     /// 指定インデックスのセル内にある石 Ellipse のみに Y 軸スケール反転アニメーション（300ms）を適用する。
-    /// DataTemplate 内の Ellipse は [0]=有効手マーカー（黄）・[1]=石 の順なので Skip(1) で石を取得する。
     /// セル全体（Button）ではなく石だけを対象にすることで WPF 版と同じ挙動になる。
     /// </summary>
     private void AnimateFlip(int index)
     {
         if (BoardRepeater.TryGetElement(index) is not FrameworkElement element) return;
 
-        // VisualTreeHelper でセル内の Ellipse を列挙し、2 番目（石）だけを取得する
-        var stoneEllipse = FindDescendants<Ellipse>(element).Skip(1).FirstOrDefault();
+        // DataTemplate 内には有効手マーカー・ヒントマーカー等の Ellipse も存在するため、
+        // 位置（何番目か）ではなく Tag="Stone" で石の Ellipse を一意に特定する。
+        var stoneEllipse = FindDescendants<Ellipse>(element)
+            .FirstOrDefault(el => (string?)el.Tag == "Stone");
         if (stoneEllipse == null) return;
 
         var visual = ElementCompositionPreview.GetElementVisual(stoneEllipse);
