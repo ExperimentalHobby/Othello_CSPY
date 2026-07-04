@@ -17,6 +17,8 @@
     <GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>
     <!-- InformationalVersion に git コミットハッシュ(+sha)を付与しない（ProductVersion を 1.0.0 に保つ） -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <!-- .NET標準Analyzerのルールセットを最新化(暗黙のデフォルト任せにしない) -->
+    <AnalysisLevel>latest</AnalysisLevel>
   </PropertyGroup>
 
 </Project>

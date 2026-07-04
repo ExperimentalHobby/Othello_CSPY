@@ -15,6 +15,14 @@
     <InternalsVisibleTo Include="Othello.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- セキュリティ特化のRoslynアナライザー（コマンドインジェクション等を検出） -->
+    <PackageReference Include="SecurityCodeScan.VS2019" Version="5.6.7">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
   <!-- AI フォルダが Othello.AI に移動したため、明示的にコンパイル対象を指定 -->
   <ItemGroup>
     <Compile Include="..\Othello.AI\Core\**\*.cs" />

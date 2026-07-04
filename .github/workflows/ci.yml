@@ -99,3 +99,76 @@ jobs:
 
       - name: Test (C# - full suite)
         run: dotnet test src/Othello.Tests/Othello.Tests.csproj --configuration Release
+
+  static-analysis:
+    name: Static Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/Othello.AI/Rust
+
+      - name: "Rust: clippy"
+        continue-on-error: true
+        run: cargo clippy --manifest-path ${{ env.RUST_MANIFEST }} --no-default-features
+
+      - name: "Rust: fmt check"
+        continue-on-error: true
+        run: cargo fmt --manifest-path ${{ env.RUST_MANIFEST }} --check
+
+      - name: "Rust: cargo audit"
+        continue-on-error: true
+        run: |
+          cargo install cargo-audit
+          cargo audit --file ${{ env.RUST_MANIFEST }}
+
+      - name: "Python: Ruff"
+        continue-on-error: true
+        run: |
+          pip install ruff
+          ruff check ${{ env.PYTHON_DIR }}
+
+      - name: "Python: Bandit"
+        continue-on-error: true
+        run: |
+          pip install bandit
+          bandit -r ${{ env.PYTHON_DIR }} -x "*/test_*.py"
+
+      - name: "C#: format check (Core / Console / Tests)"
+        continue-on-error: true
+        run: |
+          dotnet format src/Othello.Core/Othello.Core.csproj --verify-no-changes
+          dotnet format src/Othello.Console/Othello.Console.csproj --verify-no-changes
+          dotnet format src/Othello.Tests/Othello.Tests.csproj --verify-no-changes
+
+      - name: "C#: Analyzer warnings (Core / Console / Tests)"
+        continue-on-error: true
+        run: |
+          dotnet build src/Othello.Core/Othello.Core.csproj
+          dotnet build src/Othello.Console/Othello.Console.csproj
+          dotnet build src/Othello.Tests/Othello.Tests.csproj
+
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
