@@ -21,7 +21,31 @@ IPC プロトコル（改行区切り JSON）:
 import sys
 import json
 import alpha_beta
+import opening_book
 from alpha_beta import AlphaBetaAI
+
+
+def decide_move(ai, board, player, depth, time_ms):
+    """
+    定石（Opening Book）を優先的に参照し、ヒットしない場合は通常の探索にフォールバックする。
+
+    Args:
+        ai: get_best_move / get_best_move_timed を持つ AI インスタンス
+        board (list[list[int]]): 現在の盤面
+        player (int): 手番のプレイヤーの色
+        depth (int): アルファベータ探索の最大深さ
+        time_ms (int | None): 反復深化の制限時間（ms）。None の場合は固定深さ探索
+
+    Returns:
+        tuple[int, int] | None: 着手 (row, col)、有効手なしの場合は None
+    """
+    book_move = opening_book.lookup(board, player)
+    if book_move is not None:
+        return book_move
+
+    if time_ms is not None:
+        return ai.get_best_move_timed(board, player, depth, time_ms)
+    return ai.get_best_move(board, player, depth)
 
 
 def main():
@@ -64,11 +88,8 @@ def main():
             if not isinstance(depth, int) or depth < 1:
                 raise ValueError(f"depth must be an integer >= 1, got {depth!r}")
 
-            # time_ms が指定されている場合は反復深化探索、そうでなければ固定深さ探索
-            if time_ms is not None:
-                move = ai.get_best_move_timed(board, player, depth, time_ms)
-            else:
-                move = ai.get_best_move(board, player, depth)
+            # 定石（Opening Book）を優先参照し、ヒットしなければ通常の探索にフォールバックする
+            move = decide_move(ai, board, player, depth, time_ms)
 
             if move is None:
                 # 有効手なし → C# 側でパス処理が必要なことを通知する

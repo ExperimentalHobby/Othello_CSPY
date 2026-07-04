@@ -242,9 +242,12 @@
                         <StackPanel Margin="10">
                             <TextBlock Text="ゲーム状態" FontSize="14" FontWeight="Bold" Margin="0,0,0,10"/>
                             <TextBlock Text="{Binding CurrentPlayerDisplay}" FontSize="13" Margin="0,0,0,5" TextWrapping="Wrap"/>
-                            <TextBlock Text="AI が考え中..." FontSize="11" Foreground="Yellow"
-                                       Visibility="{Binding IsAIThinking, Converter={StaticResource BoolToVisConverter}}"
-                                       Margin="0,10"/>
+                            <!-- 固定高で囲むことで Collapsed/Visible 切替時のレイアウトシフトを防ぐ（WinUI3版と同じ対応） -->
+                            <Grid Height="30">
+                                <TextBlock Text="AI が考え中..." FontSize="11" Foreground="Yellow"
+                                           VerticalAlignment="Center"
+                                           Visibility="{Binding IsAIThinking, Converter={StaticResource BoolToVisConverter}}"/>
+                            </Grid>
                         </StackPanel>
                     </Border>
 
