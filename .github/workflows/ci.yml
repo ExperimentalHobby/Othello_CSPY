@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: "10.0.x"
+  RUST_MANIFEST: src/Othello.AI/Rust/Cargo.toml
+  PYTHON_DIR: src/Othello.AI/Python
+
+jobs:
+  test-linux:
+    name: Test (Linux)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/Othello.AI/Rust
+
+      - name: Test (Rust - pure logic)
+        run: cargo test --no-default-features --manifest-path ${{ env.RUST_MANIFEST }}
+
+      - name: Build Rust extension (maturin develop)
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install maturin
+          maturin develop --release --manifest-path ${{ env.RUST_MANIFEST }}
+
+      - name: Test (Python - includes Rust/Python parity)
+        run: |
+          source .venv/bin/activate
+          python -m unittest discover -s ${{ env.PYTHON_DIR }} -p "test_*.py"
+
+      - name: Test (C# - Core / Console / ViewModels / Tests)
+        run: dotnet test src/Othello.Tests/Othello.Tests.csproj --configuration Release
+
+  test-windows:
+    name: Test (Windows)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/Othello.AI/Rust
+
+      - name: Test (Rust - pure logic)
+        run: cargo test --no-default-features --manifest-path ${{ env.RUST_MANIFEST }}
+
+      - name: Install maturin
+        run: pip install maturin
+
+      - name: Build Rust extension (.pyd)
+        shell: pwsh
+        run: src/Othello.AI/Rust/build_rust.ps1
+
+      - name: Test (Python - includes Rust/Python parity)
+        run: python -m unittest discover -s ${{ env.PYTHON_DIR }} -p "test_*.py"
+
+      - name: Build (full solution incl. WPF / WinUI3)
+        run: dotnet build Othello.sln --configuration Release
+
+      - name: Test (C# - full suite)
+        run: dotnet test src/Othello.Tests/Othello.Tests.csproj --configuration Release
