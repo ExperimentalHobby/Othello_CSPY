@@ -11,6 +11,7 @@ public sealed partial class KifuWindow : Window
     public KifuWindow(KifuViewModel vm)
     {
         this.InitializeComponent();
+        WindowBackdropHelper.Apply(this);
         _vm = vm;
 
         AppWindow.Resize(new Windows.Graphics.SizeInt32(800, 800));
