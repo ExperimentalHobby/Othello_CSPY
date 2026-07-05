@@ -114,6 +114,9 @@ jobs:
       - name: Test (C# - full suite)
         run: dotnet test src/Othello.Tests/Othello.Tests.csproj --configuration Release
 
+      - name: Test (C# - WPF Converters)
+        run: dotnet test src/Othello.Tests.WPF/Othello.Tests.WPF.csproj --configuration Release
+
   static-analysis:
     name: Static Analysis
     runs-on: ubuntu-latest
