@@ -166,4 +166,34 @@ public class TimeLimitTests
         // Undo 後、人間ターンに戻るのでタイマーがリセットされる
         Assert.Equal(20, vm.RemainingSeconds);
     }
+
+    // ===== SaveTimeLimitSettings の永続化結合テスト =====
+
+    /// <summary>
+    /// SaveTimeLimitSettings() で保存した TimeLimitSeconds が、
+    /// 同じ設定ファイルパスを指す別の GameViewModel インスタンス（settings 省略 = Load() 経由）
+    /// に正しく反映されることを確認する。
+    /// パス条件: 新しいインスタンスの TimeLimitSeconds が保存した値と一致すること。
+    /// </summary>
+    [Fact]
+    public void SaveTimeLimitSettings_ReflectsInNewInstance_ViaFile()
+    {
+        var tmpFile = Path.Combine(Path.GetTempPath(), $"othello_settings_test_{Guid.NewGuid():N}.json");
+        try
+        {
+            var vm1 = new GameViewModel(d => new FakeAI(d), settings: new OthelloSettings(), settingsFilePath: tmpFile);
+            vm1.TimeLimitSeconds = 42;
+            vm1.SaveTimeLimitSettings();
+
+            // settings を省略することで OthelloSettingsManager.Load(tmpFile) 経由の読み込みを強制する
+            var vm2 = new GameViewModel(d => new FakeAI(d), settingsFilePath: tmpFile);
+
+            Assert.Equal(42, vm2.TimeLimitSeconds);
+        }
+        finally
+        {
+            if (File.Exists(tmpFile))
+                File.Delete(tmpFile);
+        }
+    }
 }
