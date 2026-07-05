@@ -55,6 +55,22 @@ public class BoardTests
     }
 
     /// <summary>
+    /// Clone() 後に元の盤面を変更しても、クローン側には影響しないことを確認する。
+    /// GameEngine が Clone() で履歴に複製を保存した後、元の盤面（現在局面）を
+    /// 更新し続けるパターンを直接模した検証（CLAUDE.md 落とし穴1に対応）。
+    /// パス条件: 元の盤面を変更してもクローン側は Clone() 時点の状態のまま変わらないこと。
+    /// </summary>
+    [Fact]
+    public void Clone_ModifyingOriginalAfterClone_DoesNotAffectClone()
+    {
+        var original = new Board();
+        var snapshot = original.Clone();
+        original.SetPiece(0, 0, PlayerColor.Black);
+        Assert.Equal(PlayerColor.Empty, snapshot.GetPiece(0, 0));
+        Assert.Equal(PlayerColor.Black, original.GetPiece(0, 0));
+    }
+
+    /// <summary>
     /// 初期盤面（中央 4 マス配置済み）の空きマスが 60 件であることを確認する。
     /// パス条件: GetEmptySquares の列挙件数が 60 であること。
     /// </summary>
