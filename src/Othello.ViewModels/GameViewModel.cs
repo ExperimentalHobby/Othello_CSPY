@@ -81,6 +81,7 @@ public partial class GameViewModel : ViewModelBase, IDisposable
     private int    _timeLimitSeconds;
     private int    _remainingSeconds;
     private CancellationTokenSource? _timerCts;
+    private readonly string? _settingsFilePath;
 
     /// <summary>直近のゲームの棋譜。ゲーム終了後に設定され、新規ゲーム開始時に null にリセットされる。</summary>
     public KifuRecord? LastKifuRecord
@@ -109,7 +110,7 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 
     /// <summary>現在の TimeLimitSeconds を設定ファイルに保存する。UI 層から TextBox 確定時に呼ぶ。</summary>
     public void SaveTimeLimitSettings()
-        => OthelloSettingsManager.Save(new OthelloSettings { TimeLimitSeconds = _timeLimitSeconds });
+        => OthelloSettingsManager.Save(new OthelloSettings { TimeLimitSeconds = _timeLimitSeconds }, _settingsFilePath);
 
     /// <summary>現在の手番の残り秒数。制限時間 OFF または AI ターン中は 0。</summary>
     public int RemainingSeconds
@@ -407,15 +408,17 @@ public partial class GameViewModel : ViewModelBase, IDisposable
     /// <param name="settings">設定ファイル（null の場合はファイルから読み込む）。</param>
     /// <param name="cpuVsCpuAiFactory">CPU vs CPU モード専用 AI ファクトリ。null の場合は AlphaBetaAI を使う。テストで FakeAI を差し込める。</param>
     /// <param name="statsRepository">棋力統計リポジトリ。null の場合はファイル永続化実装を使う。</param>
-    public GameViewModel(Func<DifficultyLevel, IAIStrategy>? aiFactory, bool startDeferred = false, OthelloSettings? settings = null, Func<DifficultyLevel, IAIStrategy>? cpuVsCpuAiFactory = null, IStatsRepository? statsRepository = null)
+    /// <param name="settingsFilePath">設定ファイルの保存先パス。null の場合は既定パス（%LOCALAPPDATA%）を使う。テストで一時ファイルを差し込める。</param>
+    public GameViewModel(Func<DifficultyLevel, IAIStrategy>? aiFactory, bool startDeferred = false, OthelloSettings? settings = null, Func<DifficultyLevel, IAIStrategy>? cpuVsCpuAiFactory = null, IStatsRepository? statsRepository = null, string? settingsFilePath = null)
     {
         _aiFactory = aiFactory ?? CreateDefaultAI;
         _cpuVsCpuAiFactory = cpuVsCpuAiFactory ?? (d => new AlphaBetaAI(d));
         _statsRepo = statsRepository ?? new StatsRepository();
         Stats = new StatsViewModel(_statsRepo);
+        _settingsFilePath = settingsFilePath;
 
         // 設定ファイルから制限時間を読み込む（注入されなければファイルまたはデフォルト 30 秒）
-        var loadedSettings = settings ?? OthelloSettingsManager.Load();
+        var loadedSettings = settings ?? OthelloSettingsManager.Load(_settingsFilePath);
         _timeLimitSeconds  = loadedSettings.TimeLimitSeconds;
         // 初期難易度（Medium）に従い制限時間モードは OFF
         _isTimeLimitEnabled = _difficulty == DifficultyLevel.Hard;
