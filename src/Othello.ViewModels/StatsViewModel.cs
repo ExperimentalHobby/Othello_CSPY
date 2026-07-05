@@ -105,5 +105,7 @@ public class StatsViewModel : ViewModelBase
         Refresh();
     }
 
-    private static string FormatRate(double rate) => $"{rate:P0}";
+    // "P0" 書式指定子はカルチャ（ICU/NLS）によって "%" の前に空白が入るかどうかが変わり、
+    // Windows と Linux で表示結果が異なってしまうため、手動組み立てで固定する。
+    private static string FormatRate(double rate) => $"{(int)Math.Round(rate * 100)}%";
 }
