@@ -18,6 +18,8 @@ on:
       - 'Othello_CSharpPython.code-workspace'
       - '.gitignore'
   workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * 1" # UTC 月曜 00:00 = JST 月曜 09:00
 
 env:
   DOTNET_VERSION: "10.0.x"
@@ -181,6 +183,35 @@ jobs:
 
       - name: Gitleaks
         continue-on-error: true
+        run: |
+          curl -sSfL -o gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v${{ env.GITLEAKS_VERSION }}/gitleaks_${{ env.GITLEAKS_VERSION }}_linux_x64.tar.gz
+          tar -xzf gitleaks.tar.gz gitleaks
+          ./gitleaks detect --source . -v
+        env:
+          GITLEAKS_VERSION: "8.30.1"
+
+  weekly-audit:
+    name: Weekly Dependency & Secret Audit
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/Othello.AI/Rust
+
+      - name: "Rust: cargo audit"
+        run: |
+          cargo install cargo-audit
+          cargo audit --file ${{ env.RUST_MANIFEST }}
+
+      - name: Gitleaks
         run: |
           curl -sSfL -o gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v${{ env.GITLEAKS_VERSION }}/gitleaks_${{ env.GITLEAKS_VERSION }}_linux_x64.tar.gz
           tar -xzf gitleaks.tar.gz gitleaks
