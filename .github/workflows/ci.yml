@@ -163,7 +163,6 @@ jobs:
           ruff check ${{ env.PYTHON_DIR }}
 
       - name: "Python: Bandit"
-        continue-on-error: true
         run: |
           pip install bandit
           bandit -r ${{ env.PYTHON_DIR }} -x "*/test_*.py"
