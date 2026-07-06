@@ -34,7 +34,8 @@ class _NodeType(IntEnum):
 
 # Zobrist ハッシュ用の乱数テーブル。固定シードでモジュール読み込み時に 1 回だけ生成する。
 # board[r][c] の値（0=Empty, 1=Black, 2=White）がそのまま添字になる。
-_zobrist_rng = random.Random(42)
+# 暗号用途ではなく、C#/Rust 版と同一ハッシュ列を得るための決定論的乱数のため nosec。
+_zobrist_rng = random.Random(42)  # nosec B311
 _ZOBRIST = [[[_zobrist_rng.getrandbits(64) for _ in range(3)] for _ in range(BOARD_SIZE)]
             for _ in range(BOARD_SIZE)]
 

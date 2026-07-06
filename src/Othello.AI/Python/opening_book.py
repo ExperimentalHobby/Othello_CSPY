@@ -69,7 +69,8 @@ def build_book(lines):
         for notation in line["moves"]:
             r, c = _notation_to_rc(notation)
             valid_moves = get_valid_moves(board, player)
-            assert (r, c) in valid_moves, (
+            # ユーザー入力ではなく開発者管理の静的定石データ(OPENING_LINES)の構築時検証のため nosec。
+            assert (r, c) in valid_moves, (  # nosec B101
                 f"{line['name']}: 非合法手 {notation} -> ({r}, {c}) "
                 f"player={player} valid_moves={valid_moves}"
             )
