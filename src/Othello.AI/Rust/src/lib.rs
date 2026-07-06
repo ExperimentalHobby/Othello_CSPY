@@ -420,10 +420,10 @@ fn evaluate_final(board: &Board, player: i8, depth: i32) -> i32 {
     let mut my_count = 0i32;
     let mut opp_count = 0i32;
 
-    for i in 0..(SIZE * SIZE) {
-        if board[i] == player {
+    for &cell in board.iter() {
+        if cell == player {
             my_count += 1;
-        } else if board[i] == opp {
+        } else if cell == opp {
             opp_count += 1;
         }
     }
@@ -593,6 +593,12 @@ fn best_move(board: &Board, player: i8, depth: i32) -> Option<(usize, usize)> {
 /// タイムアウト検出用の Result 型エイリアス（Err(()) = 時間切れ）。
 type TimedResult = Result<i32, ()>;
 
+/// alpha_beta_timed の再帰全体で不変な探索条件（引数過多を避けるためまとめる）。
+struct TimedSearchContext {
+    ai_player: i8,
+    deadline: Instant,
+}
+
 /// 時間制限付きアルファベータ探索（alpha_beta と同一ロジック、deadline 超過で Err(()) を返す）。
 /// tt の意味論は alpha_beta と同一。
 fn alpha_beta_timed(
@@ -601,11 +607,10 @@ fn alpha_beta_timed(
     mut alpha: i32,
     mut beta: i32,
     is_maximizing: bool,
-    ai_player: i8,
-    deadline: Instant,
+    ctx: &TimedSearchContext,
     tt: &mut TT,
 ) -> TimedResult {
-    if Instant::now() >= deadline {
+    if Instant::now() >= ctx.deadline {
         return Err(());
     }
 
@@ -624,34 +629,25 @@ fn alpha_beta_timed(
     }
 
     if depth == 0 {
-        let value = evaluate(board, ai_player);
+        let value = evaluate(board, ctx.ai_player);
         tt.insert(key, (value, depth, NodeType::Exact));
         return Ok(value);
     }
 
     let current = if is_maximizing {
-        ai_player
+        ctx.ai_player
     } else {
-        opponent(ai_player)
+        opponent(ctx.ai_player)
     };
     let mut moves = get_valid_moves(board, current);
 
     if moves.is_empty() {
         if !has_any_valid_move(board, opponent(current)) {
-            let value = evaluate_final(board, ai_player, depth);
+            let value = evaluate_final(board, ctx.ai_player, depth);
             tt.insert(key, (value, depth, NodeType::Exact));
             return Ok(value);
         }
-        let value = alpha_beta_timed(
-            board,
-            depth - 1,
-            alpha,
-            beta,
-            !is_maximizing,
-            ai_player,
-            deadline,
-            tt,
-        )?;
+        let value = alpha_beta_timed(board, depth - 1, alpha, beta, !is_maximizing, ctx, tt)?;
         tt.insert(key, (value, depth, NodeType::Exact));
         return Ok(value);
     }
@@ -670,8 +666,7 @@ fn alpha_beta_timed(
                 alpha,
                 beta,
                 false,
-                ai_player,
-                deadline,
+                ctx,
                 tt,
             )?);
             alpha = alpha.max(value);
@@ -690,8 +685,7 @@ fn alpha_beta_timed(
                 alpha,
                 beta,
                 true,
-                ai_player,
-                deadline,
+                ctx,
                 tt,
             )?);
             beta = beta.min(value);
@@ -729,6 +723,11 @@ fn best_move_timed(
     let deadline = Instant::now() + Duration::from_millis(time_ms);
     moves.sort_by(|a, b| WEIGHTS[b.0][b.1].cmp(&WEIGHTS[a.0][a.1]));
 
+    let ctx = TimedSearchContext {
+        ai_player: player,
+        deadline,
+    };
+
     // 最低限の初期値（深さ 1 の完了で必ず上書きされる）
     let mut best = moves[0];
 
@@ -747,16 +746,7 @@ fn best_move_timed(
 
         for &(r, c) in &moves {
             let next = make_move(board, r, c, player);
-            match alpha_beta_timed(
-                &next,
-                depth - 1,
-                alpha,
-                beta,
-                false,
-                player,
-                deadline,
-                &mut tt,
-            ) {
+            match alpha_beta_timed(&next, depth - 1, alpha, beta, false, &ctx, &mut tt) {
                 Ok(score) => {
                     if score > current_best_score {
                         current_best_score = score;
