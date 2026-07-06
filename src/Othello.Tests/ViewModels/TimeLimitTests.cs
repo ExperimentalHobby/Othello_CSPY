@@ -12,188 +12,188 @@ using Technopro.Othello.ViewModels;
 /// </summary>
 public class TimeLimitTests
 {
-    private sealed class FakeAI : IAIStrategy
-    {
-        public DifficultyLevel Difficulty { get; }
-        public string EngineName => "AI: Fake";
-        public FakeAI(DifficultyLevel d) => Difficulty = d;
-        public Position GetBestMove(Board board, PlayerColor playerColor)
-            => OthelloRules.GetValidMoves(board, playerColor)[0];
-    }
+	private sealed class FakeAI : IAIStrategy
+	{
+		public DifficultyLevel Difficulty { get; }
+		public string EngineName => "AI: Fake";
+		public FakeAI(DifficultyLevel d) => Difficulty = d;
+		public Position GetBestMove(Board board, PlayerColor playerColor)
+			=> OthelloRules.GetValidMoves(board, playerColor)[0];
+	}
 
-    private static GameViewModel MakeVm(DifficultyLevel diff = DifficultyLevel.Medium)
-        => new(d => new FakeAI(d), settings: new OthelloSettings()) { DifficultyIndex = (int)diff };
+	private static GameViewModel MakeVm(DifficultyLevel diff = DifficultyLevel.Medium)
+		=> new(d => new FakeAI(d), settings: new OthelloSettings()) { DifficultyIndex = (int)diff };
 
-    // ===== IsTimeLimitEnabled の難易度連動 =====
+	// ===== IsTimeLimitEnabled の難易度連動 =====
 
-    /// <summary>
-    /// 初期状態（Normal）で IsTimeLimitEnabled が false であることを確認する。
-    /// パス条件: IsTimeLimitEnabled == false。
-    /// </summary>
-    [Fact]
-    public void InitialState_Normal_IsTimeLimitEnabled_IsFalse()
-    {
-        var vm = MakeVm(DifficultyLevel.Medium);
-        Assert.False(vm.IsTimeLimitEnabled);
-    }
+	/// <summary>
+	/// 初期状態（Normal）で IsTimeLimitEnabled が false であることを確認する。
+	/// パス条件: IsTimeLimitEnabled == false。
+	/// </summary>
+	[Fact]
+	public void InitialState_Normal_IsTimeLimitEnabled_IsFalse()
+	{
+		var vm = MakeVm(DifficultyLevel.Medium);
+		Assert.False(vm.IsTimeLimitEnabled);
+	}
 
-    /// <summary>
-    /// 難易度を Hard に変更すると IsTimeLimitEnabled が true になることを確認する。
-    /// パス条件: DifficultyIndex = 3 後 IsTimeLimitEnabled == true。
-    /// </summary>
-    [Fact]
-    public void SetDifficulty_Hard_EnablesTimeLimit()
-    {
-        var vm = MakeVm(DifficultyLevel.Medium);
-        vm.DifficultyIndex = 3; // Hard（Beginner=0, Easy=1, Normal=2, Hard=3, Expert=4）
-        Assert.True(vm.IsTimeLimitEnabled);
-    }
+	/// <summary>
+	/// 難易度を Hard に変更すると IsTimeLimitEnabled が true になることを確認する。
+	/// パス条件: DifficultyIndex = 3 後 IsTimeLimitEnabled == true。
+	/// </summary>
+	[Fact]
+	public void SetDifficulty_Hard_EnablesTimeLimit()
+	{
+		var vm = MakeVm(DifficultyLevel.Medium);
+		vm.DifficultyIndex = 3; // Hard（Beginner=0, Easy=1, Normal=2, Hard=3, Expert=4）
+		Assert.True(vm.IsTimeLimitEnabled);
+	}
 
-    /// <summary>
-    /// 難易度を Easy に変更すると IsTimeLimitEnabled が false になることを確認する。
-    /// パス条件: Hard → Easy 変更後 IsTimeLimitEnabled == false。
-    /// </summary>
-    [Fact]
-    public void SetDifficulty_Easy_DisablesTimeLimit()
-    {
-        var vm = MakeVm(DifficultyLevel.Hard);
-        vm.DifficultyIndex = 1; // Easy（Beginner=0, Easy=1）
-        Assert.False(vm.IsTimeLimitEnabled);
-    }
+	/// <summary>
+	/// 難易度を Easy に変更すると IsTimeLimitEnabled が false になることを確認する。
+	/// パス条件: Hard → Easy 変更後 IsTimeLimitEnabled == false。
+	/// </summary>
+	[Fact]
+	public void SetDifficulty_Easy_DisablesTimeLimit()
+	{
+		var vm = MakeVm(DifficultyLevel.Hard);
+		vm.DifficultyIndex = 1; // Easy（Beginner=0, Easy=1）
+		Assert.False(vm.IsTimeLimitEnabled);
+	}
 
-    /// <summary>
-    /// ユーザーが手動で IsTimeLimitEnabled を切り替えられることを確認する。
-    /// パス条件: Normal でも true にセットできること。
-    /// </summary>
-    [Fact]
-    public void ManualToggle_OverridesDifficultyDefault()
-    {
-        var vm = MakeVm(DifficultyLevel.Medium);
-        Assert.False(vm.IsTimeLimitEnabled);
-        vm.IsTimeLimitEnabled = true;
-        Assert.True(vm.IsTimeLimitEnabled);
-    }
+	/// <summary>
+	/// ユーザーが手動で IsTimeLimitEnabled を切り替えられることを確認する。
+	/// パス条件: Normal でも true にセットできること。
+	/// </summary>
+	[Fact]
+	public void ManualToggle_OverridesDifficultyDefault()
+	{
+		var vm = MakeVm(DifficultyLevel.Medium);
+		Assert.False(vm.IsTimeLimitEnabled);
+		vm.IsTimeLimitEnabled = true;
+		Assert.True(vm.IsTimeLimitEnabled);
+	}
 
-    // ===== TimeLimitSeconds =====
+	// ===== TimeLimitSeconds =====
 
-    /// <summary>
-    /// デフォルトの TimeLimitSeconds が 30 であることを確認する。
-    /// パス条件: TimeLimitSeconds == 30。
-    /// </summary>
-    [Fact]
-    public void TimeLimitSeconds_Default_Is30()
-    {
-        var vm = MakeVm();
-        Assert.Equal(30, vm.TimeLimitSeconds);
-    }
+	/// <summary>
+	/// デフォルトの TimeLimitSeconds が 30 であることを確認する。
+	/// パス条件: TimeLimitSeconds == 30。
+	/// </summary>
+	[Fact]
+	public void TimeLimitSeconds_Default_Is30()
+	{
+		var vm = MakeVm();
+		Assert.Equal(30, vm.TimeLimitSeconds);
+	}
 
-    // ===== RemainingSeconds =====
+	// ===== RemainingSeconds =====
 
-    /// <summary>
-    /// 制限時間 OFF のとき人間ターン開始で RemainingSeconds が 0 のままであることを確認する。
-    /// パス条件: RemainingSeconds == 0。
-    /// </summary>
-    [Fact]
-    public void TimerOff_HumanTurn_RemainingSecondsIsZero()
-    {
-        var vm = MakeVm(DifficultyLevel.Medium);
-        vm.IsTimeLimitEnabled = false;
-        vm.StartNewGame();
-        // AI は白 → 人間（黒）が先手
-        Assert.Equal(0, vm.RemainingSeconds);
-    }
+	/// <summary>
+	/// 制限時間 OFF のとき人間ターン開始で RemainingSeconds が 0 のままであることを確認する。
+	/// パス条件: RemainingSeconds == 0。
+	/// </summary>
+	[Fact]
+	public void TimerOff_HumanTurn_RemainingSecondsIsZero()
+	{
+		var vm = MakeVm(DifficultyLevel.Medium);
+		vm.IsTimeLimitEnabled = false;
+		vm.StartNewGame();
+		// AI は白 → 人間（黒）が先手
+		Assert.Equal(0, vm.RemainingSeconds);
+	}
 
-    /// <summary>
-    /// 制限時間 ON のとき人間ターン開始で RemainingSeconds が TimeLimitSeconds と等しいことを確認する。
-    /// パス条件: RemainingSeconds == TimeLimitSeconds。
-    /// </summary>
-    [Fact]
-    public void TimerOn_HumanTurn_RemainingSeconds_EqualsTimeLimitSeconds()
-    {
-        var vm = MakeVm(DifficultyLevel.Medium);
-        vm.IsTimeLimitEnabled = true;
-        vm.TimeLimitSeconds   = 15;
-        vm.StartNewGame();
-        // 黒が先手（人間）のとき StartNewGame() 直後に RemainingSeconds がセットされる
-        Assert.Equal(15, vm.RemainingSeconds);
-    }
+	/// <summary>
+	/// 制限時間 ON のとき人間ターン開始で RemainingSeconds が TimeLimitSeconds と等しいことを確認する。
+	/// パス条件: RemainingSeconds == TimeLimitSeconds。
+	/// </summary>
+	[Fact]
+	public void TimerOn_HumanTurn_RemainingSeconds_EqualsTimeLimitSeconds()
+	{
+		var vm = MakeVm(DifficultyLevel.Medium);
+		vm.IsTimeLimitEnabled = true;
+		vm.TimeLimitSeconds = 15;
+		vm.StartNewGame();
+		// 黒が先手（人間）のとき StartNewGame() 直後に RemainingSeconds がセットされる
+		Assert.Equal(15, vm.RemainingSeconds);
+	}
 
-    // ===== 時間切れ強制着手 =====
+	// ===== 時間切れ強制着手 =====
 
-    /// <summary>
-    /// 時間切れ時に有効手[0]が自動着手されることを確認する。
-    /// パス条件: ForcePlayForTest() 呼び出し後にボードが進んでいること（石数が変化）。
-    /// </summary>
-    [Fact]
-    public async Task TimeUp_ForcesMove()
-    {
-        var vm = MakeVm(DifficultyLevel.Medium);
-        vm.IsTimeLimitEnabled = true;
-        vm.TimeLimitSeconds   = 1;
-        vm.StartNewGame();
+	/// <summary>
+	/// 時間切れ時に有効手[0]が自動着手されることを確認する。
+	/// パス条件: ForcePlayForTest() 呼び出し後にボードが進んでいること（石数が変化）。
+	/// </summary>
+	[Fact]
+	public async Task TimeUp_ForcesMove()
+	{
+		var vm = MakeVm(DifficultyLevel.Medium);
+		vm.IsTimeLimitEnabled = true;
+		vm.TimeLimitSeconds = 1;
+		vm.StartNewGame();
 
-        // 1 秒待てば自動着手が走るはずだが、テストの速度のため直接強制着手を呼ぶ
-        await vm.ForcePlayForTestAsync();
+		// 1 秒待てば自動着手が走るはずだが、テストの速度のため直接強制着手を呼ぶ
+		await vm.ForcePlayForTestAsync();
 
-        // 人間（黒）が着手したので黒石が増えているはず
-        Assert.True(vm.BlackScore > 2);
-    }
+		// 人間（黒）が着手したので黒石が増えているはず
+		Assert.True(vm.BlackScore > 2);
+	}
 
-    // ===== Undo =====
+	// ===== Undo =====
 
-    /// <summary>
-    /// Undo でタイマーがリセットされ、制限時間 ON なら RemainingSeconds が
-    /// TimeLimitSeconds に戻ることを確認する。
-    /// パス条件: 着手 → Undo → RemainingSeconds == TimeLimitSeconds。
-    /// </summary>
-    [Fact]
-    public async Task Undo_ResetsTimer()
-    {
-        var vm = MakeVm(DifficultyLevel.Medium);
-        vm.IsTimeLimitEnabled = true;
-        vm.TimeLimitSeconds   = 20;
-        vm.StartNewGame();
+	/// <summary>
+	/// Undo でタイマーがリセットされ、制限時間 ON なら RemainingSeconds が
+	/// TimeLimitSeconds に戻ることを確認する。
+	/// パス条件: 着手 → Undo → RemainingSeconds == TimeLimitSeconds。
+	/// </summary>
+	[Fact]
+	public async Task Undo_ResetsTimer()
+	{
+		var vm = MakeVm(DifficultyLevel.Medium);
+		vm.IsTimeLimitEnabled = true;
+		vm.TimeLimitSeconds = 20;
+		vm.StartNewGame();
 
-        // 人間が 1 手打つ（AI 先手ではないので黒が先手）
-        var validMoves = OthelloRules.GetValidMoves(vm.EngineCurrentBoard, PlayerColor.Black);
-        vm.SquareClickedCommand.Execute(validMoves[0]);
+		// 人間が 1 手打つ（AI 先手ではないので黒が先手）
+		var validMoves = OthelloRules.GetValidMoves(vm.EngineCurrentBoard, PlayerColor.Black);
+		vm.SquareClickedCommand.Execute(validMoves[0]);
 
-        // AI の応答を待つ
-        await Task.Delay(800);
+		// AI の応答を待つ
+		await Task.Delay(800);
 
-        vm.UndoCommand.Execute(null);
+		vm.UndoCommand.Execute(null);
 
-        // Undo 後、人間ターンに戻るのでタイマーがリセットされる
-        Assert.Equal(20, vm.RemainingSeconds);
-    }
+		// Undo 後、人間ターンに戻るのでタイマーがリセットされる
+		Assert.Equal(20, vm.RemainingSeconds);
+	}
 
-    // ===== SaveTimeLimitSettings の永続化結合テスト =====
+	// ===== SaveTimeLimitSettings の永続化結合テスト =====
 
-    /// <summary>
-    /// SaveTimeLimitSettings() で保存した TimeLimitSeconds が、
-    /// 同じ設定ファイルパスを指す別の GameViewModel インスタンス（settings 省略 = Load() 経由）
-    /// に正しく反映されることを確認する。
-    /// パス条件: 新しいインスタンスの TimeLimitSeconds が保存した値と一致すること。
-    /// </summary>
-    [Fact]
-    public void SaveTimeLimitSettings_ReflectsInNewInstance_ViaFile()
-    {
-        var tmpFile = Path.Combine(Path.GetTempPath(), $"othello_settings_test_{Guid.NewGuid():N}.json");
-        try
-        {
-            var vm1 = new GameViewModel(d => new FakeAI(d), settings: new OthelloSettings(), settingsFilePath: tmpFile);
-            vm1.TimeLimitSeconds = 42;
-            vm1.SaveTimeLimitSettings();
+	/// <summary>
+	/// SaveTimeLimitSettings() で保存した TimeLimitSeconds が、
+	/// 同じ設定ファイルパスを指す別の GameViewModel インスタンス（settings 省略 = Load() 経由）
+	/// に正しく反映されることを確認する。
+	/// パス条件: 新しいインスタンスの TimeLimitSeconds が保存した値と一致すること。
+	/// </summary>
+	[Fact]
+	public void SaveTimeLimitSettings_ReflectsInNewInstance_ViaFile()
+	{
+		var tmpFile = Path.Combine(Path.GetTempPath(), $"othello_settings_test_{Guid.NewGuid():N}.json");
+		try
+		{
+			var vm1 = new GameViewModel(d => new FakeAI(d), settings: new OthelloSettings(), settingsFilePath: tmpFile);
+			vm1.TimeLimitSeconds = 42;
+			vm1.SaveTimeLimitSettings();
 
-            // settings を省略することで OthelloSettingsManager.Load(tmpFile) 経由の読み込みを強制する
-            var vm2 = new GameViewModel(d => new FakeAI(d), settingsFilePath: tmpFile);
+			// settings を省略することで OthelloSettingsManager.Load(tmpFile) 経由の読み込みを強制する
+			var vm2 = new GameViewModel(d => new FakeAI(d), settingsFilePath: tmpFile);
 
-            Assert.Equal(42, vm2.TimeLimitSeconds);
-        }
-        finally
-        {
-            if (File.Exists(tmpFile))
-                File.Delete(tmpFile);
-        }
-    }
+			Assert.Equal(42, vm2.TimeLimitSeconds);
+		}
+		finally
+		{
+			if (File.Exists(tmpFile))
+				File.Delete(tmpFile);
+		}
+	}
 }

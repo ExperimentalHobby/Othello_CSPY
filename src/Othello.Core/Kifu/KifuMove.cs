@@ -7,7 +7,7 @@ using Technopro.Othello.Core.Models;
 /// パスの場合は IsPass = true とし、Row / Col は null にする。
 /// </summary>
 public record KifuMove(
-    PlayerColor Player,
-    int? Row = null,
-    int? Col = null,
-    bool IsPass = false);
+	PlayerColor Player,
+	int? Row = null,
+	int? Col = null,
+	bool IsPass = false);
