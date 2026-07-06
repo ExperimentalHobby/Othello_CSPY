@@ -8,10 +8,10 @@ using Technopro.Othello.Core.Models;
 /// KifuSerializer で JSON に変換して保存・読み込みする。
 /// </summary>
 public record KifuRecord(
-    int Version,
-    DateTimeOffset PlayedAt,
-    PlayerColor HumanColor,
-    DifficultyLevel Difficulty,
-    PlayerColor? Result,
-    IReadOnlyList<KifuMove> Moves,
-    KifuFinalScore FinalScore);
+	int Version,
+	DateTimeOffset PlayedAt,
+	PlayerColor HumanColor,
+	DifficultyLevel Difficulty,
+	PlayerColor? Result,
+	IReadOnlyList<KifuMove> Moves,
+	KifuFinalScore FinalScore);

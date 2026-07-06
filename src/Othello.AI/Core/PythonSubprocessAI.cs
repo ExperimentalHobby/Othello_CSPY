@@ -20,329 +20,329 @@ using Technopro.Othello.Core.Models;
 /// </summary>
 public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
 {
-    /// <summary>Python AI からの応答を待つ最大時間（ミリ秒）。Hard 難易度は時間がかかるため十分な余裕を持つ。</summary>
-    private const int AiResponseTimeoutMs = 60_000;
-    /// <summary>Python 実行可能ファイルの候補を検出する際のプロセス起動タイムアウト（ミリ秒）。</summary>
-    private const int PythonProbeTimeoutMs = 3_000;
+	/// <summary>Python AI からの応答を待つ最大時間（ミリ秒）。Hard 難易度は時間がかかるため十分な余裕を持つ。</summary>
+	private const int AiResponseTimeoutMs = 60_000;
+	/// <summary>Python 実行可能ファイルの候補を検出する際のプロセス起動タイムアウト（ミリ秒）。</summary>
+	private const int PythonProbeTimeoutMs = 3_000;
 
-    /// <summary>起動した Python プロセスの参照</summary>
-    private readonly Process _process;
+	/// <summary>起動した Python プロセスの参照</summary>
+	private readonly Process _process;
 
-    /// <summary>
-    /// Python プロセスの標準エラー出力を非同期で蓄積するバッファ。
-    /// 稼働中に stderr をドレインし続けることでパイプ詰まりによるデッドロックを防ぐ。
-    /// </summary>
-    private readonly StringBuilder _stderrBuffer = new();
+	/// <summary>
+	/// Python プロセスの標準エラー出力を非同期で蓄積するバッファ。
+	/// 稼働中に stderr をドレインし続けることでパイプ詰まりによるデッドロックを防ぐ。
+	/// </summary>
+	private readonly StringBuilder _stderrBuffer = new();
 
-    /// <summary>Dispose 後の多重呼び出しを防ぐフラグ</summary>
-    private bool _disposed;
+	/// <summary>Dispose 後の多重呼び出しを防ぐフラグ</summary>
+	private bool _disposed;
 
-    /// <summary>この AI インスタンスの難易度（探索深さの決定に使用）</summary>
-    public DifficultyLevel Difficulty { get; }
+	/// <summary>この AI インスタンスの難易度（探索深さの決定に使用）</summary>
+	public DifficultyLevel Difficulty { get; }
 
-    /// <summary>
-    /// UI 表示用バックエンド名。プロセス起動後のハンドシェイク（ai.py が出力する {"backend": ...}）
-    /// を読んで確定させる。ファイル存在チェックではなく実際の import 結果を反映する。
-    /// </summary>
-    public string EngineName { get; private set; }
+	/// <summary>
+	/// UI 表示用バックエンド名。プロセス起動後のハンドシェイク（ai.py が出力する {"backend": ...}）
+	/// を読んで確定させる。ファイル存在チェックではなく実際の import 結果を反映する。
+	/// </summary>
+	public string EngineName { get; private set; }
 
-    /// <summary>
-    /// 指定した難易度とスクリプトパスで Python AI プロセスを起動する。
-    /// </summary>
-    /// <param name="difficulty">AI の難易度（探索深さに影響）</param>
-    /// <param name="pythonScriptPath">ai.py の絶対パス</param>
-    /// <exception cref="FileNotFoundException">ai.py が指定パスに存在しない場合</exception>
-    /// <exception cref="InvalidOperationException">Python が見つからない場合</exception>
-    public PythonSubprocessAI(DifficultyLevel difficulty, string pythonScriptPath)
-    {
-        Difficulty = difficulty;
-        // ハンドシェイクを読む前のデフォルト（ファイル存在ベース）。
-        // プロセス起動後に上書きされる。
-        EngineName = AiScriptPaths.IsRustAvailable ? "AI: Rust" : "AI: Python";
+	/// <summary>
+	/// 指定した難易度とスクリプトパスで Python AI プロセスを起動する。
+	/// </summary>
+	/// <param name="difficulty">AI の難易度（探索深さに影響）</param>
+	/// <param name="pythonScriptPath">ai.py の絶対パス</param>
+	/// <exception cref="FileNotFoundException">ai.py が指定パスに存在しない場合</exception>
+	/// <exception cref="InvalidOperationException">Python が見つからない場合</exception>
+	public PythonSubprocessAI(DifficultyLevel difficulty, string pythonScriptPath)
+	{
+		Difficulty = difficulty;
+		// ハンドシェイクを読む前のデフォルト（ファイル存在ベース）。
+		// プロセス起動後に上書きされる。
+		EngineName = AiScriptPaths.IsRustAvailable ? "AI: Rust" : "AI: Python";
 
-        // スクリプトの存在を事前確認し、見つからない場合は明確なエラーを出す
-        if (!File.Exists(pythonScriptPath))
-            throw new FileNotFoundException(
-                $"Python スクリプトが見つかりません: {pythonScriptPath}\n" +
-                "dotnet build を実行してファイルが出力ディレクトリにコピーされているか確認してください。");
+		// スクリプトの存在を事前確認し、見つからない場合は明確なエラーを出す
+		if (!File.Exists(pythonScriptPath))
+			throw new FileNotFoundException(
+				$"Python スクリプトが見つかりません: {pythonScriptPath}\n" +
+				"dotnet build を実行してファイルが出力ディレクトリにコピーされているか確認してください。");
 
-        // OS に合わせた Python 実行ファイルを自動検出する（Lazy キャッシュで2回目以降は即時）
-        string pythonExe = _pythonExeCache.Value;
+		// OS に合わせた Python 実行ファイルを自動検出する（Lazy キャッシュで2回目以降は即時）
+		string pythonExe = _pythonExeCache.Value;
 
-        // スクリプトと同じディレクトリを作業ディレクトリにすることで
-        // ai.py が board.py / evaluator.py / alpha_beta.py を import できるようにする
-        string scriptDir = Path.GetDirectoryName(pythonScriptPath)!;
+		// スクリプトと同じディレクトリを作業ディレクトリにすることで
+		// ai.py が board.py / evaluator.py / alpha_beta.py を import できるようにする
+		string scriptDir = Path.GetDirectoryName(pythonScriptPath)!;
 
-        // BOM なし UTF-8 エンコーディング。
-        // Encoding.UTF8 は BOM 付きのため、Python 側で json.loads が
-        // "Expecting value: line 1 column 1 (char 0)" で失敗する原因となる。
-        var utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+		// BOM なし UTF-8 エンコーディング。
+		// Encoding.UTF8 は BOM 付きのため、Python 側で json.loads が
+		// "Expecting value: line 1 column 1 (char 0)" で失敗する原因となる。
+		var utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
 
-        var startInfo = new ProcessStartInfo
-        {
-            FileName        = pythonExe,
-            // -u: stdout/stdin をアンバッファードにして応答遅延を防ぐ
-            Arguments       = $"-u \"{pythonScriptPath}\"",
-            WorkingDirectory = scriptDir,          // import 解決に必要
-            UseShellExecute = false,
-            RedirectStandardInput  = true,         // C# から Python へ JSON を送る
-            RedirectStandardOutput = true,         // Python から C# へ結果を受け取る
-            RedirectStandardError  = true,         // Python の例外スタックをキャプチャする
-            CreateNoWindow  = true,
-            StandardInputEncoding  = utf8NoBom,   // BOM なし: Python の json.loads を正常動作させる
-            StandardOutputEncoding = utf8NoBom,
-            StandardErrorEncoding  = utf8NoBom,
-        };
-        // Python の I/O エンコーディングを明示的に UTF-8 に設定する
-        startInfo.EnvironmentVariables["PYTHONIOENCODING"] = "utf-8";
+		var startInfo = new ProcessStartInfo
+		{
+			FileName = pythonExe,
+			// -u: stdout/stdin をアンバッファードにして応答遅延を防ぐ
+			Arguments = $"-u \"{pythonScriptPath}\"",
+			WorkingDirectory = scriptDir,          // import 解決に必要
+			UseShellExecute = false,
+			RedirectStandardInput = true,         // C# から Python へ JSON を送る
+			RedirectStandardOutput = true,         // Python から C# へ結果を受け取る
+			RedirectStandardError = true,         // Python の例外スタックをキャプチャする
+			CreateNoWindow = true,
+			StandardInputEncoding = utf8NoBom,   // BOM なし: Python の json.loads を正常動作させる
+			StandardOutputEncoding = utf8NoBom,
+			StandardErrorEncoding = utf8NoBom,
+		};
+		// Python の I/O エンコーディングを明示的に UTF-8 に設定する
+		startInfo.EnvironmentVariables["PYTHONIOENCODING"] = "utf-8";
 
-        _process = new Process { StartInfo = startInfo };
+		_process = new Process { StartInfo = startInfo };
 
-        // stderr を非同期で読み続けてバッファに蓄積する。
-        // 同期 ReadToEnd と異なり、稼働中でもパイプを詰まらせずにエラー出力を回収できる。
-        _process.ErrorDataReceived += (_, e) =>
-        {
-            if (e.Data == null) return;
-            lock (_stderrBuffer)
-                _stderrBuffer.AppendLine(e.Data);
-        };
+		// stderr を非同期で読み続けてバッファに蓄積する。
+		// 同期 ReadToEnd と異なり、稼働中でもパイプを詰まらせずにエラー出力を回収できる。
+		_process.ErrorDataReceived += (_, e) =>
+		{
+			if (e.Data == null) return;
+			lock (_stderrBuffer)
+				_stderrBuffer.AppendLine(e.Data);
+		};
 
-        _process.Start();
-        try
-        {
-            _process.BeginErrorReadLine();
+		_process.Start();
+		try
+		{
+			_process.BeginErrorReadLine();
 
-            // ai.py は起動直後に {"backend": "rust"|"python"} を 1 行出力する。
-            // これを読んで EngineName を確定させる（ファイル存在チェックより信頼性が高い）。
-            var handshake = ReadLineWithTimeout(timeoutMs: 5_000);
-            if (handshake != null)
-            {
-                using var doc = JsonDocument.Parse(handshake);
-                if (doc.RootElement.TryGetProperty("backend", out var backend))
-                    EngineName = backend.GetString() == "rust" ? "AI: Rust" : "AI: Python";
-            }
-        }
-        catch
-        {
-            try { _process.Kill(); } catch { /* Kill 失敗は無視 */ }
-            _process.Dispose();
-            _process = null!;
-            throw;
-        }
-    }
+			// ai.py は起動直後に {"backend": "rust"|"python"} を 1 行出力する。
+			// これを読んで EngineName を確定させる（ファイル存在チェックより信頼性が高い）。
+			var handshake = ReadLineWithTimeout(timeoutMs: 5_000);
+			if (handshake != null)
+			{
+				using var doc = JsonDocument.Parse(handshake);
+				if (doc.RootElement.TryGetProperty("backend", out var backend))
+					EngineName = backend.GetString() == "rust" ? "AI: Rust" : "AI: Python";
+			}
+		}
+		catch
+		{
+			try { _process.Kill(); } catch { /* Kill 失敗は無視 */ }
+			_process.Dispose();
+			_process = null!;
+			throw;
+		}
+	}
 
-    /// <summary>
-    /// 盤面と手番を Python AI に送信し、最善手の座標を返す。
-    /// Python プロセスが応答しない場合は stderr の内容を含む例外を投げる。
-    /// </summary>
-    /// <param name="board">現在の盤面（変更しない）</param>
-    /// <param name="playerColor">AI が担当するプレイヤーの色</param>
-    /// <returns>AI が選択した着手先の Position</returns>
-    /// <exception cref="ObjectDisposedException">Dispose 済みのインスタンスを呼び出した場合</exception>
-    /// <exception cref="InvalidOperationException">Python プロセスが応答しない、またはエラーを返した場合</exception>
-    public Position GetBestMove(Board board, PlayerColor playerColor)
-    {
-        // Dispose 後の呼び出しを早期に弾く
-        ObjectDisposedException.ThrowIf(_disposed, this);
+	/// <summary>
+	/// 盤面と手番を Python AI に送信し、最善手の座標を返す。
+	/// Python プロセスが応答しない場合は stderr の内容を含む例外を投げる。
+	/// </summary>
+	/// <param name="board">現在の盤面（変更しない）</param>
+	/// <param name="playerColor">AI が担当するプレイヤーの色</param>
+	/// <returns>AI が選択した着手先の Position</returns>
+	/// <exception cref="ObjectDisposedException">Dispose 済みのインスタンスを呼び出した場合</exception>
+	/// <exception cref="InvalidOperationException">Python プロセスが応答しない、またはエラーを返した場合</exception>
+	public Position GetBestMove(Board board, PlayerColor playerColor)
+	{
+		// Dispose 後の呼び出しを早期に弾く
+		ObjectDisposedException.ThrowIf(_disposed, this);
 
-        // プロセスが既に終了していれば通信不可
-        if (_process.HasExited)
-            throw new InvalidOperationException(ReadProcessError("Python プロセスが予期せず終了しました"));
+		// プロセスが既に終了していれば通信不可
+		if (_process.HasExited)
+			throw new InvalidOperationException(ReadProcessError("Python プロセスが予期せず終了しました"));
 
-        // 盤面・手番・探索深さを JSON にシリアライズして送信する
-        // time_ms: Hard 難易度のみ反復深化用の時間制限を付加する。null の場合は固定深さ探索
-        var request = new
-        {
-            board   = SerializeBoard(board),
-            player  = (int)playerColor,              // 1=黒, 2=白
-            depth   = Difficulty.GetSearchDepth(),   // 難易度に応じた探索深さ
-            time_ms = Difficulty.GetTimeLimitMs()    // Hard=8000, Easy/Normal=null
-        };
+		// 盤面・手番・探索深さを JSON にシリアライズして送信する
+		// time_ms: Hard 難易度のみ反復深化用の時間制限を付加する。null の場合は固定深さ探索
+		var request = new
+		{
+			board = SerializeBoard(board),
+			player = (int)playerColor,              // 1=黒, 2=白
+			depth = Difficulty.GetSearchDepth(),   // 難易度に応じた探索深さ
+			time_ms = Difficulty.GetTimeLimitMs()    // Hard=8000, Easy/Normal=null
+		};
 
-        string json = JsonSerializer.Serialize(request);
-        _process.StandardInput.WriteLine(json);   // 改行を区切り記号として使用
-        _process.StandardInput.Flush();            // バッファをフラッシュして即座に Python 側へ届ける
+		string json = JsonSerializer.Serialize(request);
+		_process.StandardInput.WriteLine(json);   // 改行を区切り記号として使用
+		_process.StandardInput.Flush();            // バッファをフラッシュして即座に Python 側へ届ける
 
-        // Python 側から 1 行（JSON）を読む（タイムアウト付き）
-        // ReadLine() はプロセスが応答しない場合に無限ブロックするため、スレッドで制限する
-        string? response = ReadLineWithTimeout(timeoutMs: AiResponseTimeoutMs);
-        if (response == null)
-            throw new InvalidOperationException(ReadProcessError("Python AI プロセスが応答しませんでした"));
+		// Python 側から 1 行（JSON）を読む（タイムアウト付き）
+		// ReadLine() はプロセスが応答しない場合に無限ブロックするため、スレッドで制限する
+		string? response = ReadLineWithTimeout(timeoutMs: AiResponseTimeoutMs);
+		if (response == null)
+			throw new InvalidOperationException(ReadProcessError("Python AI プロセスが応答しませんでした"));
 
-        // JSON を解析して着手座標を取り出す
-        using var doc = JsonDocument.Parse(response);
+		// JSON を解析して着手座標を取り出す
+		using var doc = JsonDocument.Parse(response);
 
-        // Python 側でエラーが発生した場合はその内容を例外として投げる
-        if (doc.RootElement.TryGetProperty("error", out var errorProp))
-            throw new InvalidOperationException($"Python AI エラー: {errorProp.GetString()}");
+		// Python 側でエラーが発生した場合はその内容を例外として投げる
+		if (doc.RootElement.TryGetProperty("error", out var errorProp))
+			throw new InvalidOperationException($"Python AI エラー: {errorProp.GetString()}");
 
-        int row = doc.RootElement.GetProperty("row").GetInt32();
-        int col = doc.RootElement.GetProperty("col").GetInt32();
-        return new Position(row, col);
-    }
+		int row = doc.RootElement.GetProperty("row").GetInt32();
+		int col = doc.RootElement.GetProperty("col").GetInt32();
+		return new Position(row, col);
+	}
 
-    /// <summary>
-    /// 指定したタイムアウト時間内に StandardOutput から 1 行読み取る。
-    /// タイムアウトした場合は Python プロセスを強制終了して TimeoutException を投げる。
-    /// </summary>
-    /// <param name="timeoutMs">タイムアウトのミリ秒数</param>
-    /// <returns>読み取った行（プロセス終了でストリームが閉じた場合は null）</returns>
-    /// <exception cref="TimeoutException">指定時間内に応答がなかった場合</exception>
-    private string? ReadLineWithTimeout(int timeoutMs)
-    {
-        // ReadLineAsync を使い、専用スレッドを生成せずにタイムアウトを掛ける。
-        // この呼び出し自体は Task.Run 上のスレッドプールスレッドで実行されるため、Wait によるブロックは許容する。
-        var readTask = _process.StandardOutput.ReadLineAsync();
+	/// <summary>
+	/// 指定したタイムアウト時間内に StandardOutput から 1 行読み取る。
+	/// タイムアウトした場合は Python プロセスを強制終了して TimeoutException を投げる。
+	/// </summary>
+	/// <param name="timeoutMs">タイムアウトのミリ秒数</param>
+	/// <returns>読み取った行（プロセス終了でストリームが閉じた場合は null）</returns>
+	/// <exception cref="TimeoutException">指定時間内に応答がなかった場合</exception>
+	private string? ReadLineWithTimeout(int timeoutMs)
+	{
+		// ReadLineAsync を使い、専用スレッドを生成せずにタイムアウトを掛ける。
+		// この呼び出し自体は Task.Run 上のスレッドプールスレッドで実行されるため、Wait によるブロックは許容する。
+		var readTask = _process.StandardOutput.ReadLineAsync();
 
-        bool completed;
-        try
-        {
-            completed = readTask.Wait(timeoutMs);
-        }
-        catch (AggregateException ae)
-        {
-            // 読み取り中に発生した例外は元のスタックトレースを保持して再スローする
-            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ae.InnerException ?? ae).Throw();
-            throw; // 到達しない（コンパイラの確定代入を満たすため）
-        }
+		bool completed;
+		try
+		{
+			completed = readTask.Wait(timeoutMs);
+		}
+		catch (AggregateException ae)
+		{
+			// 読み取り中に発生した例外は元のスタックトレースを保持して再スローする
+			System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ae.InnerException ?? ae).Throw();
+			throw; // 到達しない（コンパイラの確定代入を満たすため）
+		}
 
-        if (!completed)
-        {
-            // タイムアウト: Python プロセスを強制終了する
-            try { if (!_process.HasExited) _process.Kill(); } catch { }
-            throw new TimeoutException(
-                $"Python AI が {timeoutMs / 1000} 秒以内に応答しませんでした。Hard 難易度では数秒かかる場合があります。");
-        }
+		if (!completed)
+		{
+			// タイムアウト: Python プロセスを強制終了する
+			try { if (!_process.HasExited) _process.Kill(); } catch { }
+			throw new TimeoutException(
+				$"Python AI が {timeoutMs / 1000} 秒以内に応答しませんでした。Hard 難易度では数秒かかる場合があります。");
+		}
 
-        return readTask.Result;
-    }
+		return readTask.Result;
+	}
 
-    /// <summary>
-    /// 非同期で蓄積した標準エラー出力をエラーメッセージに付加する。
-    /// BeginErrorReadLine により稼働中・終了後を問わず安全に内容を参照できる。
-    /// </summary>
-    /// <param name="baseMessage">基本エラーメッセージ</param>
-    /// <returns>stderr の内容を付加したエラーメッセージ文字列</returns>
-    private string ReadProcessError(string baseMessage)
-    {
-        string stderr;
-        lock (_stderrBuffer)
-            stderr = _stderrBuffer.ToString().Trim();
+	/// <summary>
+	/// 非同期で蓄積した標準エラー出力をエラーメッセージに付加する。
+	/// BeginErrorReadLine により稼働中・終了後を問わず安全に内容を参照できる。
+	/// </summary>
+	/// <param name="baseMessage">基本エラーメッセージ</param>
+	/// <returns>stderr の内容を付加したエラーメッセージ文字列</returns>
+	private string ReadProcessError(string baseMessage)
+	{
+		string stderr;
+		lock (_stderrBuffer)
+			stderr = _stderrBuffer.ToString().Trim();
 
-        return string.IsNullOrEmpty(stderr)
-            ? baseMessage
-            : $"{baseMessage}\n--- Python エラー ---\n{stderr}";
-    }
+		return string.IsNullOrEmpty(stderr)
+			? baseMessage
+			: $"{baseMessage}\n--- Python エラー ---\n{stderr}";
+	}
 
-    /// <summary>
-    /// Board の内部状態を JSON シリアライズ可能な int[8][8] 配列に変換する。
-    /// 値の対応: 0=Empty, 1=Black, 2=White（PlayerColor の int 値と一致）。
-    /// </summary>
-    /// <param name="board">変換元の盤面</param>
-    /// <returns>8×8 の int 配列（行優先）</returns>
-    internal static int[][] SerializeBoard(Board board)
-    {
-        var grid = new int[Board.BoardSize][];
-        for (int r = 0; r < Board.BoardSize; r++)
-        {
-            grid[r] = new int[Board.BoardSize];
-            for (int c = 0; c < Board.BoardSize; c++)
-                grid[r][c] = (int)board.GetPiece(r, c);
-        }
-        return grid;
-    }
+	/// <summary>
+	/// Board の内部状態を JSON シリアライズ可能な int[8][8] 配列に変換する。
+	/// 値の対応: 0=Empty, 1=Black, 2=White（PlayerColor の int 値と一致）。
+	/// </summary>
+	/// <param name="board">変換元の盤面</param>
+	/// <returns>8×8 の int 配列（行優先）</returns>
+	internal static int[][] SerializeBoard(Board board)
+	{
+		var grid = new int[Board.BoardSize][];
+		for (int r = 0; r < Board.BoardSize; r++)
+		{
+			grid[r] = new int[Board.BoardSize];
+			for (int c = 0; c < Board.BoardSize; c++)
+				grid[r][c] = (int)board.GetPiece(r, c);
+		}
+		return grid;
+	}
 
-    /// <summary>プロセス起動ごとに探索を行わないよう結果をキャッシュする。</summary>
-    private static readonly Lazy<string> _pythonExeCache = new(FindPythonExecutable);
+	/// <summary>プロセス起動ごとに探索を行わないよう結果をキャッシュする。</summary>
+	private static readonly Lazy<string> _pythonExeCache = new(FindPythonExecutable);
 
-    /// <summary>
-    /// OS に応じて Python 3.x 実行ファイル名を自動検出する。
-    /// Windows では py → python3 → python の順で試す。
-    /// 非 Windows では python3 → python の順で試す。
-    /// 結果は <see cref="_pythonExeCache"/> でプロセス生存期間中キャッシュされる。
-    /// </summary>
-    /// <returns>使用可能な Python 3.x 実行ファイル名</returns>
-    /// <exception cref="InvalidOperationException">Python 3.x が見つからない場合</exception>
-    private static string FindPythonExecutable()
-    {
-        // Windows では py（Windows Python Launcher）が最も確実
-        string[] candidates = OperatingSystem.IsWindows()
-            ? ["py", "python3", "python"]
-            : ["python3", "python"];
+	/// <summary>
+	/// OS に応じて Python 3.x 実行ファイル名を自動検出する。
+	/// Windows では py → python3 → python の順で試す。
+	/// 非 Windows では python3 → python の順で試す。
+	/// 結果は <see cref="_pythonExeCache"/> でプロセス生存期間中キャッシュされる。
+	/// </summary>
+	/// <returns>使用可能な Python 3.x 実行ファイル名</returns>
+	/// <exception cref="InvalidOperationException">Python 3.x が見つからない場合</exception>
+	private static string FindPythonExecutable()
+	{
+		// Windows では py（Windows Python Launcher）が最も確実
+		string[] candidates = OperatingSystem.IsWindows()
+			? ["py", "python3", "python"]
+			: ["python3", "python"];
 
-        foreach (var exe in candidates)
-        {
-            try
-            {
-                using var probe = Process.Start(new ProcessStartInfo
-                {
-                    FileName = exe,
-                    Arguments = "--version",
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError  = true,
-                    CreateNoWindow = true
-                });
+		foreach (var exe in candidates)
+		{
+			try
+			{
+				using var probe = Process.Start(new ProcessStartInfo
+				{
+					FileName = exe,
+					Arguments = "--version",
+					UseShellExecute = false,
+					RedirectStandardOutput = true,
+					RedirectStandardError = true,
+					CreateNoWindow = true
+				});
 
-                if (probe == null) continue;
+				if (probe == null) continue;
 
-                // stdout と stderr の両方に出力されることがある（Python 2 は stderr）
-                string stdout = probe.StandardOutput.ReadToEnd();
-                string stderr = probe.StandardError.ReadToEnd();
-                bool exited = probe.WaitForExit(PythonProbeTimeoutMs);
+				// stdout と stderr の両方に出力されることがある（Python 2 は stderr）
+				string stdout = probe.StandardOutput.ReadToEnd();
+				string stderr = probe.StandardError.ReadToEnd();
+				bool exited = probe.WaitForExit(PythonProbeTimeoutMs);
 
-                if (!exited)
-                {
-                    try { probe.Kill(); } catch { }
-                    continue;
-                }
+				if (!exited)
+				{
+					try { probe.Kill(); } catch { }
+					continue;
+				}
 
-                // "Python 3.x.y" のような出力が得られれば採用する
-                string versionOutput = string.IsNullOrWhiteSpace(stdout) ? stderr : stdout;
-                if (ParsePythonMajorVersion(versionOutput.Trim()) == 3)
-                    return exe;
-            }
-            catch
-            {
-                // 実行ファイルが存在しない場合など → 次の候補へ
-            }
-        }
-        throw new InvalidOperationException(
-            "Python 3.8 以上が見つかりません。インストールされているか確認してください。");
-    }
+				// "Python 3.x.y" のような出力が得られれば採用する
+				string versionOutput = string.IsNullOrWhiteSpace(stdout) ? stderr : stdout;
+				if (ParsePythonMajorVersion(versionOutput.Trim()) == 3)
+					return exe;
+			}
+			catch
+			{
+				// 実行ファイルが存在しない場合など → 次の候補へ
+			}
+		}
+		throw new InvalidOperationException(
+			"Python 3.8 以上が見つかりません。インストールされているか確認してください。");
+	}
 
-    /// <summary>
-    /// "Python X.Y.Z" 形式の文字列からメジャーバージョン番号を取り出す。
-    /// 解析できない場合は -1 を返す。
-    /// </summary>
-    internal static int ParsePythonMajorVersion(string output)
-    {
-        // 期待フォーマット: "Python 3.11.2" / "Python 2.7.18"
-        if (!output.StartsWith("Python ", StringComparison.OrdinalIgnoreCase))
-            return -1;
+	/// <summary>
+	/// "Python X.Y.Z" 形式の文字列からメジャーバージョン番号を取り出す。
+	/// 解析できない場合は -1 を返す。
+	/// </summary>
+	internal static int ParsePythonMajorVersion(string output)
+	{
+		// 期待フォーマット: "Python 3.11.2" / "Python 2.7.18"
+		if (!output.StartsWith("Python ", StringComparison.OrdinalIgnoreCase))
+			return -1;
 
-        var versionPart = output["Python ".Length..].Trim();
-        var dot = versionPart.IndexOf('.');
-        var majorStr = dot >= 0 ? versionPart[..dot] : versionPart;
+		var versionPart = output["Python ".Length..].Trim();
+		var dot = versionPart.IndexOf('.');
+		var majorStr = dot >= 0 ? versionPart[..dot] : versionPart;
 
-        return int.TryParse(majorStr, out int major) ? major : -1;
-    }
+		return int.TryParse(majorStr, out int major) ? major : -1;
+	}
 
-    /// <summary>
-    /// Python プロセスを終了し、関連リソースを解放する。
-    /// 二重呼び出しは安全に無視する。
-    /// </summary>
-    public void Dispose()
-    {
-        if (_disposed) return;
-        _disposed = true;
+	/// <summary>
+	/// Python プロセスを終了し、関連リソースを解放する。
+	/// 二重呼び出しは安全に無視する。
+	/// </summary>
+	public void Dispose()
+	{
+		if (_disposed) return;
+		_disposed = true;
 
-        // stdin を閉じることで Python の for line in sys.stdin ループを終了させる
-        try { _process.StandardInput.Close(); } catch { }
+		// stdin を閉じることで Python の for line in sys.stdin ループを終了させる
+		try { _process.StandardInput.Close(); } catch { }
 
-        // プロセスがまだ生きている場合は強制終了する
-        try { if (!_process.HasExited) _process.Kill(); } catch { }
+		// プロセスがまだ生きている場合は強制終了する
+		try { if (!_process.HasExited) _process.Kill(); } catch { }
 
-        _process.Dispose();
-    }
+		_process.Dispose();
+	}
 }

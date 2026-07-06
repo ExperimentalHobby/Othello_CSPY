@@ -5,8 +5,8 @@ namespace Technopro.Othello.Core.Models;
 /// </summary>
 public enum GameMode
 {
-    /// <summary>人間 vs CPU（デフォルト）</summary>
-    HumanVsCpu,
-    /// <summary>CPU vs CPU（観戦モード）</summary>
-    CpuVsCpu,
+	/// <summary>人間 vs CPU（デフォルト）</summary>
+	HumanVsCpu,
+	/// <summary>CPU vs CPU（観戦モード）</summary>
+	CpuVsCpu,
 }

@@ -30,21 +30,26 @@ const EMPTY: i8 = 0;
 
 /// 探索する 8 方向のベクトル (dRow, dCol)。board.py の DIRS と同順。
 const DIRS: [(i32, i32); 8] = [
-    (-1, -1), (-1, 0), (-1, 1),
-    (0, -1),           (0, 1),
-    (1, -1),  (1, 0),  (1, 1),
+    (-1, -1),
+    (-1, 0),
+    (-1, 1),
+    (0, -1),
+    (0, 1),
+    (1, -1),
+    (1, 0),
+    (1, 1),
 ];
 
 /// 盤面の位置重みテーブル（evaluator.py の WEIGHTS と同一）。
 const WEIGHTS: [[i32; SIZE]; SIZE] = [
-    [100, -20, 10,  5,  5, 10, -20, 100],
+    [100, -20, 10, 5, 5, 10, -20, 100],
     [-20, -50, -2, -2, -2, -2, -50, -20],
-    [ 10,  -2,  5,  1,  1,  5,  -2,  10],
-    [  5,  -2,  1,  2,  2,  1,  -2,   5],
-    [  5,  -2,  1,  2,  2,  1,  -2,   5],
-    [ 10,  -2,  5,  1,  1,  5,  -2,  10],
+    [10, -2, 5, 1, 1, 5, -2, 10],
+    [5, -2, 1, 2, 2, 1, -2, 5],
+    [5, -2, 1, 2, 2, 1, -2, 5],
+    [10, -2, 5, 1, 1, 5, -2, 10],
     [-20, -50, -2, -2, -2, -2, -50, -20],
-    [100, -20, 10,  5,  5, 10, -20, 100],
+    [100, -20, 10, 5, 5, 10, -20, 100],
 ];
 
 /// アルファベータ探索の境界に用いる擬似無限大（Python の float('inf') 相当）。
@@ -137,7 +142,10 @@ fn collect_flips(board: &Board, r: i32, c: i32, player: i8, out: &mut Vec<usize>
         let mut nc = c + dc;
 
         // 相手色の連続を末端へ向かって走査する
-        while nr >= 0 && nr < SIZE as i32 && nc >= 0 && nc < SIZE as i32
+        while nr >= 0
+            && nr < SIZE as i32
+            && nc >= 0
+            && nc < SIZE as i32
             && board[idx(nr as usize, nc as usize)] == opp
         {
             line.push(idx(nr as usize, nc as usize));
@@ -147,7 +155,10 @@ fn collect_flips(board: &Board, r: i32, c: i32, player: i8, out: &mut Vec<usize>
 
         // 連続した相手石の先に自分の石があれば反転確定
         if !line.is_empty()
-            && nr >= 0 && nr < SIZE as i32 && nc >= 0 && nc < SIZE as i32
+            && nr >= 0
+            && nr < SIZE as i32
+            && nc >= 0
+            && nc < SIZE as i32
             && board[idx(nr as usize, nc as usize)] == player
         {
             out.extend_from_slice(&line);
@@ -165,7 +176,10 @@ fn has_any_flip(board: &Board, r: i32, c: i32, player: i8) -> bool {
         let mut nc = c + dc;
         let mut seen_opp = false;
 
-        while nr >= 0 && nr < SIZE as i32 && nc >= 0 && nc < SIZE as i32
+        while nr >= 0
+            && nr < SIZE as i32
+            && nc >= 0
+            && nc < SIZE as i32
             && board[idx(nr as usize, nc as usize)] == opp
         {
             seen_opp = true;
@@ -174,7 +188,10 @@ fn has_any_flip(board: &Board, r: i32, c: i32, player: i8) -> bool {
         }
 
         if seen_opp
-            && nr >= 0 && nr < SIZE as i32 && nc >= 0 && nc < SIZE as i32
+            && nr >= 0
+            && nr < SIZE as i32
+            && nc >= 0
+            && nc < SIZE as i32
             && board[idx(nr as usize, nc as usize)] == player
         {
             return true;
@@ -308,9 +325,10 @@ fn count_stable(board: &Board, player: i8) -> i32 {
                 if stable[i] || board[i] != player {
                     continue;
                 }
-                if axes.iter().all(|&(dr, dc)| {
-                    is_axis_stable(board, &stable, r as i32, c as i32, dr, dc)
-                }) {
+                if axes
+                    .iter()
+                    .all(|&(dr, dc)| is_axis_stable(board, &stable, r as i32, c as i32, dr, dc))
+                {
                     stable[i] = true;
                     changed = true;
                 }
@@ -402,10 +420,10 @@ fn evaluate_final(board: &Board, player: i8, depth: i32) -> i32 {
     let mut my_count = 0i32;
     let mut opp_count = 0i32;
 
-    for i in 0..(SIZE * SIZE) {
-        if board[i] == player {
+    for &cell in board.iter() {
+        if cell == player {
             my_count += 1;
-        } else if board[i] == opp {
+        } else if cell == opp {
             opp_count += 1;
         }
     }
@@ -456,7 +474,11 @@ fn alpha_beta(
         return value;
     }
 
-    let current = if is_maximizing { ai_player } else { opponent(ai_player) };
+    let current = if is_maximizing {
+        ai_player
+    } else {
+        opponent(ai_player)
+    };
     let mut moves = get_valid_moves(board, current);
 
     if moves.is_empty() {
@@ -484,7 +506,15 @@ fn alpha_beta(
         let mut value = NEG_INF;
         for (r, c) in moves {
             let next = make_move(board, r, c, current);
-            value = value.max(alpha_beta(&next, depth - 1, alpha, beta, false, ai_player, tt));
+            value = value.max(alpha_beta(
+                &next,
+                depth - 1,
+                alpha,
+                beta,
+                false,
+                ai_player,
+                tt,
+            ));
             alpha = alpha.max(value);
             if alpha >= beta {
                 break; // ベータカット
@@ -495,7 +525,15 @@ fn alpha_beta(
         let mut value = INF;
         for (r, c) in moves {
             let next = make_move(board, r, c, current);
-            value = value.min(alpha_beta(&next, depth - 1, alpha, beta, true, ai_player, tt));
+            value = value.min(alpha_beta(
+                &next,
+                depth - 1,
+                alpha,
+                beta,
+                true,
+                ai_player,
+                tt,
+            ));
             beta = beta.min(value);
             if alpha >= beta {
                 break; // アルファカット
@@ -555,6 +593,12 @@ fn best_move(board: &Board, player: i8, depth: i32) -> Option<(usize, usize)> {
 /// タイムアウト検出用の Result 型エイリアス（Err(()) = 時間切れ）。
 type TimedResult = Result<i32, ()>;
 
+/// alpha_beta_timed の再帰全体で不変な探索条件（引数過多を避けるためまとめる）。
+struct TimedSearchContext {
+    ai_player: i8,
+    deadline: Instant,
+}
+
 /// 時間制限付きアルファベータ探索（alpha_beta と同一ロジック、deadline 超過で Err(()) を返す）。
 /// tt の意味論は alpha_beta と同一。
 fn alpha_beta_timed(
@@ -563,11 +607,10 @@ fn alpha_beta_timed(
     mut alpha: i32,
     mut beta: i32,
     is_maximizing: bool,
-    ai_player: i8,
-    deadline: Instant,
+    ctx: &TimedSearchContext,
     tt: &mut TT,
 ) -> TimedResult {
-    if Instant::now() >= deadline {
+    if Instant::now() >= ctx.deadline {
         return Err(());
     }
 
@@ -586,21 +629,25 @@ fn alpha_beta_timed(
     }
 
     if depth == 0 {
-        let value = evaluate(board, ai_player);
+        let value = evaluate(board, ctx.ai_player);
         tt.insert(key, (value, depth, NodeType::Exact));
         return Ok(value);
     }
 
-    let current = if is_maximizing { ai_player } else { opponent(ai_player) };
+    let current = if is_maximizing {
+        ctx.ai_player
+    } else {
+        opponent(ctx.ai_player)
+    };
     let mut moves = get_valid_moves(board, current);
 
     if moves.is_empty() {
         if !has_any_valid_move(board, opponent(current)) {
-            let value = evaluate_final(board, ai_player, depth);
+            let value = evaluate_final(board, ctx.ai_player, depth);
             tt.insert(key, (value, depth, NodeType::Exact));
             return Ok(value);
         }
-        let value = alpha_beta_timed(board, depth - 1, alpha, beta, !is_maximizing, ai_player, deadline, tt)?;
+        let value = alpha_beta_timed(board, depth - 1, alpha, beta, !is_maximizing, ctx, tt)?;
         tt.insert(key, (value, depth, NodeType::Exact));
         return Ok(value);
     }
@@ -613,7 +660,15 @@ fn alpha_beta_timed(
         let mut value = NEG_INF;
         for (r, c) in moves {
             let next = make_move(board, r, c, current);
-            value = value.max(alpha_beta_timed(&next, depth - 1, alpha, beta, false, ai_player, deadline, tt)?);
+            value = value.max(alpha_beta_timed(
+                &next,
+                depth - 1,
+                alpha,
+                beta,
+                false,
+                ctx,
+                tt,
+            )?);
             alpha = alpha.max(value);
             if alpha >= beta {
                 break;
@@ -624,7 +679,15 @@ fn alpha_beta_timed(
         let mut value = INF;
         for (r, c) in moves {
             let next = make_move(board, r, c, current);
-            value = value.min(alpha_beta_timed(&next, depth - 1, alpha, beta, true, ai_player, deadline, tt)?);
+            value = value.min(alpha_beta_timed(
+                &next,
+                depth - 1,
+                alpha,
+                beta,
+                true,
+                ctx,
+                tt,
+            )?);
             beta = beta.min(value);
             if alpha >= beta {
                 break;
@@ -646,7 +709,12 @@ fn alpha_beta_timed(
 
 /// 反復深化探索（Iterative Deepening）で最善手を返す（get_best_move_timed の内部実装）。
 /// 深さ 1 から max_depth まで繰り返し探索し、time_ms 以内に完了した最深の結果を返す。
-fn best_move_timed(board: &Board, player: i8, max_depth: i32, time_ms: u64) -> Option<(usize, usize)> {
+fn best_move_timed(
+    board: &Board,
+    player: i8,
+    max_depth: i32,
+    time_ms: u64,
+) -> Option<(usize, usize)> {
     let mut moves = get_valid_moves(board, player);
     if moves.is_empty() {
         return None;
@@ -654,6 +722,11 @@ fn best_move_timed(board: &Board, player: i8, max_depth: i32, time_ms: u64) -> O
 
     let deadline = Instant::now() + Duration::from_millis(time_ms);
     moves.sort_by(|a, b| WEIGHTS[b.0][b.1].cmp(&WEIGHTS[a.0][a.1]));
+
+    let ctx = TimedSearchContext {
+        ai_player: player,
+        deadline,
+    };
 
     // 最低限の初期値（深さ 1 の完了で必ず上書きされる）
     let mut best = moves[0];
@@ -663,17 +736,17 @@ fn best_move_timed(board: &Board, player: i8, max_depth: i32, time_ms: u64) -> O
             break;
         }
 
-        let mut current_best       = moves[0];
+        let mut current_best = moves[0];
         let mut current_best_score = NEG_INF;
-        let mut alpha              = NEG_INF;
-        let beta                   = INF;
+        let mut alpha = NEG_INF;
+        let beta = INF;
         // 深さごとに TT を作り直す（C# 版 GetBestMoveIterativeDeepening と同じ。
         // 深さをまたいだ TT 再利用は行わない＝安全側）。
         let mut tt: TT = HashMap::new();
 
         for &(r, c) in &moves {
             let next = make_move(board, r, c, player);
-            match alpha_beta_timed(&next, depth - 1, alpha, beta, false, player, deadline, &mut tt) {
+            match alpha_beta_timed(&next, depth - 1, alpha, beta, false, &ctx, &mut tt) {
                 Ok(score) => {
                     if score > current_best_score {
                         current_best_score = score;
