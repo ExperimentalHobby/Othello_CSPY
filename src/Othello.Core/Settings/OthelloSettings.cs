@@ -6,9 +6,9 @@ namespace Technopro.Othello.Core.Settings;
 /// </summary>
 public class OthelloSettings
 {
-    /// <summary>制限時間のデフォルト値（秒）。</summary>
-    public const int DefaultTimeLimitSeconds = 30;
+	/// <summary>制限時間のデフォルト値（秒）。</summary>
+	public const int DefaultTimeLimitSeconds = 30;
 
-    /// <summary>人間プレイヤーの 1 手あたりの制限時間（秒）。</summary>
-    public int TimeLimitSeconds { get; set; } = DefaultTimeLimitSeconds;
+	/// <summary>人間プレイヤーの 1 手あたりの制限時間（秒）。</summary>
+	public int TimeLimitSeconds { get; set; } = DefaultTimeLimitSeconds;
 }

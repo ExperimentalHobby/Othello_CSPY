@@ -172,7 +172,6 @@ jobs:
           bandit -r ${{ env.PYTHON_DIR }} -x "*/test_*.py"
 
       - name: "C#: format check (Core / Console / Tests)"
-        continue-on-error: true
         run: |
           dotnet format src/Othello.Core/Othello.Core.csproj --verify-no-changes
           dotnet format src/Othello.Console/Othello.Console.csproj --verify-no-changes
