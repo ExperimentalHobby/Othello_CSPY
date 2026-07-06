@@ -36,6 +36,9 @@ public class AlphaBetaAI : IAIStrategy
 
 	private static ulong[,,] InitZobristTable()
 	{
+		// Zobrist ハッシュ用テーブル生成の決定論的乱数（Python/Rust 版と同じシード42での再現性のため）。
+		// 暗号用途ではないため SCS0005（弱い乱数生成器）を明示的に許容する。
+#pragma warning disable SCS0005
 		var rng = new Random(42);
 		var table = new ulong[Board.BoardSize, Board.BoardSize, 3];
 		var bytes = new byte[8];
@@ -46,6 +49,7 @@ public class AlphaBetaAI : IAIStrategy
 					rng.NextBytes(bytes);
 					table[r, c, colorIdx] = BitConverter.ToUInt64(bytes);
 				}
+#pragma warning restore SCS0005
 		return table;
 	}
 
