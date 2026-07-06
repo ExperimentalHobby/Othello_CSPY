@@ -24,6 +24,7 @@ on:
 env:
   DOTNET_VERSION: "10.0.x"
   RUST_MANIFEST: src/Othello.AI/Rust/Cargo.toml
+  RUST_LOCKFILE: src/Othello.AI/Rust/Cargo.lock
   PYTHON_DIR: src/Othello.AI/Python
 
 jobs:
@@ -156,7 +157,7 @@ jobs:
         continue-on-error: true
         run: |
           cargo install cargo-audit
-          cargo audit --file ${{ env.RUST_MANIFEST }}
+          cargo audit --file ${{ env.RUST_LOCKFILE }}
 
       - name: "Python: Ruff"
         continue-on-error: true
@@ -212,7 +213,7 @@ jobs:
       - name: "Rust: cargo audit"
         run: |
           cargo install cargo-audit
-          cargo audit --file ${{ env.RUST_MANIFEST }}
+          cargo audit --file ${{ env.RUST_LOCKFILE }}
 
       - name: Gitleaks
         run: |
