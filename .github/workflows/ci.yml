@@ -158,7 +158,6 @@ jobs:
           cargo audit --file ${{ env.RUST_LOCKFILE }}
 
       - name: "Python: Ruff"
-        continue-on-error: true
         run: |
           pip install ruff
           ruff check ${{ env.PYTHON_DIR }}
