@@ -13,7 +13,7 @@ from board import (
     EMPTY, BLACK, WHITE, BOARD_SIZE,
     opponent, get_flips, has_any_flip, get_valid_moves, count_valid_moves, make_move,
 )
-from evaluator import evaluate, evaluate_final, count_stable, count_frontier, WEIGHTS
+from evaluator import evaluate, evaluate_final, count_stable, count_frontier
 from alpha_beta import AlphaBetaAI
 import ai as ai_module
 import alpha_beta_py
