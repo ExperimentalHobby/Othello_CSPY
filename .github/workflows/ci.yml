@@ -150,7 +150,6 @@ jobs:
         run: cargo clippy --manifest-path ${{ env.RUST_MANIFEST }} --no-default-features
 
       - name: "Rust: fmt check"
-        continue-on-error: true
         run: cargo fmt --manifest-path ${{ env.RUST_MANIFEST }} --check
 
       - name: "Rust: cargo audit"
