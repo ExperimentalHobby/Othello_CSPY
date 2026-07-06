@@ -152,7 +152,6 @@ jobs:
         run: cargo fmt --manifest-path ${{ env.RUST_MANIFEST }} --check
 
       - name: "Rust: cargo audit"
-        continue-on-error: true
         run: |
           cargo install cargo-audit
           cargo audit --file ${{ env.RUST_LOCKFILE }}
