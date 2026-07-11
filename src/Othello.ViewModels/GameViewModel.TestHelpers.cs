@@ -1,4 +1,5 @@
 using Technopro.Othello.Core.Game;
+using Technopro.Othello.Core.Kifu;
 using Technopro.Othello.Core.Models;
 using Technopro.Othello.Core.Rules;
 
@@ -10,6 +11,11 @@ namespace Technopro.Othello.ViewModels;
 /// </summary>
 public partial class GameViewModel
 {
+	/// <summary>
+	/// 現在保持している棋譜収集用リストのスナップショット（テスト検証用）。
+	/// </summary>
+	internal IReadOnlyList<KifuMove> KifuMovesForTest => _kifuMoves;
+
 	/// <summary>
 	/// 任意の盤面・手番状態をエンジンに直接ロードする。
 	/// 両者に有効手がない終局局面をセットすると EndGame を誘発できる。

@@ -65,6 +65,9 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 
 	// --- 棋譜収集 ---
 	private readonly List<KifuMove> _kifuMoves = new();
+	// RecordMove() 呼び出しごとに _kifuMoves へ追加したエントリ数（1 or 2）。
+	// _engine.Undo() 1 回につき末尾から 1 件 pop して同数だけ _kifuMoves を巻き戻す（OnUndo 参照）。
+	private readonly List<int> _kifuMoveEntryCounts = new();
 	private KifuRecord? _lastKifuRecord;
 
 	// --- スコア推移 ---
@@ -288,6 +291,7 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 		IsGameInProgress = false;
 		_engine.Initialize();
 		_kifuMoves.Clear();
+		_kifuMoveEntryCounts.Clear();
 		LastKifuRecord = null;
 		ScoreHistory.Clear();
 		RecordCurrentScore();
@@ -567,6 +571,7 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 
 		_engine.Initialize();
 		_kifuMoves.Clear();
+		_kifuMoveEntryCounts.Clear();
 		LastKifuRecord = null;
 		ScoreHistory.Clear();
 		RecordCurrentScore();
@@ -827,6 +832,14 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 		// 初期エントリ (index 0) を残したまま末尾から削除する
 		for (int i = 0; i < undoCount && ScoreHistory.Count > 1; i++)
 			ScoreHistory.RemoveAt(ScoreHistory.Count - 1);
+
+		// _engine.Undo() 1 回 = RecordMove() 1 回分なので、同じ回数だけ _kifuMoves も巻き戻す
+		for (int i = 0; i < undoCount && _kifuMoveEntryCounts.Count > 0; i++)
+		{
+			int removeCount = _kifuMoveEntryCounts[^1];
+			_kifuMoveEntryCounts.RemoveAt(_kifuMoveEntryCounts.Count - 1);
+			_kifuMoves.RemoveRange(_kifuMoves.Count - removeCount, removeCount);
+		}
 
 		OnPropertyChanged(nameof(IsSettingsEditable));
 		OnPropertyChanged(nameof(IsTimeLimitEditable));
@@ -1095,9 +1108,11 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 	/// </summary>
 	private void RecordMove(PlayerColor player, Position position)
 	{
+		int before = _kifuMoves.Count;
 		_kifuMoves.Add(new KifuMove(player, position.Row, position.Column));
 		if (_engine.LastPassedPlayer is { } passed)
 			_kifuMoves.Add(new KifuMove(passed, IsPass: true));
+		_kifuMoveEntryCounts.Add(_kifuMoves.Count - before);
 	}
 
 	private void RecordCurrentScore()
