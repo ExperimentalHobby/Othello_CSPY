@@ -1,6 +1,7 @@
 namespace Technopro.Othello.Tests.ViewModels;
 
 using Technopro.Othello.Core.AI;
+using Technopro.Othello.Core.Kifu;
 using Technopro.Othello.Core.Models;
 using Technopro.Othello.Core.Rules;
 using Technopro.Othello.ViewModels;
@@ -241,6 +242,117 @@ public class GameViewModelTests
 
 		Assert.Equal(2, vm.BlackScore);
 		Assert.Equal(2, vm.WhiteScore);
+	}
+
+	// ========== #55: Undo 時の棋譜(_kifuMoves)巻き戻し ==========
+
+	/// <summary>
+	/// 人間が 1 手打った後に Undo すると、棋譜収集用リストからもその手が取り除かれることを確認する。
+	/// パス条件: Undo 後に KifuMovesForTest が空であること。
+	/// </summary>
+	[Fact]
+	public void Undo_AfterHumanMove_RemovesKifuMoveEntry()
+	{
+		using var entered = new ManualResetEventSlim(false);
+		using var vm = new GameViewModel(d => new BlockingFakeAI(d, entered));
+
+		vm.SquareClickedCommand.Execute(new Position(2, 3));
+		Assert.True(entered.Wait(Timeout));
+
+		vm.UndoCommand.Execute(null);
+
+		Assert.Empty(vm.KifuMovesForTest);
+	}
+
+	/// <summary>
+	/// AI が応答着手した後に Undo すると、人間・AI 両方の手が棋譜収集用リストから取り除かれることを確認する。
+	/// パス条件: Undo（2 回分）後に KifuMovesForTest が空であること。
+	/// </summary>
+	[Fact]
+	public void Undo_AfterAiResponds_RemovesBothKifuMoveEntries()
+	{
+		using var aiMoved = new ManualResetEventSlim(false);
+		using var vm = new GameViewModel(d => new FakeAI(d, () => aiMoved.Set()));
+
+		vm.SquareClickedCommand.Execute(new Position(2, 3));
+		Assert.True(aiMoved.Wait(Timeout));
+
+		Thread.Sleep(500);
+
+		vm.UndoCommand.Execute(null);
+
+		Assert.Empty(vm.KifuMovesForTest);
+	}
+
+	/// <summary>
+	/// 直後に相手が強制パスする局面で人間が着手し Undo すると、
+	/// 本手とそれに付随するパス記録がまとめて正しく巻き戻ることを確認する（境界値: undoCount=1 で 2 件巻き戻し）。
+	/// パス条件: Undo 後に KifuMovesForTest が空であること。
+	/// </summary>
+	[Fact]
+	public void Undo_AcrossForcedPass_RemovesMoveAndPassEntryTogether()
+	{
+		// 全マス黒で埋め、(0,0)/(7,7) を空き、(0,1)/(7,6) を白にする。
+		// 白は挟める石がなく有効手なし。黒が (0,0) に着手すると白は強制パスし、黒の手番のまま残る。
+		var board = new Board();
+		for (int r = 0; r < 8; r++)
+			for (int c = 0; c < 8; c++)
+				board.SetPiece(r, c, PlayerColor.Black);
+		board.SetPiece(0, 0, PlayerColor.Empty);
+		board.SetPiece(0, 1, PlayerColor.White);
+		board.SetPiece(7, 7, PlayerColor.Empty);
+		board.SetPiece(7, 6, PlayerColor.White);
+
+		using var vm = new GameViewModel(d => new FakeAI(d));
+		vm.LoadStateForTest(board, PlayerColor.Black); // 人間=黒（既定）
+
+		vm.SquareClickedCommand.Execute(new Position(0, 0)); // 白は強制パス、黒の手番のまま
+		Assert.Equal(2, vm.KifuMovesForTest.Count); // 本手 + パス記録
+
+		vm.UndoCommand.Execute(null);
+
+		Assert.Empty(vm.KifuMovesForTest);
+	}
+
+	/// <summary>
+	/// Undo を挟んだ複数手の対局後、KifuMovesForTest を KifuPlayer に渡して再生すると
+	/// 実際の盤面（EngineCurrentBoard）と完全一致することを確認する（結合テスト）。
+	/// パス条件: KifuPlayer.GoToEnd() が例外を投げず、全 64 マスが実際の盤面と一致すること。
+	/// </summary>
+	[Fact]
+	public void KifuPlayer_ReplayAfterUndo_MatchesActualBoard()
+	{
+		using var aiMoved = new ManualResetEventSlim(false);
+		using var vm = new GameViewModel(d => new FakeAI(d, () => aiMoved.Set()));
+
+		void PlayHumanMoveAndWaitForAi()
+		{
+			aiMoved.Reset();
+			var move = vm.BoardSquares.First(sq => sq.IsValidMove).Position;
+			vm.SquareClickedCommand.Execute(move);
+			Assert.True(aiMoved.Wait(Timeout));
+			Thread.Sleep(300); // ProcessAIMoveAsync 内の MakeMove 完了を待つ
+		}
+
+		PlayHumanMoveAndWaitForAi(); // 1 手目（人間 + AI）
+		PlayHumanMoveAndWaitForAi(); // 2 手目（人間 + AI）
+
+		vm.UndoCommand.Execute(null); // 2 手目をまとめて取り消す
+
+		PlayHumanMoveAndWaitForAi(); // 打ち直し（人間 + AI）
+
+		var actualBoard = vm.EngineCurrentBoard;
+		var record = new KifuRecord(1, DateTimeOffset.Now,
+			PlayerColor.Black, DifficultyLevel.Easy,
+			Result: null, vm.KifuMovesForTest.ToList(), new KifuFinalScore(0, 0));
+		var player = new KifuPlayer(record);
+
+		var ex = Record.Exception(() => player.GoToEnd());
+		Assert.Null(ex);
+
+		for (int r = 0; r < 8; r++)
+			for (int c = 0; c < 8; c++)
+				Assert.Equal(actualBoard.GetPiece(r, c), player.CurrentBoard.GetPiece(r, c));
 	}
 
 	// ========== #4: UndoCommand.CanExecute ==========
