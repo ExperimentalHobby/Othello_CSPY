@@ -1071,6 +1071,7 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 
 	private void EndGame()
 	{
+		StopTurnTimer();
 		IsGameInProgress = false;
 
 		(_ai as IDisposable)?.Dispose();
@@ -1149,6 +1150,10 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 		_cts?.Cancel();
 		_cts?.Dispose();
 		_cts = null;
+
+		_timerCts?.Cancel();
+		_timerCts?.Dispose();
+		_timerCts = null;
 
 		(_ai as IDisposable)?.Dispose();
 		_ai = null;

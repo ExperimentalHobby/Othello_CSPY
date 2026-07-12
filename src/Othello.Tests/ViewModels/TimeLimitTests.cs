@@ -167,6 +167,57 @@ public class TimeLimitTests
 		Assert.Equal(20, vm.RemainingSeconds);
 	}
 
+	// ===== #57: 終局・Dispose 時のタイマー停止 =====
+
+	/// <summary>
+	/// 終局時（両者に有効手がない盤面）にタイマーが確実に停止することを確認する。
+	/// LoadStateForTest() の RefreshBoardDisplay()（タイマー起動）→ 終局判定 → EndGame() という
+	/// 実際のバグ経路（人間の最終手直後は CurrentPlayer が人間のままタイマーが再起動してしまう）を再現する。
+	/// パス条件: EndGame 後に IsGameInProgress=false、RemainingSeconds=0、IsTimerRunning=false であること。
+	/// </summary>
+	[Fact]
+	public void EndGame_WithTimeLimitEnabled_StopsTimer()
+	{
+		var vm = MakeVm(DifficultyLevel.Medium);
+		vm.IsTimeLimitEnabled = true;
+		vm.TimeLimitSeconds = 30;
+
+		// 全マスを黒で埋め、両者に有効手がない終局盤面を用意する
+		var board = new Board();
+		for (int r = 0; r < 8; r++)
+			for (int c = 0; c < 8; c++)
+				board.SetPiece(r, c, PlayerColor.Black);
+
+		vm.LoadStateForTest(board, PlayerColor.Black);
+
+		Assert.False(vm.IsGameInProgress);
+		Assert.Equal(0, vm.RemainingSeconds);
+		Assert.False(vm.IsTimerRunning);
+	}
+
+	/// <summary>
+	/// Dispose() 後にタイマーのバックグラウンドタスク（RunTurnTimerAsync）が停止し、
+	/// RemainingSeconds が変化し続けないことを確認する。
+	/// パス条件: Dispose 後 1.5 秒待っても RemainingSeconds が変化しないこと。
+	/// </summary>
+	[Fact]
+	public async Task Dispose_StopsTurnTimerBackgroundTask()
+	{
+		var vm = MakeVm(DifficultyLevel.Medium);
+		vm.IsTimeLimitEnabled = true;
+		vm.TimeLimitSeconds = 30;
+		vm.StartNewGame(); // 黒（人間）が先手 → タイマー起動
+
+		Assert.True(vm.IsTimerRunning); // 前提条件確認
+
+		int remainingAtDispose = vm.RemainingSeconds;
+		vm.Dispose();
+
+		await Task.Delay(1500); // 1 秒ティックを跨いで待つ
+
+		Assert.Equal(remainingAtDispose, vm.RemainingSeconds);
+	}
+
 	// ===== SaveTimeLimitSettings の永続化結合テスト =====
 
 	/// <summary>
