@@ -116,4 +116,35 @@ public class GameViewModelKifuTests
 		vm.NewGameCommand.Execute(null);
 		Assert.Null(vm.LastKifuRecord);
 	}
+
+	/// <summary>
+	/// 終局後に取得した LastKifuRecord.Moves の参照を保持したまま新規ゲームを開始しても、
+	/// 手数が変化しないことを確認する（Issue #75 回帰）。
+	/// 修正前は AsReadOnly() が _kifuMoves のライブビューを返すため、新規ゲームの
+	/// _kifuMoves.Clear() で以前の記録も同時に空になっていた。
+	/// パス条件: ApplyNewGameState() の _kifuMoves.Clear() 実行後（IsGameInProgress が
+	/// 再び true になった時点）でも、事前に保持した Moves.Count が変化しないこと。
+	/// </summary>
+	[Fact]
+	public async Task LastKifuRecord_Moves_NotAffectedBySubsequentNewGame()
+	{
+		var vm = await PlayUntilGameOverAsync();
+		var kifu = vm.LastKifuRecord;
+		Assert.NotNull(kifu);
+
+		int countBefore = kifu.Moves.Count;
+		Assert.True(countBefore > 0, "棋譜に着手が記録されていない");
+		Assert.False(vm.IsGameInProgress); // 終局後は false
+
+		vm.NewGameCommand.Execute(null);
+
+		// ApplyNewGameState() 内で _kifuMoves.Clear() → IsGameInProgress = true の順に
+		// 実行されるため、true に戻るまで待てば Clear() 実行後であることが保証できる
+		var deadline = DateTime.UtcNow.AddSeconds(10);
+		while (!vm.IsGameInProgress && DateTime.UtcNow < deadline)
+			await Task.Delay(10);
+
+		Assert.True(vm.IsGameInProgress);
+		Assert.Equal(countBefore, kifu.Moves.Count);
+	}
 }
