@@ -204,6 +204,28 @@ public class AlphaBetaAITests
 		Assert.Contains(move, validMoves);
 	}
 
+	// ---- deadline 途中打ち切り（Issue #77 回帰） -----------------------------
+
+	/// <summary>
+	/// 既に過ぎた deadline を渡すと、AlphaBeta が深い探索（depth=8）を待たずに即座に
+	/// TimeoutException を送出することを確認する（Issue #77 回帰）。
+	/// 修正前は AlphaBeta() の再帰内部で deadline を確認しないため、深さ 8 の探索が
+	/// 最後まで走り切ってしまい例外は送出されない。
+	/// パス条件: TimeoutException が送出されること。
+	/// </summary>
+	[Fact]
+	public void AlphaBeta_PastDeadline_ThrowsTimeoutImmediately()
+	{
+		var board = new Board();
+		var ai = new AlphaBetaAI(DifficultyLevel.Expert);
+		var pastDeadline = DateTime.UtcNow.AddSeconds(-1);
+
+		Assert.Throws<TimeoutException>(() =>
+			ai.AlphaBetaForTest(board, depth: 8, alpha: int.MinValue, beta: int.MaxValue,
+				isMaximizing: true, currentPlayer: PlayerColor.Black, aiPlayer: PlayerColor.Black,
+				deadline: pastDeadline));
+	}
+
 	// ---- EngineName (F7) --------------------------------------------------
 
 	[Fact]
