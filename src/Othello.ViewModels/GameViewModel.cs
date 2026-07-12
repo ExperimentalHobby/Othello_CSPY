@@ -861,6 +861,11 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 		OnPropertyChanged(nameof(IsTimeLimitEditable));
 		RefreshBoardDisplay();
 		UpdateScoreBoardState();
+
+		// 2 回目の Undo が履歴不足で失敗し手番が AI のまま残った場合、AI の着手を再度トリガーする
+		// （人間=白で AI の初手直後に Undo するとここに該当し、放置するとソフトロックする）
+		if (_engine.GameState.IsGameInProgress() && _engine.CurrentPlayer == AiColor)
+			_ = ProcessAIMoveAsync(_cts!.Token);
 	}
 
 	/// <summary>
