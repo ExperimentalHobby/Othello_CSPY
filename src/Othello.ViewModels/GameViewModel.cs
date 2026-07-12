@@ -159,7 +159,7 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 		{
 			if (!SetProperty(ref _difficulty, value)) return;
 			// 難易度に応じて制限時間モードのデフォルト値を更新する
-			IsTimeLimitEnabled = value == DifficultyLevel.Hard;
+			IsTimeLimitEnabled = value.GetTimeLimitMs().HasValue;
 			RestartIfConfiguringBeforeFirstMove();
 		}
 	}
@@ -425,7 +425,7 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 		var loadedSettings = settings ?? OthelloSettingsManager.Load(_settingsFilePath);
 		_timeLimitSeconds = loadedSettings.TimeLimitSeconds;
 		// 初期難易度（Medium）に従い制限時間モードは OFF
-		_isTimeLimitEnabled = _difficulty == DifficultyLevel.Hard;
+		_isTimeLimitEnabled = _difficulty.GetTimeLimitMs().HasValue;
 
 		NewGameCommand = new RelayCommand(() => _ = StartNewGameAsync());
 		SquareClickedCommand = new RelayCommand<Position>(SquareClicked);

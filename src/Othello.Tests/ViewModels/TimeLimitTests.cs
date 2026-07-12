@@ -50,6 +50,18 @@ public class TimeLimitTests
 	}
 
 	/// <summary>
+	/// 難易度を Expert に変更すると IsTimeLimitEnabled が true になることを確認する（Issue #76 回帰）。
+	/// パス条件: DifficultyIndex = 4 後 IsTimeLimitEnabled == true。
+	/// </summary>
+	[Fact]
+	public void SetDifficulty_Expert_EnablesTimeLimit()
+	{
+		var vm = MakeVm(DifficultyLevel.Medium);
+		vm.DifficultyIndex = 4; // Expert（Beginner=0, Easy=1, Normal=2, Hard=3, Expert=4）
+		Assert.True(vm.IsTimeLimitEnabled);
+	}
+
+	/// <summary>
 	/// 難易度を Easy に変更すると IsTimeLimitEnabled が false になることを確認する。
 	/// パス条件: Hard → Easy 変更後 IsTimeLimitEnabled == false。
 	/// </summary>
