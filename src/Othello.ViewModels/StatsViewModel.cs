@@ -25,6 +25,8 @@ public class StatsViewModel : ViewModelBase
 	public int BeginnerWins => _stats.Beginner.Wins;
 	/// <summary>Beginner 難易度の敗北数</summary>
 	public int BeginnerLosses => _stats.Beginner.Losses;
+	/// <summary>Beginner 難易度の引き分け数</summary>
+	public int BeginnerDraws => _stats.Beginner.Draws;
 	/// <summary>Beginner 難易度の総ゲーム数</summary>
 	public int BeginnerTotal => _stats.Beginner.TotalGames;
 	/// <summary>Beginner 難易度の勝率テキスト</summary>
@@ -35,6 +37,8 @@ public class StatsViewModel : ViewModelBase
 	public int EasyWins => _stats.Easy.Wins;
 	/// <summary>Easy 難易度の敗北数</summary>
 	public int EasyLosses => _stats.Easy.Losses;
+	/// <summary>Easy 難易度の引き分け数</summary>
+	public int EasyDraws => _stats.Easy.Draws;
 	/// <summary>Easy 難易度の総ゲーム数</summary>
 	public int EasyTotal => _stats.Easy.TotalGames;
 	/// <summary>Easy 難易度の勝率テキスト（例: "70%"）</summary>
@@ -45,6 +49,8 @@ public class StatsViewModel : ViewModelBase
 	public int NormalWins => _stats.Normal.Wins;
 	/// <summary>Normal 難易度の敗北数</summary>
 	public int NormalLosses => _stats.Normal.Losses;
+	/// <summary>Normal 難易度の引き分け数</summary>
+	public int NormalDraws => _stats.Normal.Draws;
 	/// <summary>Normal 難易度の総ゲーム数</summary>
 	public int NormalTotal => _stats.Normal.TotalGames;
 	/// <summary>Normal 難易度の勝率テキスト</summary>
@@ -55,6 +61,8 @@ public class StatsViewModel : ViewModelBase
 	public int HardWins => _stats.Hard.Wins;
 	/// <summary>Hard 難易度の敗北数</summary>
 	public int HardLosses => _stats.Hard.Losses;
+	/// <summary>Hard 難易度の引き分け数</summary>
+	public int HardDraws => _stats.Hard.Draws;
 	/// <summary>Hard 難易度の総ゲーム数</summary>
 	public int HardTotal => _stats.Hard.TotalGames;
 	/// <summary>Hard 難易度の勝率テキスト</summary>
@@ -65,6 +73,8 @@ public class StatsViewModel : ViewModelBase
 	public int ExpertWins => _stats.Expert.Wins;
 	/// <summary>Expert 難易度の敗北数</summary>
 	public int ExpertLosses => _stats.Expert.Losses;
+	/// <summary>Expert 難易度の引き分け数</summary>
+	public int ExpertDraws => _stats.Expert.Draws;
 	/// <summary>Expert 難易度の総ゲーム数</summary>
 	public int ExpertTotal => _stats.Expert.TotalGames;
 	/// <summary>Expert 難易度の勝率テキスト</summary>
