@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using Technopro.Othello.Core.AI;
 using Technopro.Othello.Core.Kifu;
 using Technopro.Othello.Core.Models;
 
@@ -118,16 +119,12 @@ public sealed class KifuViewModel : ViewModelBase
 			return string.Empty;
 
 		var date = record.PlayedAt.LocalDateTime.ToString("yyyy/MM/dd HH:mm");
-		var diff = record.Difficulty switch
-		{
-			Core.AI.DifficultyLevel.Easy => "イージー",
-			Core.AI.DifficultyLevel.Medium => "ノーマル",
-			Core.AI.DifficultyLevel.Hard => "ハード",
-			_ => record.Difficulty.ToString()
-		};
+		var diff = record.Difficulty.ToDisplayString();
 		var result = record.Result is null
 			? "引き分け"
-			: (record.Result == record.HumanColor ? "あなたの勝利" : "AI の勝利");
+			: record.Mode == GameMode.CpuVsCpu
+				? $"{record.Result.Value.ToDisplayString()}の勝利"
+				: (record.Result == record.HumanColor ? "あなたの勝利" : "AI の勝利");
 
 		return $"{date}  難易度:{diff}  {result}  (黒:{record.FinalScore.Black} 白:{record.FinalScore.White})";
 	}

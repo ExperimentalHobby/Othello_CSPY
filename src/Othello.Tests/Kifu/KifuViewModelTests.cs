@@ -121,4 +121,57 @@ public class KifuViewModelTests
 		var sq = vm.BoardSquares[2 * 8 + 3];
 		Assert.Equal(PlayerColor.Black, sq.Piece);
 	}
+
+	// ========== #58: 難易度表示・CPU vs CPU 勝敗表示 ==========
+
+	/// <summary>
+	/// Beginner 難易度の棋譜を開くと、KifuInfo に日本語表示「ビギナー」が含まれることを確認する。
+	/// パス条件: KifuInfo に "ビギナー" が含まれること。
+	/// </summary>
+	[Fact]
+	public void KifuInfo_BeginnerDifficulty_ShowsJapaneseLabel()
+	{
+		var moves = new List<KifuMove> { new(PlayerColor.Black, Row: 2, Col: 3) };
+		var record = new KifuRecord(1, DateTimeOffset.Now,
+			PlayerColor.Black, DifficultyLevel.Beginner,
+			null, moves, new KifuFinalScore(4, 1));
+		var vm = new KifuViewModel(new KifuPlayer(record), record);
+
+		Assert.Contains("ビギナー", vm.KifuInfo);
+	}
+
+	/// <summary>
+	/// Expert 難易度の棋譜を開くと、KifuInfo に日本語表示「エキスパート」が含まれることを確認する。
+	/// パス条件: KifuInfo に "エキスパート" が含まれること。
+	/// </summary>
+	[Fact]
+	public void KifuInfo_ExpertDifficulty_ShowsJapaneseLabel()
+	{
+		var moves = new List<KifuMove> { new(PlayerColor.Black, Row: 2, Col: 3) };
+		var record = new KifuRecord(1, DateTimeOffset.Now,
+			PlayerColor.Black, DifficultyLevel.Expert,
+			null, moves, new KifuFinalScore(4, 1));
+		var vm = new KifuViewModel(new KifuPlayer(record), record);
+
+		Assert.Contains("エキスパート", vm.KifuInfo);
+	}
+
+	/// <summary>
+	/// CPU vs CPU で白が勝った棋譜を開くと、色ベースの勝敗表示「白の勝利」になることを確認する
+	/// （黒を人間扱いした「あなたの勝利」という誤表示にならないこと）。
+	/// パス条件: KifuInfo に "白の勝利" が含まれ、"あなたの勝利" が含まれないこと。
+	/// </summary>
+	[Fact]
+	public void KifuInfo_CpuVsCpuWhiteWins_ShowsColorBasedResult()
+	{
+		var moves = new List<KifuMove> { new(PlayerColor.Black, Row: 2, Col: 3) };
+		var record = new KifuRecord(1, DateTimeOffset.Now,
+			PlayerColor.Black, DifficultyLevel.Medium,
+			PlayerColor.White, moves, new KifuFinalScore(20, 44),
+			Mode: GameMode.CpuVsCpu);
+		var vm = new KifuViewModel(new KifuPlayer(record), record);
+
+		Assert.Contains("白の勝利", vm.KifuInfo);
+		Assert.DoesNotContain("あなたの勝利", vm.KifuInfo);
+	}
 }

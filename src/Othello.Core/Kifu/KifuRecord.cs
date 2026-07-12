@@ -14,4 +14,5 @@ public record KifuRecord(
 	DifficultyLevel Difficulty,
 	PlayerColor? Result,
 	IReadOnlyList<KifuMove> Moves,
-	KifuFinalScore FinalScore);
+	KifuFinalScore FinalScore,
+	GameMode Mode = GameMode.HumanVsCpu);
