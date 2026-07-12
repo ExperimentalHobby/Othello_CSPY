@@ -19,8 +19,8 @@
 {"board": [[int,...×8],...×8], "player": 1, "depth": 5, "time_ms": null}
 ```
 - `player`: 1=黒, 2=白（AI が担当する色）
-- `depth`: 探索深さ（Easy:2, Normal:5, Hard:10）
-- `time_ms`: 反復深化の制限時間（ms）。Hard=8000、Easy/Normal=null（固定深さ探索）
+- `depth`: 探索深さ（Beginner:1, Easy:2, Medium:5, Hard:10, Expert:12）
+- `time_ms`: 反復深化の制限時間（ms）。Hard=8000、Expert=15000、それ以外（Beginner/Easy/Medium）は null（固定深さ探索）
 
 **Python → C#（stdout 1行 JSON）**
 ```json
@@ -38,8 +38,8 @@ Python プロセスのライフサイクル: `StartNewGame()` で起動 → `End
 5. **Nullable な勝者**: `GameEngine.GetResult()` が返す `Winner` は `PlayerColor?`（引き分け = `null`）。UI・テスト側で `null` ケースを処理していないとクラッシュする
 6. **コメント規約（XML doc）**: `public` / `internal` メンバーには `<summary>` を記載する。テストメソッドの `<summary>` には「何をすると何になるか（パス条件）」を明記する（例: `パス条件: IsSuccess = true かつ GameState が WhiteTurn に変わること`）
 7. **無関係な既存バグを独断で処理してしまう**: 作業中に今のタスクと無関係な既存バグを見つけた場合、黙って直す・黙って無視するのではなく、見つけた時点でユーザーに扱い（今の PR に含めるか、別 PR に分けるか）を確認してから進めること
-8. **改行コードの混入確認漏れ**: `.py` など改行コードが `.gitattributes` で固定されていないファイルを編集した後は `git diff --stat` で差分行数を確認すること。編集ツールが意図せず LF を CRLF に変換すると、実際の変更が数行でもファイル全体が差分になってしまう。混入していたら LF に戻してから再度確認する
-9. **Python ファイル追加時のビルド構成漏れ**: 新しい `.py` ファイルを追加した際は、各 `.csproj` の Content ビルドアクション（出力ディレクトリ `Othello.Python/` へのコピー対象）に追加を忘れないこと。追加を忘れるとビルドは成功するが実行時に `FileNotFoundException` 等で気づく形になる
+8. **改行コードの混入確認漏れ**: ファイル編集後は `git diff --stat` で差分行数を確認すること。編集ツールが意図せず改行コードを変換すると、実際の変更が数行でもファイル全体が差分になってしまう。`.py` は `.gitattributes`（`*.py text eol=lf`）で LF に固定済みのため対象外。それ以外の拡張子（`.cs`/`.xaml`/`.md` など）を編集した際にこの確認を行う
+9. **Python ファイル追加時の確認事項**: 各 `.csproj` は `**\*.py` のワイルドカードで Content ビルドアクション（出力ディレクトリ `Othello.Python/` へのコピー対象）を指定済みのため、新しい `.py` ファイルは個別追加不要で自動的にコピー対象になる。ただし `test_*.py` は `Exclude` 指定で除外されるため、テスト以外の用途のファイルにこの命名を付けないよう注意する
 
 ---
 
@@ -117,7 +117,7 @@ Python プロセスのライフサイクル: `StartNewGame()` で起動 → `End
 - `ai.py` は `alpha_beta.py` 経由でバックエンドを選択する（**シム方式**）
 - `alpha_beta.py`: `othello_ai_rust` が import できれば Rust、できなければ `alpha_beta_py.AlphaBetaAI`（純 Python）を使用
 - **parity 保証**: `test_parity.py` が Rust 版と Python 版の同一局面・深さでの着手一致を検証する
-- Hard 難易度では `time_ms=8000`（8 秒）を IPC で送信し、反復深化（Iterative Deepening）を使用
+- Hard/Expert 難易度では `time_ms`（Hard=8000、Expert=15000）を IPC で送信し、反復深化（Iterative Deepening）を使用
 
 ### GameEngine
 - **パスは自動スキップ**: `AdvanceTurn()` が相手に有効手がなければ即座にスキップし `LastPassedPlayer` に記録する。UI/コンソールはこのプロパティを参照してメッセージを表示する。手動 `Pass()` 呼び出しは不要（`Pass()` は `internal` で現 UI は使用しない）

@@ -28,7 +28,7 @@ public static class DifficultyLevelExtensions
 	/// Python AI の depth パラメータとして IPC 経由で渡す値でもある。
 	/// </summary>
 	/// <param name="difficulty">難易度</param>
-	/// <returns>探索深さ（Easy:2, Medium:5, Hard:10）</returns>
+	/// <returns>探索深さ（Beginner:1, Easy:2, Medium:5, Hard:10, Expert:12）</returns>
 	public static int GetSearchDepth(this DifficultyLevel difficulty) => difficulty switch
 	{
 		DifficultyLevel.Beginner => 1,
