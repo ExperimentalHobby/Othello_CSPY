@@ -42,6 +42,27 @@ public class StatsViewModelTests
 	}
 
 	/// <summary>
+	/// 「引」列に TotalGames ではなく Draws 単体が表示されることを確認する（Issue #73）。
+	/// パス条件: EasyDraws = 1（Draws のみ）、EasyTotal = 3（勝+負+引の合計）となり、
+	/// 両者が異なる値になること。
+	/// </summary>
+	[Fact]
+	public void Draws_OneWinOneLossOneDraw_ReturnsDrawCountNotTotalGames()
+	{
+		var repo = new InMemoryStatsRepository
+		{
+			Stats = new GameStats { Easy = new DifficultyStats { Wins = 1, Losses = 1, Draws = 1 } }
+		};
+
+		var vm = new StatsViewModel(repo);
+
+		Assert.Equal(1, vm.EasyWins);
+		Assert.Equal(1, vm.EasyLosses);
+		Assert.Equal(1, vm.EasyDraws);
+		Assert.Equal(3, vm.EasyTotal);
+	}
+
+	/// <summary>
 	/// 勝敗0件の難易度では WinRate が "0%" を返すことを確認する。
 	/// パス条件: HardWinRate が "0%" であること。
 	/// </summary>

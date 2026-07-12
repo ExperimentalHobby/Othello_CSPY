@@ -372,35 +372,35 @@
                                 <TextBlock Grid.Row="1" Grid.Column="0" Text="Beginner" FontSize="11" Foreground="#cccccc"/>
                                 <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding BeginnerWins}" FontSize="11" Foreground="#88ff88" HorizontalAlignment="Center"/>
                                 <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding BeginnerLosses}" FontSize="11" Foreground="#ff8888" HorizontalAlignment="Center"/>
-                                <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding BeginnerTotal}" FontSize="11" Foreground="#cccccc" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding BeginnerDraws}" FontSize="11" Foreground="#cccccc" HorizontalAlignment="Center"/>
                                 <TextBlock Grid.Row="1" Grid.Column="4" Text="{Binding BeginnerWinRate}" FontSize="11" Foreground="#ffdd88" HorizontalAlignment="Right"/>
 
                                 <!-- Easy -->
                                 <TextBlock Grid.Row="2" Grid.Column="0" Text="Easy" FontSize="11" Foreground="#cccccc"/>
                                 <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding EasyWins}" FontSize="11" Foreground="#88ff88" HorizontalAlignment="Center"/>
                                 <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding EasyLosses}" FontSize="11" Foreground="#ff8888" HorizontalAlignment="Center"/>
-                                <TextBlock Grid.Row="2" Grid.Column="3" Text="{Binding EasyTotal}" FontSize="11" Foreground="#cccccc" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Row="2" Grid.Column="3" Text="{Binding EasyDraws}" FontSize="11" Foreground="#cccccc" HorizontalAlignment="Center"/>
                                 <TextBlock Grid.Row="2" Grid.Column="4" Text="{Binding EasyWinRate}" FontSize="11" Foreground="#ffdd88" HorizontalAlignment="Right"/>
 
                                 <!-- Normal -->
                                 <TextBlock Grid.Row="3" Grid.Column="0" Text="Normal" FontSize="11" Foreground="#cccccc"/>
                                 <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding NormalWins}" FontSize="11" Foreground="#88ff88" HorizontalAlignment="Center"/>
                                 <TextBlock Grid.Row="3" Grid.Column="2" Text="{Binding NormalLosses}" FontSize="11" Foreground="#ff8888" HorizontalAlignment="Center"/>
-                                <TextBlock Grid.Row="3" Grid.Column="3" Text="{Binding NormalTotal}" FontSize="11" Foreground="#cccccc" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Row="3" Grid.Column="3" Text="{Binding NormalDraws}" FontSize="11" Foreground="#cccccc" HorizontalAlignment="Center"/>
                                 <TextBlock Grid.Row="3" Grid.Column="4" Text="{Binding NormalWinRate}" FontSize="11" Foreground="#ffdd88" HorizontalAlignment="Right"/>
 
                                 <!-- Hard -->
                                 <TextBlock Grid.Row="4" Grid.Column="0" Text="Hard" FontSize="11" Foreground="#cccccc"/>
                                 <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding HardWins}" FontSize="11" Foreground="#88ff88" HorizontalAlignment="Center"/>
                                 <TextBlock Grid.Row="4" Grid.Column="2" Text="{Binding HardLosses}" FontSize="11" Foreground="#ff8888" HorizontalAlignment="Center"/>
-                                <TextBlock Grid.Row="4" Grid.Column="3" Text="{Binding HardTotal}" FontSize="11" Foreground="#cccccc" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Row="4" Grid.Column="3" Text="{Binding HardDraws}" FontSize="11" Foreground="#cccccc" HorizontalAlignment="Center"/>
                                 <TextBlock Grid.Row="4" Grid.Column="4" Text="{Binding HardWinRate}" FontSize="11" Foreground="#ffdd88" HorizontalAlignment="Right"/>
 
                                 <!-- Expert -->
                                 <TextBlock Grid.Row="5" Grid.Column="0" Text="Expert" FontSize="11" Foreground="#cccccc"/>
                                 <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding ExpertWins}" FontSize="11" Foreground="#88ff88" HorizontalAlignment="Center"/>
                                 <TextBlock Grid.Row="5" Grid.Column="2" Text="{Binding ExpertLosses}" FontSize="11" Foreground="#ff8888" HorizontalAlignment="Center"/>
-                                <TextBlock Grid.Row="5" Grid.Column="3" Text="{Binding ExpertTotal}" FontSize="11" Foreground="#cccccc" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Row="5" Grid.Column="3" Text="{Binding ExpertDraws}" FontSize="11" Foreground="#cccccc" HorizontalAlignment="Center"/>
                                 <TextBlock Grid.Row="5" Grid.Column="4" Text="{Binding ExpertWinRate}" FontSize="11" Foreground="#ffdd88" HorizontalAlignment="Right"/>
                             </Grid>
 
