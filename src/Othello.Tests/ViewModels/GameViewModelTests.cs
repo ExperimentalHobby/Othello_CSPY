@@ -553,6 +553,29 @@ public class GameViewModelTests
 		Assert.Equal(2, vm.WhiteScore);
 	}
 
+	/// <summary>
+	/// 人間=白で AI（黒）が初手を打った直後に Undo すると、初期盤面に戻り AI が再度先手を
+	/// 打ち直すことを確認する（Issue #74 ソフトロック回帰）。
+	/// 修正前は 2 回目の Undo が履歴不足で失敗し、手番が AI のまま誰も着手できず固まる。
+	/// パス条件: Undo 後に AI の GetBestMove が再度呼ばれ、IsGameInProgress が true のままであること。
+	/// </summary>
+	[Fact]
+	public void Undo_AfterAiFirstMoveWhenHumanIsWhite_RetriggersAiMove()
+	{
+		using var aiMoved = new ManualResetEventSlim(false);
+		using var vm = new GameViewModel(d => new FakeAI(d, () => aiMoved.Set()));
+
+		vm.HumanColorIndex = 1; // 白に変更 → 再起動 → AI（黒）が先手
+		Assert.True(aiMoved.Wait(Timeout));
+		Thread.Sleep(300); // ProcessAIMoveAsync 内の MakeMove 完了を待つ
+
+		aiMoved.Reset();
+		vm.UndoCommand.Execute(null); // 初期盤面に戻り、AI（黒）が再度着手を試みるはず
+
+		Assert.True(aiMoved.Wait(Timeout)); // 修正前は AI が再度呼ばれずタイムアウトする
+		Assert.True(vm.IsGameInProgress);
+	}
+
 	// ========== AiEngineLabel ==========
 
 	/// <summary>
