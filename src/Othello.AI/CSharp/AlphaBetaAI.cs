@@ -122,14 +122,23 @@ public class AlphaBetaAI : IAIStrategy
 				var newBoard = board.Clone();
 				OthelloRules.MakeMove(newBoard, move, playerColor);
 
-				var score = AlphaBeta(newBoard, depth - 1, alpha, int.MaxValue, false,
-					playerColor.Opponent(), playerColor);
-
-				if (score > bestScore)
+				try
 				{
-					bestScore = score;
-					currentBest = move;
-					alpha = bestScore;
+					var score = AlphaBeta(newBoard, depth - 1, alpha, int.MaxValue, false,
+						playerColor.Opponent(), playerColor, deadline);
+
+					if (score > bestScore)
+					{
+						bestScore = score;
+						currentBest = move;
+						alpha = bestScore;
+					}
+				}
+				catch (TimeoutException)
+				{
+					// 探索途中でタイムアウト → この深さの結果を破棄し前の深さの結果を採用する
+					timedOut = true;
+					break;
 				}
 			}
 
@@ -199,12 +208,12 @@ public class AlphaBetaAI : IAIStrategy
 	/// 対戦相手には必ず有効手がある。isMaximizing を反転して対戦相手の手番に進む（F1）。
 	/// </summary>
 	private int HandleNoValidMoves(Board board, int depth, int alpha, int beta,
-		bool isMaximizing, PlayerColor currentPlayer, PlayerColor aiPlayer)
+		bool isMaximizing, PlayerColor currentPlayer, PlayerColor aiPlayer, DateTime? deadline)
 		=> AlphaBeta(board, depth - 1, alpha, beta, !isMaximizing,
-			   currentPlayer.Opponent(), aiPlayer);
+			   currentPlayer.Opponent(), aiPlayer, deadline);
 
 	private int EvaluateMaximizing(Board board, int depth, int alpha, int beta,
-		PlayerColor currentPlayer, PlayerColor aiPlayer, List<Position> sortedMoves)
+		PlayerColor currentPlayer, PlayerColor aiPlayer, List<Position> sortedMoves, DateTime? deadline)
 	{
 		var value = int.MinValue;
 		foreach (var move in sortedMoves)
@@ -212,7 +221,7 @@ public class AlphaBetaAI : IAIStrategy
 			var newBoard = board.Clone();
 			OthelloRules.MakeMove(newBoard, move, currentPlayer);
 			value = Math.Max(value, AlphaBeta(newBoard, depth - 1, alpha, beta, false,
-				currentPlayer.Opponent(), aiPlayer));
+				currentPlayer.Opponent(), aiPlayer, deadline));
 			alpha = Math.Max(alpha, value);
 			if (beta <= alpha) break;
 		}
@@ -220,7 +229,7 @@ public class AlphaBetaAI : IAIStrategy
 	}
 
 	private int EvaluateMinimizing(Board board, int depth, int alpha, int beta,
-		PlayerColor currentPlayer, PlayerColor aiPlayer, List<Position> sortedMoves)
+		PlayerColor currentPlayer, PlayerColor aiPlayer, List<Position> sortedMoves, DateTime? deadline)
 	{
 		var value = int.MaxValue;
 		foreach (var move in sortedMoves)
@@ -228,16 +237,26 @@ public class AlphaBetaAI : IAIStrategy
 			var newBoard = board.Clone();
 			OthelloRules.MakeMove(newBoard, move, currentPlayer);
 			value = Math.Min(value, AlphaBeta(newBoard, depth - 1, alpha, beta, true,
-				currentPlayer.Opponent(), aiPlayer));
+				currentPlayer.Opponent(), aiPlayer, deadline));
 			beta = Math.Min(beta, value);
 			if (beta <= alpha) break;
 		}
 		return value;
 	}
 
+	/// <summary>
+	/// αβプルーニング探索の再帰本体。
+	/// <paramref name="deadline"/> が指定されている場合、再帰の冒頭で超過を確認し
+	/// 超過していれば <see cref="TimeoutException"/> を送出して即座に打ち切る
+	/// （Python の _alpha_beta_timed / Rust の alpha_beta_timed と同じ設計）。
+	/// null の場合（固定深さ探索）はこのチェックを行わない。
+	/// </summary>
 	private int AlphaBeta(Board board, int depth, int alpha, int beta, bool isMaximizing,
-		PlayerColor currentPlayer, PlayerColor aiPlayer)
+		PlayerColor currentPlayer, PlayerColor aiPlayer, DateTime? deadline = null)
 	{
+		if (deadline.HasValue && DateTime.UtcNow >= deadline.Value)
+			throw new TimeoutException("AlphaBeta 探索が時間制限を超過しました");
+
 		var hash = ComputeBoardHash(board);
 		// isMaximizing を含めてコンテキストを検証する。
 		// さらに NodeType を考慮して境界値を正確値として誤用しない。
@@ -269,7 +288,7 @@ public class AlphaBetaAI : IAIStrategy
 		if (validMoves.Count == 0)
 		{
 			var noMoveScore = HandleNoValidMoves(board, depth, alpha, beta, isMaximizing,
-				currentPlayer, aiPlayer);
+				currentPlayer, aiPlayer, deadline);
 			_transpositionTable[hash] = new TTEntry(noMoveScore, depth, isMaximizing, NodeType.Exact);
 			return noMoveScore;
 		}
@@ -277,8 +296,8 @@ public class AlphaBetaAI : IAIStrategy
 		var originalAlpha = alpha;
 		var sortedMoves = SortMovesByHeuristic(validMoves);
 		var result = isMaximizing
-			? EvaluateMaximizing(board, depth, alpha, beta, currentPlayer, aiPlayer, sortedMoves)
-			: EvaluateMinimizing(board, depth, alpha, beta, currentPlayer, aiPlayer, sortedMoves);
+			? EvaluateMaximizing(board, depth, alpha, beta, currentPlayer, aiPlayer, sortedMoves, deadline)
+			: EvaluateMinimizing(board, depth, alpha, beta, currentPlayer, aiPlayer, sortedMoves, deadline);
 
 		// 探索後のスコアに基づいてノード種別を決定する
 		var nodeType = result <= originalAlpha ? NodeType.UpperBound  // fail-low（上界値）
@@ -296,4 +315,15 @@ public class AlphaBetaAI : IAIStrategy
 		=> moves
 			.OrderByDescending(m => Evaluator.GetPositionWeight(m.Row, m.Column))
 			.ToList();
+
+	/// <summary>
+	/// テスト専用: AlphaBeta() を直接呼び出す（deadline 超過検知の単体テスト用）。
+	/// _transpositionTable の初期化も内部で行う。
+	/// </summary>
+	internal int AlphaBetaForTest(Board board, int depth, int alpha, int beta, bool isMaximizing,
+		PlayerColor currentPlayer, PlayerColor aiPlayer, DateTime? deadline = null)
+	{
+		_transpositionTable = new Dictionary<ulong, TTEntry>();
+		return AlphaBeta(board, depth, alpha, beta, isMaximizing, currentPlayer, aiPlayer, deadline);
+	}
 }
