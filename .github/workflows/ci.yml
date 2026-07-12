@@ -21,6 +21,9 @@ on:
   schedule:
     - cron: "0 0 * * 1" # UTC 月曜 00:00 = JST 月曜 09:00
 
+permissions:
+  contents: read
+
 env:
   DOTNET_VERSION: "10.0.x"
   RUST_MANIFEST: src/Othello.AI/Rust/Cargo.toml
