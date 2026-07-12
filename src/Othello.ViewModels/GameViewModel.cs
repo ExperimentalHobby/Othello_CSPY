@@ -1100,7 +1100,8 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 			Difficulty: IsCpuVsCpu ? BlackDifficulty : Difficulty,
 			Result: winner,
 			Moves: _kifuMoves.AsReadOnly(),
-			FinalScore: new KifuFinalScore(blackCount, whiteCount));
+			FinalScore: new KifuFinalScore(blackCount, whiteCount),
+			Mode: GameMode);
 
 		RecordStatsIfHumanGame(winner, blackCount, whiteCount);
 	}
