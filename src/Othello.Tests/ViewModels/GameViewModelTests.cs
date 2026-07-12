@@ -426,6 +426,55 @@ public class GameViewModelTests
 		Assert.Contains("AI エラー", vm.StatusMessage);
 	}
 
+	// ========== #56: AI が無効手(IsSuccess=false)を返した場合の停止 ==========
+
+	/// <summary>
+	/// AI が無効な手（有効手一覧に含まれない座標）を返した場合、盤面・手番が変化しないまま
+	/// 次のターン処理を繰り返す無限ループにならず、エラー終了することを確認する。
+	/// (0,0) はゲーム開始直後～序盤には常に無効（隣接石がなく挟めない）。
+	/// パス条件: IsGameInProgress=false かつ StatusMessage に "AI の手が無効でした" が含まれること。
+	/// </summary>
+	[Fact]
+	public void AiReturnsInvalidMove_StopsGameWithErrorMessage()
+	{
+		using var vm = new GameViewModel(d => new FixedMoveFakeAI(d, new Position(0, 0)));
+
+		// 人間（黒）が着手 → AI（白）が無効な (0,0) を返す
+		vm.SquareClickedCommand.Execute(new Position(2, 3));
+
+		var deadline = DateTime.UtcNow.AddSeconds(5);
+		while (vm.IsGameInProgress && DateTime.UtcNow < deadline)
+			Thread.Sleep(20);
+
+		Assert.False(vm.IsGameInProgress);
+		Assert.Contains("AI の手が無効でした", vm.StatusMessage);
+	}
+
+	/// <summary>
+	/// CPU vs CPU モードで AI が無効な手を返した場合も、無限ループにならずエラー終了することを確認する。
+	/// パス条件: IsGameInProgress=false かつ StatusMessage に "AI の手が無効でした" が含まれること。
+	/// </summary>
+	[Fact]
+	public async Task CpuVsCpu_AiReturnsInvalidMove_StopsGameWithErrorMessage()
+	{
+		using var vm = new GameViewModel(
+			aiFactory: d => new FixedMoveFakeAI(d, new Position(0, 0)),
+			startDeferred: true,
+			cpuVsCpuAiFactory: d => new FixedMoveFakeAI(d, new Position(0, 0)));
+		vm.GameMode = GameMode.CpuVsCpu;
+		vm.CpuVsCpuDelayMs = 0;
+
+		await vm.StartNewGameAsync(); // IsPaused = true（開始ボタン待ち）
+		vm.PauseCommand.Execute(null); // 開始
+
+		var deadline = DateTime.UtcNow.AddSeconds(5);
+		while (vm.IsGameInProgress && DateTime.UtcNow < deadline)
+			await Task.Delay(20);
+
+		Assert.False(vm.IsGameInProgress);
+		Assert.Contains("AI の手が無効でした", vm.StatusMessage);
+	}
+
 	// ========== #12: 無効クリック ==========
 
 	/// <summary>

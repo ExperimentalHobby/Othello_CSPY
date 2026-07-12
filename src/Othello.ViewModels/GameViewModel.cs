@@ -697,6 +697,15 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 			if (_engine.CurrentPlayer != AiColor) return;
 
 			var moveResult = _engine.MakeMove(bestMove);
+			if (!moveResult.IsSuccess)
+			{
+				StatusMessage = $"AI の手が無効でした: {moveResult.Message}";
+				IsGameInProgress = false;
+				(_ai as IDisposable)?.Dispose();
+				_ai = null;
+				return;
+			}
+
 			RecordMove(aiColor, bestMove);
 			RecordCurrentScore();
 			_ = AnimateFlipsAsync(moveResult.FlippedPieces, ct);
@@ -774,6 +783,13 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 				if (_engine.CurrentPlayer != currentColor) break;
 
 				var moveResult = _engine.MakeMove(bestMove);
+				if (!moveResult.IsSuccess)
+				{
+					StatusMessage = $"AI の手が無効でした: {moveResult.Message}";
+					IsGameInProgress = false;
+					return;
+				}
+
 				RecordMove(currentColor, bestMove);
 				RecordCurrentScore();
 				_ = AnimateFlipsAsync(moveResult.FlippedPieces, ct);
