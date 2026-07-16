@@ -150,7 +150,7 @@ public class EvaluatorTests
 				board.SetPiece(row, col, PlayerColor.Black); // 24 石
 		for (int col = 0; col < Board.BoardSize; col++)
 			board.SetPiece(5, col, PlayerColor.White); // 8 石
-		// 占有 32、空き 32（20≤32≤44 で中盤フェーズ）
+													   // 占有 32、空き 32（20≤32≤44 で中盤フェーズ）
 
 		int expectedWeight = ComputeWeightScore(board, PlayerColor.Black);
 		int expectedMobility = OthelloRules.CountValidMoves(board, PlayerColor.Black)
