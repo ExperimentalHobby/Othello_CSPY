@@ -64,9 +64,12 @@ moves.OrderByDescending(m => Evaluator.GetPositionWeight(m.Row, m.Column))
 
 ### 中盤評価（`Evaluate`）
 
+空きマス数に応じてフェーズ（序盤/中盤/終盤）を切り替える。Python (`evaluator.py`) / Rust (`lib.rs`) と同一仕様。
+
 ```
-評価値 = 位置重みスコア + Mobility スコア（50 手未満）
-       = 位置重みスコア + 石数差スコア × 10（50 手以上・終盤）
+序盤（空き > 44）: 位置重み + Mobility × 20
+中盤（20 ≤空き ≤ 44）: 位置重み + Mobility × 10 + Stability × 25 + Frontier差 × 5
+終盤（空き < 20）: 石数差 × 10 + 位置重み + Mobility × 10
 ```
 
 **位置重みテーブル（`EvaluationWeights`）:**
@@ -89,13 +92,19 @@ moves.OrderByDescending(m => Evaluator.GetPositionWeight(m.Row, m.Column))
 | C-square（コーナー辺隣） | −20 | 同様のリスク |
 | 辺 | +10 | 比較的安定 |
 
-**Mobility スコア（50 手未満のみ）:**
+**Mobility（着手可能数）:**
 
 ```
-(AI の有効手数 − 相手の有効手数) × 10
+AI の有効手数 − 相手の有効手数
 ```
 
-50 手以上（終盤）は石数差 × 10 に切り替えます。
+**Stability（安定石、中盤のみ）:**
+
+`CountStable` が絶対にひっくり返せない石（コーナー起点の flood-fill で4軸すべて安定と判定された石）の数を返す。`(自分の安定石数 − 相手の安定石数) × 25`。
+
+**Frontier（フロンティア、中盤のみ）:**
+
+`CountFrontier` が空きマスに隣接する石（不安定性の代理指標）の数を返す。少ないほど守りやすい盤面とみなし、`(相手のフロンティア数 − 自分のフロンティア数) × 5`。
 
 ### 終局評価（`EvaluateFinal`）
 
@@ -123,4 +132,4 @@ dotnet test src/Othello.Tests/Othello.Tests.csproj
 |------------|------|
 | `GetBestMoveTests` | 初期盤面での合法手返却、連続呼び出しで常に合法手 |
 | `GetBestMoveIterativeDeepeningTests` | Hard モードで時間制限内に合法手を返す |
-| `EvaluatorTests` | 位置重み・石数差・Mobility・終局評価の正確性 |
+| `EvaluatorTests` | フェーズ切替（序盤/中盤/終盤）・Stability・Frontier・終局評価の正確性 |
