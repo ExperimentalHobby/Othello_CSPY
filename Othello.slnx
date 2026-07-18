@@ -1,0 +1,17 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+  </Configurations>
+  <Folder Name="/src/">
+    <Project Path="src/Othello.Console/Othello.Console.csproj" />
+    <Project Path="src/Othello.Core/Othello.Core.csproj" />
+    <Project Path="src/Othello.GUI/WinUI3/Othello.WinUI3.csproj">
+      <Platform Project="x64" />
+      <Build Solution="*|Any CPU" Project="false" />
+    </Project>
+    <Project Path="src/Othello.GUI/WPF/Othello.WPF.csproj" />
+    <Project Path="src/Othello.Tests.WPF/Othello.Tests.WPF.csproj" />
+    <Project Path="src/Othello.Tests/Othello.Tests.csproj" />
+  </Folder>
+</Solution>

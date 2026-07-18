@@ -4,7 +4,7 @@
 		{
 			"label": "build: WPF",
 			"type": "shell",
-			"command": "dotnet build Othello.sln",
+			"command": "dotnet build Othello.slnx",
 			"group": {
 				"kind": "build",
 				"isDefault": true
@@ -18,7 +18,7 @@
 		{
 			"label": "build: WinUI3",
 			"type": "shell",
-			"command": "dotnet build Othello.sln -p:Platform=x64",
+			"command": "dotnet build Othello.slnx -p:Platform=x64",
 			"group": "build",
 			"presentation": {
 				"reveal": "always",
@@ -40,7 +40,7 @@
 		{
 			"label": "rebuild: WPF",
 			"type": "shell",
-			"command": "dotnet build Othello.sln --no-incremental",
+			"command": "dotnet build Othello.slnx --no-incremental",
 			"group": "build",
 			"presentation": {
 				"reveal": "always",
@@ -51,7 +51,7 @@
 		{
 			"label": "rebuild: WinUI3",
 			"type": "shell",
-			"command": "dotnet build Othello.sln --no-incremental -p:Platform=x64",
+			"command": "dotnet build Othello.slnx --no-incremental -p:Platform=x64",
 			"group": "build",
 			"presentation": {
 				"reveal": "always",
@@ -62,7 +62,7 @@
 		{
 			"label": "clean: WPF",
 			"type": "shell",
-			"command": "dotnet clean Othello.sln",
+			"command": "dotnet clean Othello.slnx",
 			"group": "build",
 			"presentation": {
 				"reveal": "always",
@@ -73,7 +73,7 @@
 		{
 			"label": "clean: WinUI3",
 			"type": "shell",
-			"command": "dotnet clean Othello.sln -p:Platform=x64",
+			"command": "dotnet clean Othello.slnx -p:Platform=x64",
 			"group": "build",
 			"presentation": {
 				"reveal": "always",
@@ -84,7 +84,7 @@
 		{
 			"label": "test",
 			"type": "shell",
-			"command": "dotnet test Othello.sln",
+			"command": "dotnet test Othello.slnx",
 			"group": {
 				"kind": "test",
 				"isDefault": true
@@ -98,7 +98,7 @@
 		{
 			"label": "test: Coverage",
 			"type": "shell",
-			"command": "dotnet test Othello.sln --collect \"XPlat Code Coverage\" --results-directory coverage",
+			"command": "dotnet test Othello.slnx --collect \"XPlat Code Coverage\" --results-directory coverage",
 			"group": "test",
 			"presentation": {
 				"reveal": "always",
