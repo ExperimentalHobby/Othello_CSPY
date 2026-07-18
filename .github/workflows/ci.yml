@@ -113,7 +113,7 @@ jobs:
         run: python -m unittest discover -s ${{ env.PYTHON_DIR }} -p "test_*.py"
 
       - name: Build (full solution incl. WPF / WinUI3)
-        run: dotnet build Othello.sln --configuration Release
+        run: dotnet build Othello.slnx --configuration Release
 
       - name: Test (C# - full suite)
         run: dotnet test src/Othello.Tests/Othello.Tests.csproj --configuration Release

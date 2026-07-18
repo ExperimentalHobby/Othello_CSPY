@@ -20,7 +20,7 @@ C# (WPF / WinUI3 / Console)
    - ゲームフロー → `src/Othello.Core/Game/GameEngine.cs`
 
 2. **Othello.Tests にテストを追加**
-   - テストを先に書き、実装後に `dotnet test Othello.sln` で全テストが通ることを確認
+   - テストを先に書き、実装後に `dotnet test Othello.slnx` で全テストが通ることを確認
 
 3. **GameViewModel を更新（UI フィードバックが必要な場合）**
    - `src/Othello.ViewModels/GameViewModel.cs` にプロパティやコマンドを追加
