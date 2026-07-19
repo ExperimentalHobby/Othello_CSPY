@@ -36,6 +36,17 @@
             <!-- AI バッジ色（WPF 版 AppColors.xaml と同値） -->
             <SolidColorBrush x:Key="AiBadgeBackgroundBrush" Color="#1a1a2e"/>
             <SolidColorBrush x:Key="AiBadgeForegroundBrush" Color="#7ec8e3"/>
+
+            <!-- ComboBox テーマオーバーライド（黒反転防止）
+                 Grid 配下のすべての ComboBox に適用される -->
+            <SolidColorBrush x:Key="ComboBoxBackground"             Color="White"/>
+            <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver"  Color="#f0f0f0"/>
+            <SolidColorBrush x:Key="ComboBoxBackgroundPressed"      Color="#e0e0e0"/>
+            <SolidColorBrush x:Key="ComboBoxBackgroundDisabled"     Color="#e8e8e8"/>
+            <SolidColorBrush x:Key="ComboBoxDropDownBackground"     Color="White"/>
+            <SolidColorBrush x:Key="ComboBoxForeground"             Color="Black"/>
+            <SolidColorBrush x:Key="ComboBoxForegroundDisabled"     Color="#505050"/>
+            <SolidColorBrush x:Key="ComboBoxBorderBrushDisabled"    Color="#b0b0b0"/>
         </Grid.Resources>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -81,16 +92,6 @@
                       RequestedTheme="Light"
                       SelectedIndex="{Binding GameModeIndex, Mode=TwoWay}"
                       IsEnabled="{Binding IsSettingsEditable}">
-                <ComboBox.Resources>
-                    <SolidColorBrush x:Key="ComboBoxBackground"             Color="White"/>
-                    <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver"  Color="#f0f0f0"/>
-                    <SolidColorBrush x:Key="ComboBoxBackgroundPressed"      Color="#e0e0e0"/>
-                    <SolidColorBrush x:Key="ComboBoxBackgroundDisabled"     Color="#e8e8e8"/>
-                    <SolidColorBrush x:Key="ComboBoxDropDownBackground"     Color="White"/>
-                    <SolidColorBrush x:Key="ComboBoxForeground"             Color="Black"/>
-                    <SolidColorBrush x:Key="ComboBoxForegroundDisabled"     Color="#505050"/>
-                    <SolidColorBrush x:Key="ComboBoxBorderBrushDisabled"    Color="#b0b0b0"/>
-                </ComboBox.Resources>
                 <ComboBoxItem Content="人間 vs CPU"/>
                 <ComboBoxItem Content="CPU vs CPU"/>
             </ComboBox>
@@ -106,16 +107,6 @@
                           RequestedTheme="Light"
                           SelectedIndex="{Binding DifficultyIndex, Mode=TwoWay}"
                           IsEnabled="{Binding IsSettingsEditable}">
-                    <ComboBox.Resources>
-                        <SolidColorBrush x:Key="ComboBoxBackground"             Color="White"/>
-                        <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver"  Color="#f0f0f0"/>
-                        <SolidColorBrush x:Key="ComboBoxBackgroundPressed"      Color="#e0e0e0"/>
-                        <SolidColorBrush x:Key="ComboBoxBackgroundDisabled"     Color="#e8e8e8"/>
-                        <SolidColorBrush x:Key="ComboBoxDropDownBackground"     Color="White"/>
-                        <SolidColorBrush x:Key="ComboBoxForeground"             Color="Black"/>
-                        <SolidColorBrush x:Key="ComboBoxForegroundDisabled"     Color="#505050"/>
-                        <SolidColorBrush x:Key="ComboBoxBorderBrushDisabled"    Color="#b0b0b0"/>
-                    </ComboBox.Resources>
                     <ComboBoxItem Content="ビギナー"/>
                     <ComboBoxItem Content="イージー"/>
                     <ComboBoxItem Content="ノーマル"/>
@@ -156,16 +147,6 @@
                           RequestedTheme="Light"
                           SelectedIndex="{Binding HumanColorIndex, Mode=TwoWay}"
                           IsEnabled="{Binding IsSettingsEditable}">
-                    <ComboBox.Resources>
-                        <SolidColorBrush x:Key="ComboBoxBackground"             Color="White"/>
-                        <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver"  Color="#f0f0f0"/>
-                        <SolidColorBrush x:Key="ComboBoxBackgroundPressed"      Color="#e0e0e0"/>
-                        <SolidColorBrush x:Key="ComboBoxBackgroundDisabled"     Color="#e8e8e8"/>
-                        <SolidColorBrush x:Key="ComboBoxDropDownBackground"     Color="White"/>
-                        <SolidColorBrush x:Key="ComboBoxForeground"             Color="Black"/>
-                        <SolidColorBrush x:Key="ComboBoxForegroundDisabled"     Color="#505050"/>
-                        <SolidColorBrush x:Key="ComboBoxBorderBrushDisabled"    Color="#b0b0b0"/>
-                    </ComboBox.Resources>
                     <ComboBoxItem Content="黒（先手）"/>
                     <ComboBoxItem Content="白（後手）"/>
                 </ComboBox>
@@ -180,16 +161,6 @@
                           RequestedTheme="Light"
                           SelectedIndex="{Binding BlackDifficultyIndex, Mode=TwoWay}"
                           IsEnabled="{Binding IsSettingsEditable}">
-                    <ComboBox.Resources>
-                        <SolidColorBrush x:Key="ComboBoxBackground"             Color="White"/>
-                        <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver"  Color="#f0f0f0"/>
-                        <SolidColorBrush x:Key="ComboBoxBackgroundPressed"      Color="#e0e0e0"/>
-                        <SolidColorBrush x:Key="ComboBoxBackgroundDisabled"     Color="#e8e8e8"/>
-                        <SolidColorBrush x:Key="ComboBoxDropDownBackground"     Color="White"/>
-                        <SolidColorBrush x:Key="ComboBoxForeground"             Color="Black"/>
-                        <SolidColorBrush x:Key="ComboBoxForegroundDisabled"     Color="#505050"/>
-                        <SolidColorBrush x:Key="ComboBoxBorderBrushDisabled"    Color="#b0b0b0"/>
-                    </ComboBox.Resources>
                     <ComboBoxItem Content="ビギナー"/>
                     <ComboBoxItem Content="イージー"/>
                     <ComboBoxItem Content="ノーマル"/>
@@ -202,16 +173,6 @@
                           RequestedTheme="Light"
                           SelectedIndex="{Binding WhiteDifficultyIndex, Mode=TwoWay}"
                           IsEnabled="{Binding IsSettingsEditable}">
-                    <ComboBox.Resources>
-                        <SolidColorBrush x:Key="ComboBoxBackground"             Color="White"/>
-                        <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver"  Color="#f0f0f0"/>
-                        <SolidColorBrush x:Key="ComboBoxBackgroundPressed"      Color="#e0e0e0"/>
-                        <SolidColorBrush x:Key="ComboBoxBackgroundDisabled"     Color="#e8e8e8"/>
-                        <SolidColorBrush x:Key="ComboBoxDropDownBackground"     Color="White"/>
-                        <SolidColorBrush x:Key="ComboBoxForeground"             Color="Black"/>
-                        <SolidColorBrush x:Key="ComboBoxForegroundDisabled"     Color="#505050"/>
-                        <SolidColorBrush x:Key="ComboBoxBorderBrushDisabled"    Color="#b0b0b0"/>
-                    </ComboBox.Resources>
                     <ComboBoxItem Content="ビギナー"/>
                     <ComboBoxItem Content="イージー"/>
                     <ComboBoxItem Content="ノーマル"/>
@@ -226,16 +187,6 @@
                 <ComboBox Width="115" Margin="3,0" VerticalAlignment="Center" FontSize="12"
                           RequestedTheme="Light"
                           SelectedIndex="{Binding CpuVsCpuDelayIndex, Mode=TwoWay}">
-                    <ComboBox.Resources>
-                        <SolidColorBrush x:Key="ComboBoxBackground"             Color="White"/>
-                        <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver"  Color="#f0f0f0"/>
-                        <SolidColorBrush x:Key="ComboBoxBackgroundPressed"      Color="#e0e0e0"/>
-                        <SolidColorBrush x:Key="ComboBoxBackgroundDisabled"     Color="#e8e8e8"/>
-                        <SolidColorBrush x:Key="ComboBoxDropDownBackground"     Color="White"/>
-                        <SolidColorBrush x:Key="ComboBoxForeground"             Color="Black"/>
-                        <SolidColorBrush x:Key="ComboBoxForegroundDisabled"     Color="#505050"/>
-                        <SolidColorBrush x:Key="ComboBoxBorderBrushDisabled"    Color="#b0b0b0"/>
-                    </ComboBox.Resources>
                     <ComboBoxItem Content="高速 (0.5秒)"/>
                     <ComboBoxItem Content="標準 (1秒)"/>
                     <ComboBoxItem Content="低速 (2秒)"/>
