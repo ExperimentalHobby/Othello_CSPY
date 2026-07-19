@@ -69,6 +69,8 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 	// _engine.Undo() 1 回につき末尾から 1 件 pop して同数だけ _kifuMoves を巻き戻す（OnUndo 参照）。
 	private readonly List<int> _kifuMoveEntryCounts = new();
 	private KifuRecord? _lastKifuRecord;
+	// 直前の着手位置（マーカー表示用）。RecordMove() で更新し、Undo 時は _kifuMoves から再計算する。
+	private Position? _lastMovePosition;
 
 	// --- スコア推移 ---
 	public ObservableCollection<ScorePoint> ScoreHistory { get; } = new();
@@ -292,6 +294,7 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 		_engine.Initialize();
 		_kifuMoves.Clear();
 		_kifuMoveEntryCounts.Clear();
+		_lastMovePosition = null;
 		LastKifuRecord = null;
 		ScoreHistory.Clear();
 		RecordCurrentScore();
@@ -572,6 +575,7 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 		_engine.Initialize();
 		_kifuMoves.Clear();
 		_kifuMoveEntryCounts.Clear();
+		_lastMovePosition = null;
 		LastKifuRecord = null;
 		ScoreHistory.Clear();
 		RecordCurrentScore();
@@ -857,6 +861,12 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 			_kifuMoves.RemoveRange(_kifuMoves.Count - removeCount, removeCount);
 		}
 
+		// 巻き戻し後に残っている最後の非パス手を「直前の着手」としてマーカーを復元する（なければ null）
+		var lastRealMove = _kifuMoves.LastOrDefault(m => !m.IsPass);
+		_lastMovePosition = lastRealMove != null
+			? new Position(lastRealMove.Row!.Value, lastRealMove.Col!.Value)
+			: null;
+
 		OnPropertyChanged(nameof(IsSettingsEditable));
 		OnPropertyChanged(nameof(IsTimeLimitEditable));
 		RefreshBoardDisplay();
@@ -914,6 +924,9 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 
 		foreach (var square in BoardSquares)
 			square.IsValidMove = validSet.Contains(square.Position);
+
+		foreach (var square in BoardSquares)
+			square.IsLastMove = square.Position == _lastMovePosition;
 
 		ClearHint();
 		if (IsHintEnabled && !IsCpuVsCpu && IsGameInProgress && _engine.CurrentPlayer == HumanColor)
@@ -1134,6 +1147,7 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 		if (_engine.LastPassedPlayer is { } passed)
 			_kifuMoves.Add(new KifuMove(passed, IsPass: true));
 		_kifuMoveEntryCounts.Add(_kifuMoves.Count - before);
+		_lastMovePosition = position;
 	}
 
 	private void RecordCurrentScore()

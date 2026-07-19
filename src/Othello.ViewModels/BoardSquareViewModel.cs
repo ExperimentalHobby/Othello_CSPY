@@ -16,6 +16,7 @@ public class BoardSquareViewModel : ViewModelBase
 	private bool _hasPiece;
 	private bool _isBeingFlipped;
 	private bool _isHint;
+	private bool _isLastMove;
 
 	public PlayerColor Piece { get => _piece; set => SetProperty(ref _piece, value); }
 
@@ -28,6 +29,9 @@ public class BoardSquareViewModel : ViewModelBase
 
 	/// <summary>AI 推奨手（ヒント）であることを示すフラグ。人間のターン時のみ true になる。</summary>
 	public bool IsHint { get => _isHint; set => SetProperty(ref _isHint, value); }
+
+	/// <summary>直前の着手位置であることを示すフラグ。次の着手が行われると自動的に移る。</summary>
+	public bool IsLastMove { get => _isLastMove; set => SetProperty(ref _isLastMove, value); }
 
 	/// <summary>指定した盤面座標でマスを初期化する。</summary>
 	/// <param name="position">このマスが対応する盤面上の座標（0〜7, 0〜7）。</param>

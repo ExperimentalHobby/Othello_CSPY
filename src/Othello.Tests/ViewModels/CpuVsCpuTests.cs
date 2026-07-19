@@ -241,6 +241,23 @@ public class CpuVsCpuTests
 	}
 
 	/// <summary>
+	/// パス条件: CpuVsCpu モードで自動対戦が進行すると、ちょうど 1 マスだけ IsLastMove=true になること
+	/// （#60: 反転アニメーションが消えた後も直前の着手位置がわかるようにするマーカー）。
+	/// </summary>
+	[Fact]
+	public async Task CpuVsCpu_UpdatesIsLastMoveAsGameProgresses()
+	{
+		var vm = await CreateCpuVsCpuViewModelAsync();
+
+		// 初期配置(4石)より石数が増える=最低1手進むまで待つ
+		var deadline = DateTime.UtcNow.AddSeconds(10);
+		while (vm.BlackScore + vm.WhiteScore <= 4 && vm.IsGameInProgress && DateTime.UtcNow < deadline)
+			await Task.Delay(20);
+
+		Assert.Single(vm.BoardSquares, sq => sq.IsLastMove);
+	}
+
+	/// <summary>
 	/// パス条件: CpuVsCpu 停止中に HumanVsCpu に切り替えると新規ゲームが開始されること。
 	/// </summary>
 	[Fact]

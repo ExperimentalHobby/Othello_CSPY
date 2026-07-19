@@ -22,4 +22,7 @@
     <!-- Hint highlight -->
     <SolidColorBrush x:Key="HintHighlightBrush"       Color="#6495ED"/>
 
+    <!-- Last move marker -->
+    <SolidColorBrush x:Key="LastMoveMarkerBrush"      Color="#E53935"/>
+
 </ResourceDictionary>

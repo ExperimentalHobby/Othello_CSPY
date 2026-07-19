@@ -835,6 +835,127 @@ public class GameViewModelTests
 		// 人間ターンに戻ったらヒントが更新されているはず
 		Assert.Single(vm.BoardSquares, sq => sq.IsHint);
 	}
+
+	// ========== #60: IsLastMove（直前の着手位置マーカー） ==========
+
+	/// <summary>
+	/// 人間が (2,3) に着手すると、そのマスのみ IsLastMove が true になることを確認する。
+	/// パス条件: IsLastMove=true のマスが (2,3) の 1 つだけであること。
+	/// </summary>
+	[Fact]
+	public void HumanMove_SetsIsLastMoveOnMovedSquareOnly()
+	{
+		using var vm = new GameViewModel(d => new FakeAI(d));
+
+		vm.SquareClickedCommand.Execute(new Position(2, 3));
+
+		var lastMoveSquares = vm.BoardSquares.Where(sq => sq.IsLastMove).Select(sq => sq.Position).ToList();
+		Assert.Equal(new[] { new Position(2, 3) }, lastMoveSquares);
+	}
+
+	/// <summary>
+	/// AI が応答着手すると、IsLastMove が AI の着手マスに移り、人間の着手マスは false に戻ることを確認する。
+	/// パス条件: IsLastMove=true のマスがちょうど 1 つ、かつ (2,3) ではなく白石のマスであること。
+	/// </summary>
+	[Fact]
+	public void AiMove_MovesIsLastMoveToAiSquare()
+	{
+		using var aiMoved = new ManualResetEventSlim(false);
+		using var vm = new GameViewModel(d => new FakeAI(d, () => aiMoved.Set()));
+
+		vm.SquareClickedCommand.Execute(new Position(2, 3));
+		Assert.True(aiMoved.Wait(Timeout));
+		Thread.Sleep(500); // ProcessAIMoveAsync 内の MakeMove 完了を待つ
+
+		var lastMove = Assert.Single(vm.BoardSquares, sq => sq.IsLastMove);
+		Assert.NotEqual(new Position(2, 3), lastMove.Position);
+		Assert.Equal(PlayerColor.White, lastMove.Piece);
+	}
+
+	/// <summary>
+	/// 人間の 2 手目着手後、IsLastMove が 2 手目のマスに移り、1 手目・AI の応答手は false に戻ることを確認する。
+	/// パス条件: IsLastMove=true のマスが 2 手目の 1 つだけであること。
+	/// </summary>
+	[Fact]
+	public void SecondHumanMove_MovesIsLastMoveAwayFromPreviousMoves()
+	{
+		using var aiMoved = new ManualResetEventSlim(false);
+		using var vm = new GameViewModel(d => new FakeAI(d, () => aiMoved.Set()));
+
+		vm.SquareClickedCommand.Execute(new Position(2, 3)); // 1 手目（人間）
+		Assert.True(aiMoved.Wait(Timeout));
+		Thread.Sleep(500);
+		aiMoved.Reset();
+
+		var secondMove = vm.BoardSquares.First(sq => sq.IsValidMove).Position;
+		vm.SquareClickedCommand.Execute(secondMove); // 2 手目（人間）
+
+		var lastMoveSquares = vm.BoardSquares.Where(sq => sq.IsLastMove).Select(sq => sq.Position).ToList();
+		Assert.Equal(new[] { secondMove }, lastMoveSquares);
+	}
+
+	/// <summary>
+	/// 人間の 2 手目を Undo すると、IsLastMove が AI の応答手（1 つ前の着手）に戻ることを確認する。
+	/// パス条件: Undo 後の IsLastMove=true のマスが AI の応答手の座標と一致すること。
+	/// </summary>
+	[Fact]
+	public void Undo_AfterSecondHumanMove_RestoresIsLastMoveToPreviousAiMove()
+	{
+		using var aiMoved = new ManualResetEventSlim(false);
+		using var vm = new GameViewModel(d => new FakeAI(d, () => aiMoved.Set()));
+
+		vm.SquareClickedCommand.Execute(new Position(2, 3)); // 1 手目（人間）
+		Assert.True(aiMoved.Wait(Timeout));
+		Thread.Sleep(500);
+		var aiMovePosition = Assert.Single(vm.BoardSquares, sq => sq.IsLastMove).Position;
+
+		aiMoved.Reset();
+		var secondMove = vm.BoardSquares.First(sq => sq.IsValidMove).Position;
+		vm.SquareClickedCommand.Execute(secondMove); // 2 手目（人間）、AI はまだ応答していない
+
+		vm.UndoCommand.Execute(null); // 2 手目のみが取り消される
+
+		var lastMove = Assert.Single(vm.BoardSquares, sq => sq.IsLastMove);
+		Assert.Equal(aiMovePosition, lastMove.Position);
+	}
+
+	/// <summary>
+	/// 人間+AI の 2 手を Undo で初期状態まで巻き戻すと、全マスの IsLastMove が false になることを確認する。
+	/// パス条件: Undo 後に IsLastMove=true のマスが 1 つも存在しないこと。
+	/// </summary>
+	[Fact]
+	public void Undo_BackToInitialState_ClearsIsLastMoveOnAllSquares()
+	{
+		using var aiMoved = new ManualResetEventSlim(false);
+		using var vm = new GameViewModel(d => new FakeAI(d, () => aiMoved.Set()));
+
+		vm.SquareClickedCommand.Execute(new Position(2, 3));
+		Assert.True(aiMoved.Wait(Timeout));
+		Thread.Sleep(500);
+
+		vm.UndoCommand.Execute(null); // 人間+AI の 2 手がまとめて取り消され初期状態に戻る
+
+		Assert.DoesNotContain(vm.BoardSquares, sq => sq.IsLastMove);
+	}
+
+	/// <summary>
+	/// 新規ゲーム開始直後は、直前のゲームの IsLastMove が残っていないことを確認する。
+	/// パス条件: StartNewGame() 直後に IsLastMove=true のマスが 1 つも存在しないこと。
+	/// </summary>
+	[Fact]
+	public void StartNewGame_ClearsIsLastMoveFromPreviousGame()
+	{
+		using var aiMoved = new ManualResetEventSlim(false);
+		using var vm = new GameViewModel(d => new FakeAI(d, () => aiMoved.Set()));
+
+		vm.SquareClickedCommand.Execute(new Position(2, 3));
+		Assert.True(aiMoved.Wait(Timeout));
+		Thread.Sleep(500);
+
+		vm.StartNewGame();
+
+		Assert.DoesNotContain(vm.BoardSquares, sq => sq.IsLastMove);
+	}
 }
 
 // ========== テスト専用 AI モック ==========
