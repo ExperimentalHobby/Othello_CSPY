@@ -120,6 +120,51 @@ public class OthelloRulesTests
 		Assert.Throws<InvalidOperationException>(
 			() => OthelloRules.MakeMove(board, new Position(0, 0), PlayerColor.Black));
 	}
+
+	// ---- HasAnyValidMove 短絡判定 -------------------------------------------
+
+	/// <summary>
+	/// 初期盤面では黒に有効手があるため HasAnyValidMove が true を返すことを確認する。
+	/// パス条件: HasAnyValidMove の戻り値が true であること。
+	/// </summary>
+	[Fact]
+	public void HasAnyValidMove_InitialBoard_ReturnsTrue()
+	{
+		var board = new Board();
+		Assert.True(OthelloRules.HasAnyValidMove(board, PlayerColor.Black));
+	}
+
+	/// <summary>
+	/// 盤面が完全に埋まっている場合、白には有効手がなく HasAnyValidMove が false を返すことを確認する。
+	/// パス条件: 全マス黒の盤面で白の HasAnyValidMove が false であること。
+	/// </summary>
+	[Fact]
+	public void HasAnyValidMove_FullBoard_ReturnsFalse()
+	{
+		var board = new Board();
+		for (int r = 0; r < 8; r++)
+			for (int c = 0; c < 8; c++)
+				board.SetPiece(r, c, PlayerColor.Black);
+
+		Assert.False(OthelloRules.HasAnyValidMove(board, PlayerColor.White));
+	}
+
+	/// <summary>
+	/// HasAnyValidMove の結果が GetValidMoves(...).Count > 0 と常に一致することを確認する。
+	/// 初期盤面の黒・白双方で比較する。
+	/// パス条件: 両者の結果が一致すること。
+	/// </summary>
+	[Fact]
+	public void HasAnyValidMove_AlwaysMatchesGetValidMovesCount()
+	{
+		var board = new Board();
+		foreach (var playerColor in new[] { PlayerColor.Black, PlayerColor.White })
+		{
+			bool hasAny = OthelloRules.HasAnyValidMove(board, playerColor);
+			bool hasMoves = OthelloRules.GetValidMoves(board, playerColor).Count > 0;
+			Assert.Equal(hasMoves, hasAny);
+		}
+	}
 }
 
 public class GetGameResultTests

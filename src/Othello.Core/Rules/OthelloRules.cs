@@ -69,7 +69,23 @@ public static class OthelloRules
 	/// <param name="playerColor">判定対象のプレイヤー</param>
 	/// <returns>有効手がなければ true（パス必須）</returns>
 	public static bool CanPass(Board board, PlayerColor playerColor) =>
-		GetValidMoves(board, playerColor).Count == 0;
+		!HasAnyValidMove(board, playerColor);
+
+	/// <summary>
+	/// 指定したプレイヤーに有効手が 1 つでもあるかどうかを判定する（短絡評価版）。
+	/// 最初に見つかった時点で即座に true を返すため、件数やリストが不要な場面で
+	/// GetValidMoves(...).Count や CountValidMoves より高速。
+	/// </summary>
+	/// <param name="board">現在の盤面</param>
+	/// <param name="playerColor">判定対象のプレイヤー</param>
+	/// <returns>有効手が 1 つ以上あれば true</returns>
+	public static bool HasAnyValidMove(Board board, PlayerColor playerColor)
+	{
+		foreach (var position in board.GetEmptySquares())
+			if (IsValidMove(board, position, playerColor))
+				return true;
+		return false;
+	}
 
 	/// <summary>
 	/// 指定したプレイヤーの有効手の件数を返す（リストを構築しない高速版）。
@@ -91,8 +107,8 @@ public static class OthelloRules
 	/// <param name="board">現在の盤面</param>
 	/// <returns>両者ともに着手不可能であれば true</returns>
 	public static bool IsGameOver(Board board) =>
-		GetValidMoves(board, PlayerColor.Black).Count == 0 &&
-		GetValidMoves(board, PlayerColor.White).Count == 0;
+		!HasAnyValidMove(board, PlayerColor.Black) &&
+		!HasAnyValidMove(board, PlayerColor.White);
 
 	/// <summary>
 	/// 終局時の勝者と双方の石数を返す。

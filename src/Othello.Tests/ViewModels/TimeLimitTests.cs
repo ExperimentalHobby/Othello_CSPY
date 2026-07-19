@@ -145,7 +145,9 @@ public class TimeLimitTests
 		vm.StartNewGame();
 
 		// 1 秒待てば自動着手が走るはずだが、テストの速度のため直接強制着手を呼ぶ
-		await vm.ForcePlayForTestAsync();
+		vm.ForcePlayFirstValidMove();
+		// 着手後にAIが非同期(fire-and-forget)で応答するため、アサーション前に少し待つ
+		await Task.Delay(10);
 
 		// 人間（黒）が着手したので黒石が増えているはず
 		Assert.True(vm.BlackScore > 2);
