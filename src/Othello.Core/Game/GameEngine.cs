@@ -232,7 +232,7 @@ public class GameEngine
 	/// <param name="playerColor">確認するプレイヤー</param>
 	/// <returns>1 手以上の有効手があれば true</returns>
 	private bool HasValidMoves(PlayerColor playerColor) =>
-		OthelloRules.GetValidMoves(_board, playerColor).Count > 0;
+		OthelloRules.HasAnyValidMove(_board, playerColor);
 
 	/// <summary>
 	/// 指定したプレイヤーの有効手リストを返す（GameViewModel などの外部から利用）。
