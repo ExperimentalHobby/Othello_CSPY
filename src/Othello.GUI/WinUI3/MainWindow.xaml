@@ -232,6 +232,8 @@
                                                  Stroke="#2a2a2a" StrokeThickness="2"
                                                  Width="88" Height="88"
                                                  Visibility="{Binding HasPiece, Converter={StaticResource BoolToVisConverter}}"/>
+                                        <Ellipse Fill="#E53935" Width="20" Height="20"
+                                                 Visibility="{Binding IsLastMove, Converter={StaticResource BoolToVisConverter}}"/>
                                     </Grid>
                                 </Viewbox>
                             </Button>

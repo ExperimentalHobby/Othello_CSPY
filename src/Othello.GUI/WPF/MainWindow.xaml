@@ -227,6 +227,8 @@
                                             </Style>
                                         </Ellipse.Style>
                                     </Ellipse>
+                                    <Ellipse Fill="{StaticResource LastMoveMarkerBrush}" Width="18" Height="18"
+                                             Visibility="{Binding IsLastMove, Converter={StaticResource BoolToVisConverter}}"/>
                                 </Grid>
                             </Button>
                         </DataTemplate>

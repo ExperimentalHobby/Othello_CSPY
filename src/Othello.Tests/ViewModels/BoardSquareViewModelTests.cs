@@ -191,4 +191,33 @@ public class BoardSquareViewModelTests
 
 		Assert.Equal("IsHint", changedProp);
 	}
+
+	// ========== IsLastMove ==========
+
+	/// <summary>
+	/// 初期状態で IsLastMove が false であることを確認する。
+	/// パス条件: 生成直後の IsLastMove が false であること。
+	/// </summary>
+	[Fact]
+	public void IsLastMove_DefaultFalse()
+	{
+		var sq = new BoardSquareViewModel(new Position(0, 0));
+		Assert.False(sq.IsLastMove);
+	}
+
+	/// <summary>
+	/// IsLastMove を変更すると "IsLastMove" の PropertyChanged が発火することを確認する。
+	/// パス条件: "IsLastMove" の PropertyChanged が発火すること。
+	/// </summary>
+	[Fact]
+	public void IsLastMove_RaisesPropertyChanged()
+	{
+		var sq = new BoardSquareViewModel(new Position(0, 0));
+		string? changedProp = null;
+		((INotifyPropertyChanged)sq).PropertyChanged += (_, e) => changedProp = e.PropertyName;
+
+		sq.IsLastMove = true;
+
+		Assert.Equal("IsLastMove", changedProp);
+	}
 }
