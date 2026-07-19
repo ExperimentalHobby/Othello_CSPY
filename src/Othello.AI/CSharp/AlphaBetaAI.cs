@@ -189,17 +189,17 @@ public class AlphaBetaAI : IAIStrategy
 
 	/// <summary>
 	/// 深さ 0 またはゲーム終了時の終端評価を返す。非終端なら null。
-	/// IsGameOver をローカル変数にキャッシュして2回呼び出しを防ぐ（F8）。
+	/// depth==0 を終局判定より先に見る。Python の _alpha_beta / Rust の alpha_beta_timed と同じ順序
+	/// （depth==0 に達した葉は、たとえ終局していても通常の Evaluate を返す。Issue #95）。
 	/// </summary>
 	private static int? TryEvaluateTerminalNode(Board board, int depth, PlayerColor aiPlayer)
 	{
-		bool isOver = OthelloRules.IsGameOver(board);
-		if (depth != 0 && !isOver)
-			return null;
+		if (depth == 0)
+			return Evaluator.Evaluate(board, aiPlayer);
 
-		return isOver
+		return OthelloRules.IsGameOver(board)
 			? Evaluator.EvaluateFinal(board, aiPlayer, depth)  // depth で早い勝ちを選好（F5）
-			: Evaluator.Evaluate(board, aiPlayer);
+			: null;
 	}
 
 	/// <summary>

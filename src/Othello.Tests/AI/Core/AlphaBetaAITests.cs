@@ -46,6 +46,29 @@ public class AlphaBetaAITests
 			$"より遅い負け(depth=1)のスコア {scoreDepth1} が 早い負け(depth=5) のスコア {scoreDepth5} を上回ること");
 	}
 
+	// ---- 終端評価順序（Issue #95） -------------------------------------------
+
+	/// <summary>
+	/// depth==0 かつ終局盤面の場合、EvaluateFinal（勝敗ベースの大きな値）ではなく
+	/// Evaluate（通常のフェーズ評価）を返す。Python の _alpha_beta（depth==0 を先に判定）と
+	/// 同じ順序であることを確認する（Issue #95）。
+	/// パス条件: AlphaBetaForTest(depth=0) の戻り値が Evaluator.Evaluate と一致し、
+	/// Evaluator.EvaluateFinal とは一致しないこと。
+	/// </summary>
+	[Fact]
+	public void AlphaBeta_DepthZeroOnGameOverBoard_UsesEvaluateNotEvaluateFinal()
+	{
+		var board = AllBlackBoard();
+		var ai = new AlphaBetaAI();
+
+		int actual = ai.AlphaBetaForTest(board, depth: 0, alpha: int.MinValue, beta: int.MaxValue,
+			isMaximizing: true, currentPlayer: PlayerColor.Black, aiPlayer: PlayerColor.Black);
+
+		int expected = Evaluator.Evaluate(board, PlayerColor.Black);
+		Assert.Equal(expected, actual);
+		Assert.NotEqual(Evaluator.EvaluateFinal(board, PlayerColor.Black, depth: 0), actual);
+	}
+
 	// ---- F1: HandleNoValidMoves isMaximizing 修正 -------------------------
 
 	/// <summary>
