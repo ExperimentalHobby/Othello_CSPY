@@ -26,7 +26,7 @@ public partial class GameViewModel
 		RefreshBoardDisplay();
 
 		var currentMoves = OthelloRules.GetValidMoves(board, currentPlayer);
-		var opponent = currentPlayer == PlayerColor.Black ? PlayerColor.White : PlayerColor.Black;
+		var opponent = currentPlayer.Opponent();
 		var opponentMoves = OthelloRules.GetValidMoves(board, opponent);
 		if (currentMoves.Count == 0 && opponentMoves.Count == 0)
 		{
