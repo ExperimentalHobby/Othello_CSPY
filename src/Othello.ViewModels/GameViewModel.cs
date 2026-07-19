@@ -988,20 +988,18 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 		if (IsGameInProgress && _engine.CurrentPlayer == HumanColor)
 		{
 			StatusMessage = "時間切れ！自動着手します";
-			await ForcePlayForTestAsync();
+			ForcePlayFirstValidMove();
 		}
 	}
 
 	/// <summary>
-	/// 有効手[0]を強制着手する。時間切れ処理とテストから呼ぶ。
+	/// 有効手[0]を強制着手する。制限時間切れ時に呼ばれる。
 	/// </summary>
-	public async Task ForcePlayForTestAsync()
+	public void ForcePlayFirstValidMove()
 	{
 		var validMoves = OthelloRules.GetValidMoves(_engine.CurrentBoard, HumanColor);
 		if (validMoves.Count == 0) return;
 		HandlePlayerMove(validMoves[0]);
-		// AI 応答を少し待つ（テストで AI が動く時間を確保）
-		await Task.Delay(10);
 	}
 
 	/// <summary>
