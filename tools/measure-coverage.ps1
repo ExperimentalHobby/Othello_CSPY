@@ -39,10 +39,11 @@ if (-not $xmlPath) {
     exit 1
 }
 
-# ReportGenerator でレポートを生成
+# ReportGenerator でレポートを生成（.config/dotnet-tools.json のローカルツール）
 Write-Host ""
 Write-Host ">>> ReportGenerator でレポートを生成中..."
-reportgenerator `
+dotnet tool restore
+dotnet tool run reportgenerator `
     -reports:"$xmlPath" `
     -targetdir:"$reportDir" `
     -reporttypes:"Html;TextSummary"

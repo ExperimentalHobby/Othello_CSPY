@@ -172,7 +172,7 @@ dotnet run --project src/Othello.Console/Othello.Console.csproj
 > .\tools\measure-coverage.ps1
 > ```
 > レポートは `report/YYYYMMDD-HHMMSS_<ブランチ名>_report/index.html` に生成されます（`report/` は `.gitignore` 対象）。  
-> スクリプト実行には `reportgenerator` のグローバルインストールが必要です: `dotnet tool install -g dotnet-reportgenerator-globaltool`
+> `reportgenerator` は `.config/dotnet-tools.json` のローカルツールとして実行されるため、グローバルインストールは不要です。
 
 > `publish: *` タスクは発行前に自動で `build: Rust AI` を実行し、Rust 製 AI を dist に同梱します。Rust 未導入の場合は先に [Rust（任意・AI 高速化）](#rust任意ai-高速化) を導入してください。
 
