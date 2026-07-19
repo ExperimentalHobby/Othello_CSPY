@@ -1140,15 +1140,7 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 
 	private void RecordCurrentScore()
 	{
-		int black = 0, white = 0;
-		for (int r = 0; r < 8; r++)
-			for (int c = 0; c < 8; c++)
-			{
-				var piece = _engine.CurrentBoard.GetPiece(r, c);
-				if (piece == PlayerColor.Black) black++;
-				else if (piece == PlayerColor.White) white++;
-			}
-		ScoreHistory.Add(new ScorePoint(ScoreHistory.Count, black, white));
+		ScoreHistory.Add(new ScorePoint(ScoreHistory.Count, _engine.BlackScore, _engine.WhiteScore));
 	}
 
 	public void Dispose()
