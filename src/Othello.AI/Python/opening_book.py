@@ -30,6 +30,37 @@ def _notation_to_rc(notation):
     return row, col
 
 
+_MAX_INDEX = BOARD_SIZE - 1
+
+
+def _identity(r, c):
+    """恒等変換。"""
+    return r, c
+
+
+def _rotate_180(r, c):
+    """盤面を180度回転させる。"""
+    return _MAX_INDEX - r, _MAX_INDEX - c
+
+
+def _reflect_main_diagonal(r, c):
+    """主対角線（左上-右下）で鏡映させる。"""
+    return c, r
+
+
+def _reflect_anti_diagonal(r, c):
+    """反対角線（右上-左下）で鏡映させる。"""
+    return _MAX_INDEX - c, _MAX_INDEX - r
+
+
+# オセロの初期配置は黒2石・白2石が中央で対角配置されているため、
+# 90度/270度回転・水平/垂直鏡映は黒白を入れ替えないと初期配置と一致しない。
+# 本ゲームは常に黒が先手固定のため、それらは「白が初手を打つ」という
+# 実際には起こらない局面を生成してしまい使えない。
+# 黒の合法初手集合 {d3, c4, f5, e6} を保つ以下の4変換のみを使用する。
+_SYMMETRY_TRANSFORMS = [_identity, _rotate_180, _reflect_main_diagonal, _reflect_anti_diagonal]
+
+
 def _initial_board():
     """オセロの標準初期配置の盤面を返す。"""
     board = [[EMPTY] * BOARD_SIZE for _ in range(BOARD_SIZE)]
@@ -49,6 +80,11 @@ def build_book(lines):
     """
     定石手順のリストから局面 -> 着手 の辞書を構築する。
 
+    各定石ラインについて、黒の合法初手集合を保つ4つの対称変換
+    （恒等・180度回転・主対角線鏡映・反対角線鏡映、_SYMMETRY_TRANSFORMS）
+    それぞれで着手座標を変換してシミュレートし、変換後の局面も併せて登録する（Issue #62）。
+    これにより初手が f5 以外（d3/c4/e6）の対称な局面でも定石がヒットするようになる。
+
     各手を打つ前に get_valid_moves で合法性を検証し、非合法手が含まれる場合は
     AssertionError を送出する（定石データの誤りを構築時に検知するため）。
 
@@ -60,25 +96,26 @@ def build_book(lines):
             (盤面キー, 手番) -> (row, col) の辞書
 
     Raises:
-        AssertionError: 定石データに非合法手が含まれる場合
+        AssertionError: 定石データ（対称変換後を含む）に非合法手が含まれる場合
     """
     book = {}
     for line in lines:
-        board = _initial_board()
-        player = BLACK
-        for notation in line["moves"]:
-            r, c = _notation_to_rc(notation)
-            valid_moves = get_valid_moves(board, player)
-            # ユーザー入力ではなく開発者管理の静的定石データ(OPENING_LINES)の構築時検証のため nosec。
-            assert (r, c) in valid_moves, (  # nosec B101
-                f"{line['name']}: 非合法手 {notation} -> ({r}, {c}) "
-                f"player={player} valid_moves={valid_moves}"
-            )
-            key = (_board_key(board), player)
-            # 先に登録された定石を優先する（後発の重複キーは登録をスキップ）
-            book.setdefault(key, (r, c))
-            board = make_move(board, r, c, player)
-            player = opponent(player)
+        for transform in _SYMMETRY_TRANSFORMS:
+            board = _initial_board()
+            player = BLACK
+            for notation in line["moves"]:
+                r, c = transform(*_notation_to_rc(notation))
+                valid_moves = get_valid_moves(board, player)
+                # ユーザー入力ではなく開発者管理の静的定石データ(OPENING_LINES)の構築時検証のため nosec。
+                assert (r, c) in valid_moves, (  # nosec B101
+                    f"{line['name']} ({transform.__name__}): 非合法手 {notation} -> ({r}, {c}) "
+                    f"player={player} valid_moves={valid_moves}"
+                )
+                key = (_board_key(board), player)
+                # 先に登録された定石を優先する（後発の重複キーは登録をスキップ）
+                book.setdefault(key, (r, c))
+                board = make_move(board, r, c, player)
+                player = opponent(player)
     return book
 
 
