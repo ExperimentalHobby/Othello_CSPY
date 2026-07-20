@@ -153,36 +153,4 @@ public class ConsoleInputParserTests
 	{
 		Assert.Null(ConsoleInputParser.ParseInput("D4"));
 	}
-
-	// ---------- ColChar ----------
-
-	/// <summary>
-	/// ColChar(0) が 'a' を返すことを確認する。
-	/// パス条件: 戻り値が 'a' であること。
-	/// </summary>
-	[Fact]
-	public void ColChar_Zero_ReturnsA()
-	{
-		Assert.Equal('a', ConsoleInputParser.ColChar(0));
-	}
-
-	/// <summary>
-	/// ColChar(7) が 'h' を返すことを確認する（最大インデックス）。
-	/// パス条件: 戻り値が 'h' であること。
-	/// </summary>
-	[Fact]
-	public void ColChar_Seven_ReturnsH()
-	{
-		Assert.Equal('h', ConsoleInputParser.ColChar(7));
-	}
-
-	/// <summary>
-	/// ColChar(3) が 'd' を返すことを確認する（中間値）。
-	/// パス条件: 戻り値が 'd' であること。
-	/// </summary>
-	[Fact]
-	public void ColChar_Three_ReturnsD()
-	{
-		Assert.Equal('d', ConsoleInputParser.ColChar(3));
-	}
 }

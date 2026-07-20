@@ -68,6 +68,12 @@ public struct Position : IEquatable<Position>
 	/// <returns>"(Row, Column)" 形式の文字列</returns>
 	public override string ToString() => $"({Row}, {Column})";
 
+	/// <summary>
+	/// オセロの標準記譜法（列 a-h + 行 1-8）の文字列表現を返す。
+	/// </summary>
+	/// <returns>"a1"〜"h8" 形式の文字列</returns>
+	public string ToNotation() => $"{(char)('a' + Column)}{Row + 1}";
+
 	/// <summary>等値演算子。両辺の座標が同じ場合 true を返す。</summary>
 	public static bool operator ==(Position left, Position right) => left.Equals(right);
 

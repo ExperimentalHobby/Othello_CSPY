@@ -79,7 +79,7 @@ while (engine.GameState.IsGameInProgress())
 			Console.Error.WriteLine("ゲームを終了します。");
 			return;
 		}
-		Console.WriteLine($" → {ConsoleInputParser.ColChar(bestMove.Column)}{bestMove.Row + 1}");
+		Console.WriteLine($" → {bestMove.ToNotation()}");
 		var aiMoveResult = engine.MakeMove(bestMove);
 		if (!aiMoveResult.IsSuccess)
 		{
