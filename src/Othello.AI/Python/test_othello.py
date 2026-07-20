@@ -672,7 +672,9 @@ class DecideMoveTests(unittest.TestCase):
         """定石にない局面で time_ms 指定時は get_best_move_timed が呼ばれることを確認する。
         パス条件: get_best_move_timed が呼ばれ、get_best_move は呼ばれないこと。"""
         board = make_initial_board()
-        board = make_move(board, 2, 3, BLACK)  # d3: 定石（f5始まり）には存在しない手
+        # a2: 初期盤面では反転できず定石にも存在しない手。
+        # d3/c4/f5/e6（黒の合法初手4種）は Issue #62 の対称展開によりすべて定石ヒットするようになったため使えない。
+        board = make_move(board, 1, 0, BLACK)
         fake_ai = _RecordingAI()
 
         move = ai_module.decide_move(fake_ai, board, WHITE, depth=5, time_ms=3000)
@@ -685,7 +687,9 @@ class DecideMoveTests(unittest.TestCase):
         """定石にない局面で time_ms が None の場合は get_best_move が呼ばれることを確認する。
         パス条件: get_best_move が呼ばれ、get_best_move_timed は呼ばれないこと。"""
         board = make_initial_board()
-        board = make_move(board, 2, 3, BLACK)  # d3: 定石（f5始まり）には存在しない手
+        # a2: 初期盤面では反転できず定石にも存在しない手。
+        # d3/c4/f5/e6（黒の合法初手4種）は Issue #62 の対称展開によりすべて定石ヒットするようになったため使えない。
+        board = make_move(board, 1, 0, BLACK)
         fake_ai = _RecordingAI()
 
         move = ai_module.decide_move(fake_ai, board, WHITE, depth=5, time_ms=None)
