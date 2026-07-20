@@ -110,7 +110,8 @@ public sealed class KifuViewModel : ViewModelBase
 			return $"{CurrentMove} / {TotalMoves} 手目";
 		if (move.IsPass)
 			return $"{CurrentMove} / {TotalMoves} 手目  {move.Player.ToDisplayString()} パス";
-		return $"{CurrentMove} / {TotalMoves} 手目  {move.Player.ToDisplayString()} ({move.Row},{move.Col})";
+		var notation = new Position(move.Row!.Value, move.Col!.Value).ToNotation();
+		return $"{CurrentMove} / {TotalMoves} 手目  {move.Player.ToDisplayString()} {notation}";
 	}
 
 	private static string BuildKifuInfo(KifuRecord? record)

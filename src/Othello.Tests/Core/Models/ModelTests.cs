@@ -321,6 +321,39 @@ public class PositionTests
 		var corner = new Position(7, 7);
 		Assert.True(corner.IsValid());
 	}
+
+	/// <summary>
+	/// ToNotation() が左上端 (0,0) を標準記譜法の "a1" に変換することを確認する（境界値）。
+	/// パス条件: ToNotation() が "a1" を返すこと。
+	/// </summary>
+	[Fact]
+	public void ToNotation_TopLeftCorner_ReturnsA1()
+	{
+		var pos = new Position(0, 0);
+		Assert.Equal("a1", pos.ToNotation());
+	}
+
+	/// <summary>
+	/// ToNotation() が右下端 (7,7) を標準記譜法の "h8" に変換することを確認する（境界値）。
+	/// パス条件: ToNotation() が "h8" を返すこと。
+	/// </summary>
+	[Fact]
+	public void ToNotation_BottomRightCorner_ReturnsH8()
+	{
+		var pos = new Position(7, 7);
+		Assert.Equal("h8", pos.ToNotation());
+	}
+
+	/// <summary>
+	/// ToNotation() が (2,3) を標準記譜法の "d3" に変換することを確認する（Issue #61 記載の例）。
+	/// パス条件: ToNotation() が "d3" を返すこと。
+	/// </summary>
+	[Fact]
+	public void ToNotation_RowTwoColThree_ReturnsD3()
+	{
+		var pos = new Position(2, 3);
+		Assert.Equal("d3", pos.ToNotation());
+	}
 }
 
 public class PlayerColorTests

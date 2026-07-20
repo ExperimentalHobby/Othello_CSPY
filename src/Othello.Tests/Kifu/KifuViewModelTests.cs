@@ -174,4 +174,38 @@ public class KifuViewModelTests
 		Assert.Contains("白の勝利", vm.KifuInfo);
 		Assert.DoesNotContain("あなたの勝利", vm.KifuInfo);
 	}
+
+	// ========== #61: 着手表示を標準記譜法に変更 ==========
+
+	/// <summary>
+	/// 着手後の StatusMessage が標準記譜法（例: "d3"）で表示されることを確認する。
+	/// パス条件: StatusMessage に "d3" が含まれ、旧形式の "(2,3)" は含まれないこと。
+	/// </summary>
+	[Fact]
+	public void StatusMessage_AfterMove_ShowsStandardNotation()
+	{
+		var vm = MakeViewModel();
+		vm.StepForwardCommand.Execute(null);
+
+		Assert.Contains("d3", vm.StatusMessage);
+		Assert.DoesNotContain("(2,3)", vm.StatusMessage);
+	}
+
+	/// <summary>
+	/// パス手の StatusMessage は記譜法表示への変更後も「パス」表示のままであることを確認する（回帰確認）。
+	/// パス条件: StatusMessage に "パス" が含まれること。
+	/// </summary>
+	[Fact]
+	public void StatusMessage_AfterPassMove_StillShowsPassText()
+	{
+		var moves = new List<KifuMove> { new(PlayerColor.Black, IsPass: true) };
+		var record = new KifuRecord(1, DateTimeOffset.Now,
+			PlayerColor.Black, DifficultyLevel.Easy,
+			null, moves, new KifuFinalScore(4, 1));
+		var vm = new KifuViewModel(new KifuPlayer(record));
+
+		vm.StepForwardCommand.Execute(null);
+
+		Assert.Contains("パス", vm.StatusMessage);
+	}
 }

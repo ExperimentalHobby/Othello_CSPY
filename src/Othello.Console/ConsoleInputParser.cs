@@ -42,11 +42,4 @@ internal static class ConsoleInputParser
 
 		return null;
 	}
-
-	/// <summary>
-	/// 列インデックス（0-7）を対応する列文字（'a'-'h'）に変換する。
-	/// </summary>
-	/// <param name="col">列インデックス（0=a, 7=h）</param>
-	/// <returns>対応する列文字</returns>
-	public static char ColChar(int col) => (char)('a' + col);
 }
