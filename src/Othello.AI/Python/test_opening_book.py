@@ -6,12 +6,12 @@ test_opening_book.py - opening_book.py の単体テスト
 
 import unittest
 
-from board import BLACK, WHITE, make_move, get_valid_moves
 import opening_book
+from board import BLACK, WHITE, get_valid_moves, make_move
 
 
 def _initial_board():
-    from board import EMPTY, BOARD_SIZE
+    from board import BOARD_SIZE, EMPTY
     board = [[EMPTY] * BOARD_SIZE for _ in range(BOARD_SIZE)]
     board[3][3] = WHITE
     board[3][4] = BLACK

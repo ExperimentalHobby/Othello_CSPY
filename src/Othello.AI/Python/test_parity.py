@@ -13,11 +13,16 @@ Rust 拡張が未ビルドの環境では自動的にスキップされる。
 
 import unittest
 
-from board import (
-    EMPTY, BLACK, WHITE, BOARD_SIZE,
-    opponent, get_valid_moves, make_move,
-)
 import alpha_beta_py
+from board import (
+    BLACK,
+    BOARD_SIZE,
+    EMPTY,
+    WHITE,
+    get_valid_moves,
+    make_move,
+    opponent,
+)
 
 try:
     import othello_ai_rust

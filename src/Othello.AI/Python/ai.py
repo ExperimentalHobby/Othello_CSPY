@@ -18,8 +18,9 @@ IPC プロトコル（改行区切り JSON）:
     C# が起動 → stdin が閉じられるまでリクエストを処理し続ける → 自然終了
 """
 
-import sys
 import json
+import sys
+
 import alpha_beta
 import opening_book
 from alpha_beta import AlphaBetaAI
@@ -98,8 +99,7 @@ def main():
                 # 最善手の座標を JSON で返す
                 response = json.dumps({'row': move[0], 'col': move[1]})
 
-        except Exception as e:
-            # 予期せぬ例外はエラーとして C# 側に通知する（プロセスは継続する）
+        except Exception as e:  # noqa: BLE001 - 予期せぬ例外もプロセスを継続させ C# 側へ JSON でエラー通知するため意図的に broad except
             response = json.dumps({'error': str(e)})
 
         # flush=True で即座に出力する（C# の ReadLine がブロッキング待機しているため必須）

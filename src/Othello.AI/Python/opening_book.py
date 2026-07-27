@@ -14,7 +14,7 @@ opening_book.py - Opening Book（定石集）
 この lookup() を経由するため、alpha_beta.py 等のバックエンド実装には一切手を加えない。
 """
 
-from board import EMPTY, BLACK, WHITE, BOARD_SIZE, get_valid_moves, make_move, opponent
+from board import BLACK, BOARD_SIZE, EMPTY, WHITE, get_valid_moves, make_move, opponent
 
 # 採用する定石（機械検証済み。詳細は docs/improvement-opening-book.md 参照）
 OPENING_LINES = [
