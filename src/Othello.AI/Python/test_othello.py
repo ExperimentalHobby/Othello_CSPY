@@ -9,14 +9,22 @@ test_othello.py - Python AI（board / evaluator / alpha_beta）の単体テス�
 
 import unittest
 
-from board import (
-    EMPTY, BLACK, WHITE, BOARD_SIZE,
-    opponent, get_flips, has_any_flip, get_valid_moves, count_valid_moves, make_move,
-)
-from evaluator import evaluate, evaluate_final, count_stable, count_frontier
-from alpha_beta import AlphaBetaAI
 import ai as ai_module
 import alpha_beta_py
+from alpha_beta import AlphaBetaAI
+from board import (
+    BLACK,
+    BOARD_SIZE,
+    EMPTY,
+    WHITE,
+    count_valid_moves,
+    get_flips,
+    get_valid_moves,
+    has_any_flip,
+    make_move,
+    opponent,
+)
+from evaluator import count_frontier, count_stable, evaluate, evaluate_final
 
 
 def make_initial_board():
@@ -209,9 +217,9 @@ class AiMainLoopTests(unittest.TestCase):
 
     def _launch_ai(self):
         """ai.py をサブプロセスとして起動し、起動直後のハンドシェイク行を読み捨てる。"""
+        import os
         import subprocess
         import sys
-        import os
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai.py')
         proc = subprocess.Popen(
             [sys.executable, '-u', script],
@@ -371,8 +379,8 @@ class AlphaBetaTimedTests(unittest.TestCase):
 
         パス条件: time_ms=0 のとき、返った手の位置重みが他の有効手以上であること。"""
         import alpha_beta_py as py_module
-        from evaluator import WEIGHTS
         from board import EMPTY
+        from evaluator import WEIGHTS
 
         py_ai = py_module.AlphaBetaAI()
 
@@ -402,9 +410,9 @@ class AiTimedMainLoopTests(unittest.TestCase):
 
     def _launch_ai(self):
         """ai.py をサブプロセスとして起動し、起動直後のハンドシェイク行を読み捨てる。"""
+        import os
         import subprocess
         import sys
-        import os
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai.py')
         proc = subprocess.Popen(
             [sys.executable, '-u', script],

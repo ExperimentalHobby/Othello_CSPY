@@ -17,12 +17,11 @@ import time
 from enum import IntEnum
 
 from board import BOARD_SIZE, get_valid_moves, make_move, opponent
-from evaluator import evaluate, evaluate_final, WEIGHTS
+from evaluator import WEIGHTS, evaluate, evaluate_final
 
 
 class _TimeoutError(Exception):
     """反復深化探索の時間制限超過を通知する内部例外。AlphaBetaAI 内でのみ使用する。"""
-    pass
 
 
 class _NodeType(IntEnum):

@@ -13,7 +13,7 @@ alpha_beta.py の探索木でリーフノードの評価値を算出するため
     - 終局評価: 石数差で最終的な勝敗を大きな値で表現する
 """
 
-from board import count_valid_moves, opponent, BOARD_SIZE
+from board import BOARD_SIZE, count_valid_moves, opponent
 
 # 盤面の位置重みテーブル（8×8）
 # コーナー（0,0 等）: +100  取られると取り返せないため最優先
@@ -111,13 +111,12 @@ def count_frontier(board, player):
     count = 0
     for r in range(BOARD_SIZE):
         for c in range(BOARD_SIZE):
-            if board[r][c] == player:
-                if any(
-                    0 <= r + dr < BOARD_SIZE and 0 <= c + dc < BOARD_SIZE
-                    and board[r + dr][c + dc] == 0
-                    for dr, dc in _DIRS8
-                ):
-                    count += 1
+            if board[r][c] == player and any(
+                0 <= r + dr < BOARD_SIZE and 0 <= c + dc < BOARD_SIZE
+                and board[r + dr][c + dc] == 0
+                for dr, dc in _DIRS8
+            ):
+                count += 1
     return count
 
 
