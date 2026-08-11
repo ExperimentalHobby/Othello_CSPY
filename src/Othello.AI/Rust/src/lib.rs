@@ -115,6 +115,16 @@ fn zobrist_hash(board: &Board) -> u64 {
     h
 }
 
+/// board の各セルが EMPTY(0) / BLACK(1) / WHITE(2) のいずれかであるかを返す。
+/// PyO3 型に依存しない純関数として実装し、`cargo test --no-default-features`
+/// （python フィーチャ無効時）でも直接検証できるようにしている。
+fn has_valid_cell_values(board: &[Vec<i8>]) -> bool {
+    board
+        .iter()
+        .flatten()
+        .all(|&cell| cell == EMPTY || cell == 1 || cell == 2)
+}
+
 /// 内部盤面型。フラット配列で row*8+col のインデックス参照を行う。
 type Board = [i8; SIZE * SIZE];
 
@@ -769,6 +779,44 @@ fn best_move_timed(
 
 // ===== PyO3 バインディング（python フィーチャ有効時のみコンパイル） =====
 
+/// Python から渡された board / player を検証する（get_best_move / get_best_move_timed 共通）。
+/// チェック順序: player → 盤面サイズ → セル値。既存の player・サイズ検証の重複を解消しつつ、
+/// セル値検証（has_valid_cell_values）を追加する。
+///
+/// Err の場合は `PyValueError` を返す（board.py の opponent が投げる ValueError と整合させる）。
+#[cfg(feature = "python")]
+fn validate_request(board: &[Vec<i8>], player: i8) -> PyResult<()> {
+    if player != 1 && player != 2 {
+        return Err(PyValueError::new_err(format!(
+            "Invalid player value: {player}. Must be BLACK(1) or WHITE(2)."
+        )));
+    }
+
+    if board.len() != SIZE || board.iter().any(|row| row.len() != SIZE) {
+        return Err(PyValueError::new_err("board must be 8x8"));
+    }
+
+    if !has_valid_cell_values(board) {
+        return Err(PyValueError::new_err(
+            "board contains an invalid cell value; each cell must be EMPTY(0), BLACK(1), or WHITE(2).",
+        ));
+    }
+
+    Ok(())
+}
+
+/// list[list[int]] をフラットな内部盤面へ変換する（呼び出し前に validate_request 済みであること）。
+#[cfg(feature = "python")]
+fn to_internal_board(board: &[Vec<i8>]) -> Board {
+    let mut internal: Board = [EMPTY; SIZE * SIZE];
+    for r in 0..SIZE {
+        for c in 0..SIZE {
+            internal[idx(r, c)] = board[r][c];
+        }
+    }
+    internal
+}
+
 /// Python へ公開する最善手計算関数。
 ///
 /// 引数:
@@ -780,27 +828,8 @@ fn best_move_timed(
 #[cfg(feature = "python")]
 #[pyfunction]
 fn get_best_move(board: Vec<Vec<i8>>, player: i8, depth: i32) -> PyResult<Option<(usize, usize)>> {
-    // プレイヤー値の検証（board.py の opponent が投げる ValueError と整合させる）
-    if player != 1 && player != 2 {
-        return Err(PyValueError::new_err(format!(
-            "Invalid player value: {player}. Must be BLACK(1) or WHITE(2)."
-        )));
-    }
-
-    // 盤面サイズの検証
-    if board.len() != SIZE || board.iter().any(|row| row.len() != SIZE) {
-        return Err(PyValueError::new_err("board must be 8x8"));
-    }
-
-    // list[list[int]] をフラットな内部盤面へ変換する
-    let mut internal: Board = [EMPTY; SIZE * SIZE];
-    for r in 0..SIZE {
-        for c in 0..SIZE {
-            internal[idx(r, c)] = board[r][c];
-        }
-    }
-
-    Ok(best_move(&internal, player, depth))
+    validate_request(&board, player)?;
+    Ok(best_move(&to_internal_board(&board), player, depth))
 }
 
 /// Python へ公開する反復深化最善手計算関数。
@@ -820,24 +849,13 @@ fn get_best_move_timed(
     max_depth: i32,
     time_ms: u64,
 ) -> PyResult<Option<(usize, usize)>> {
-    if player != 1 && player != 2 {
-        return Err(PyValueError::new_err(format!(
-            "Invalid player value: {player}. Must be BLACK(1) or WHITE(2)."
-        )));
-    }
-
-    if board.len() != SIZE || board.iter().any(|row| row.len() != SIZE) {
-        return Err(PyValueError::new_err("board must be 8x8"));
-    }
-
-    let mut internal: Board = [EMPTY; SIZE * SIZE];
-    for r in 0..SIZE {
-        for c in 0..SIZE {
-            internal[idx(r, c)] = board[r][c];
-        }
-    }
-
-    Ok(best_move_timed(&internal, player, max_depth, time_ms))
+    validate_request(&board, player)?;
+    Ok(best_move_timed(
+        &to_internal_board(&board),
+        player,
+        max_depth,
+        time_ms,
+    ))
 }
 
 /// Python 拡張モジュール othello_ai_rust の定義。
@@ -1173,6 +1191,36 @@ mod tests {
         let score = alpha_beta(&board, 3, NEG_INF, cached_score, true, BLACK, &mut tt);
 
         assert_eq!(score, cached_score);
+    }
+
+    // ===== セル値検証（has_valid_cell_values）のテスト =====
+
+    #[test]
+    fn has_valid_cell_values_true_for_all_empty_board() {
+        let board = vec![vec![0i8; SIZE]; SIZE];
+        assert!(has_valid_cell_values(&board));
+    }
+
+    #[test]
+    fn has_valid_cell_values_true_for_black_and_white_cells() {
+        let mut board = vec![vec![0i8; SIZE]; SIZE];
+        board[3][3] = 2; // WHITE
+        board[3][4] = 1; // BLACK
+        assert!(has_valid_cell_values(&board));
+    }
+
+    #[test]
+    fn has_valid_cell_values_false_for_out_of_range_cell() {
+        let mut board = vec![vec![0i8; SIZE]; SIZE];
+        board[0][0] = 3; // 不正なセル値
+        assert!(!has_valid_cell_values(&board));
+    }
+
+    #[test]
+    fn has_valid_cell_values_false_for_negative_cell() {
+        let mut board = vec![vec![0i8; SIZE]; SIZE];
+        board[0][0] = -1; // 不正なセル値
+        assert!(!has_valid_cell_values(&board));
     }
 
     #[test]

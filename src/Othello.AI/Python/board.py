@@ -39,6 +39,25 @@ def opponent(player):
     raise ValueError(f"Invalid player value: {player}. Must be BLACK({BLACK}) or WHITE({WHITE}).")
 
 
+def has_valid_cell_values(board):
+    """
+    盤面の全セルが EMPTY(0) / BLACK(1) / WHITE(2) のいずれかであるかを返す。
+
+    Zobrist ハッシュ計算（alpha_beta_py._zobrist_hash の `_ZOBRIST[r][c][cell]`）は
+    セル値をそのまま配列の添字として使う。範囲外の正の値は IndexError を引き起こすが、
+    -1 ～ -3 の負の値は Python のリストが負インデックスを「末尾からの参照」として
+    扱う言語仕様のため例外を送出せず、静かに誤ったハッシュ値で探索を継続してしまう
+    （Issue #116）。探索開始前にこの関数で一括検証することでどちらも防ぐ。
+
+    Args:
+        board (list[list[int]]): 検証対象の盤面
+
+    Returns:
+        bool: 全セルが有効な値であれば True
+    """
+    return all(cell in (EMPTY, BLACK, WHITE) for row in board for cell in row)
+
+
 def get_flips(board, r, c, player):
     """
     指定した座標 (r, c) に player の石を置いた際に反転される相手石の座標リストを返す。
