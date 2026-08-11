@@ -71,4 +71,42 @@ public class OthelloSettingsManagerTests : IDisposable
 		var settings = new OthelloSettings();
 		Assert.Equal(30, settings.TimeLimitSeconds);
 	}
+
+	/// <summary>
+	/// 正常なファイルパスへの保存が成功したことを true で通知することを確認する。
+	/// パス条件: Save の戻り値が true であること。
+	/// </summary>
+	[Fact]
+	public void Save_ValidPath_ReturnsTrue()
+	{
+		var settings = new OthelloSettings { TimeLimitSeconds = 20 };
+
+		bool result = OthelloSettingsManager.Save(settings, _tmpFile);
+
+		Assert.True(result);
+	}
+
+	/// <summary>
+	/// 書き込み不可能な対象（既存ディレクトリをファイルパスとして渡す）への保存で
+	/// 例外を投げず false を返すことを確認する。
+	/// パス条件: 例外が伝播せず、戻り値が false であること。
+	/// </summary>
+	[Fact]
+	public void Save_WhenTargetIsDirectory_ReturnsFalseWithoutThrowing()
+	{
+		var directoryPath = Path.Combine(Path.GetTempPath(), $"othello_settings_dir_{Guid.NewGuid():N}");
+		Directory.CreateDirectory(directoryPath);
+		try
+		{
+			var settings = new OthelloSettings { TimeLimitSeconds = 20 };
+
+			var exception = Record.Exception(() => OthelloSettingsManager.Save(settings, directoryPath));
+
+			Assert.Null(exception);
+		}
+		finally
+		{
+			Directory.Delete(directoryPath);
+		}
+	}
 }

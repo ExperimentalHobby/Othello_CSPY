@@ -226,7 +226,21 @@ public sealed partial class MainWindow : Window
         var file = await picker.PickSaveFileAsync();
         if (file != null)
         {
-            await KifuSerializer.SaveAsync(record, file.Path);
+            try
+            {
+                await KifuSerializer.SaveAsync(record, file.Path);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                var errDlg = new ContentDialog
+                {
+                    Title   = "棋譜を保存",
+                    Content = $"棋譜の保存に失敗しました:\n{ex.Message}",
+                    CloseButtonText = "OK",
+                    XamlRoot = this.Content.XamlRoot,
+                };
+                await errDlg.ShowAsync();
+            }
         }
     }
 
@@ -240,7 +254,24 @@ public sealed partial class MainWindow : Window
         var file = await picker.PickSingleFileAsync();
         if (file == null) return;
 
-        var record = await KifuSerializer.LoadAsync(file.Path);
+        KifuRecord? record;
+        try
+        {
+            record = await KifuSerializer.LoadAsync(file.Path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            var ioErrDlg = new ContentDialog
+            {
+                Title   = "棋譜を開く",
+                Content = $"棋譜ファイルの読み込みに失敗しました:\n{ex.Message}",
+                CloseButtonText = "OK",
+                XamlRoot = this.Content.XamlRoot,
+            };
+            await ioErrDlg.ShowAsync();
+            return;
+        }
+
         if (record is null)
         {
             var errDlg = new ContentDialog
