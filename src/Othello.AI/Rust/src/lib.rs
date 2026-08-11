@@ -539,7 +539,16 @@ fn alpha_beta(
         // パス: 深さを 1 減らし is_maximizing を反転して相手にターンを渡す
         // パスは分岐がなく窓の影響を受けないため、常に Exact として格納してよい。
         // 盤面自体は変わらないため、ハッシュも h をそのまま渡す（再計算不要）。
-        let value = alpha_beta(board, depth - 1, alpha, beta, !is_maximizing, ai_player, tt, Some(h));
+        let value = alpha_beta(
+            board,
+            depth - 1,
+            alpha,
+            beta,
+            !is_maximizing,
+            ai_player,
+            tt,
+            Some(h),
+        );
         tt.insert(key, (value, depth, NodeType::Exact));
         return value;
     }
@@ -634,7 +643,16 @@ fn best_move(board: &Board, player: i8, depth: i32) -> Option<(usize, usize)> {
         let (next, flipped) = make_move_with_flips(board, r, c, player);
         let next_hash = zobrist_diff(root_hash, r, c, player, &flipped);
         // player は最大化側 → 次は最小化（is_maximizing=false）
-        let score = alpha_beta(&next, depth - 1, alpha, beta, false, player, &mut tt, Some(next_hash));
+        let score = alpha_beta(
+            &next,
+            depth - 1,
+            alpha,
+            beta,
+            false,
+            player,
+            &mut tt,
+            Some(next_hash),
+        );
         if score > best_score {
             // 同点は先に出た（＝位置重みの高い）手を維持（Python の > と一致）
             best_score = score;
@@ -707,7 +725,16 @@ fn alpha_beta_timed(
             return Ok(value);
         }
         // 盤面自体は変わらないため、ハッシュも h をそのまま渡す（再計算不要）。
-        let value = alpha_beta_timed(board, depth - 1, alpha, beta, !is_maximizing, ctx, tt, Some(h))?;
+        let value = alpha_beta_timed(
+            board,
+            depth - 1,
+            alpha,
+            beta,
+            !is_maximizing,
+            ctx,
+            tt,
+            Some(h),
+        )?;
         tt.insert(key, (value, depth, NodeType::Exact));
         return Ok(value);
     }
@@ -817,7 +844,16 @@ fn best_move_timed(
         for &(r, c) in &moves {
             let (next, flipped) = make_move_with_flips(board, r, c, player);
             let next_hash = zobrist_diff(root_hash, r, c, player, &flipped);
-            match alpha_beta_timed(&next, depth - 1, alpha, beta, false, &ctx, &mut tt, Some(next_hash)) {
+            match alpha_beta_timed(
+                &next,
+                depth - 1,
+                alpha,
+                beta,
+                false,
+                &ctx,
+                &mut tt,
+                Some(next_hash),
+            ) {
                 Ok(score) => {
                     if score > current_best_score {
                         current_best_score = score;
@@ -1010,7 +1046,10 @@ mod tests {
 
     #[test]
     fn count_valid_moves_matches_get_valid_moves() {
-        let boards = [initial_board(), make_move_with_flips(&initial_board(), 2, 3, BLACK).0];
+        let boards = [
+            initial_board(),
+            make_move_with_flips(&initial_board(), 2, 3, BLACK).0,
+        ];
         for board in &boards {
             for &player in &[BLACK, WHITE] {
                 assert_eq!(
