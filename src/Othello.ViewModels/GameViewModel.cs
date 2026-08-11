@@ -296,6 +296,18 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
+	/// CPU vs CPU 用 AI（_blackCpuAi / _whiteCpuAi）を Dispose してから null にする。
+	/// PythonSubprocessAI のような IDisposable な AI がリークしないようにする共通ヘルパー（Issue #118）。
+	/// </summary>
+	private void DisposeCpuAis()
+	{
+		(_blackCpuAi as IDisposable)?.Dispose();
+		(_whiteCpuAi as IDisposable)?.Dispose();
+		_blackCpuAi = null;
+		_whiteCpuAi = null;
+	}
+
+	/// <summary>
 	/// CPU vs CPU モードへの切替時に現在のゲームを中断し「新規ゲーム待ち」状態に移行する。
 	/// ゲーム進行中でも呼び出し可能。
 	/// </summary>
@@ -309,8 +321,7 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 
 		(_ai as IDisposable)?.Dispose();
 		_ai = null;
-		_blackCpuAi = null;
-		_whiteCpuAi = null;
+		DisposeCpuAis();
 
 		IsGameInProgress = false;
 		_engine.Initialize();
@@ -556,8 +567,7 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 
 		(_ai as IDisposable)?.Dispose();
 		_ai = null;
-		_blackCpuAi = null;
-		_whiteCpuAi = null;
+		DisposeCpuAis();
 
 		// CPU vs CPU モード: AI を同期生成（AlphaBetaAI は I/O なし・再入チェック不要）
 		if (IsCpuVsCpu)
@@ -1127,8 +1137,7 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 
 		(_ai as IDisposable)?.Dispose();
 		_ai = null;
-		_blackCpuAi = null;
-		_whiteCpuAi = null;
+		DisposeCpuAis();
 
 		var (winner, blackCount, whiteCount) = _engine.GetResult();
 		if (IsCpuVsCpu)
@@ -1202,7 +1211,6 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 
 		(_ai as IDisposable)?.Dispose();
 		_ai = null;
-		_blackCpuAi = null;
-		_whiteCpuAi = null;
+		DisposeCpuAis();
 	}
 }
