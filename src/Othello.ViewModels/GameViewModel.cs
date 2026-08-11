@@ -26,8 +26,23 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 	/// <summary>石の反転アニメーション全体の所要時間（ミリ秒）。IsBeingFlipped が True を維持する時間。</summary>
 	private const int FlipAnimationDurationMs = 300;
 
-	/// <summary>ヒント計算専用の C# AI（depth=2）。Python プロセス不要で即応答。</summary>
-	private readonly AlphaBetaAI _hintAi = new(DifficultyLevel.Easy);
+	/// <summary>
+	/// ヒント計算専用 AI のファクトリ。呼び出しごとに新しいインスタンスを生成する。
+	/// AlphaBetaAI は内部に可変な置換表（Dictionary）を持つため、単一インスタンスを
+	/// 複数の並行ヒント計算で共有すると破損しうる（Issue #117）。使い捨てにすることで
+	/// 共有ミュータブル状態そのものを無くす。ZobristTable は static readonly のため
+	/// 毎回生成しても初期化コストは無い。
+	/// </summary>
+	private readonly Func<DifficultyLevel, IAIStrategy> _hintAiFactory;
+
+	/// <summary>
+	/// ヒント計算の世代カウンタ。RefreshHintAsync 開始時にインクリメントし、
+	/// 完了時に自分の世代が最新でなければ結果の反映をスキップする。
+	/// AlphaBetaAI.GetBestMove は中断不能な同期メソッドのため、古い呼び出しが
+	/// 新しい呼び出しより後に完了することがあり、その際に古い結果で新しい結果を
+	/// 上書きしないようにするための仕組み（Issue #117）。
+	/// </summary>
+	private int _hintRequestVersion;
 
 	private readonly GameEngine _engine = new();
 
@@ -423,10 +438,16 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 	/// <param name="cpuVsCpuAiFactory">CPU vs CPU モード専用 AI ファクトリ。null の場合は AlphaBetaAI を使う。テストで FakeAI を差し込める。</param>
 	/// <param name="statsRepository">棋力統計リポジトリ。null の場合はファイル永続化実装を使う。</param>
 	/// <param name="settingsFilePath">設定ファイルの保存先パス。null の場合は既定パス（%LOCALAPPDATA%）を使う。テストで一時ファイルを差し込める。</param>
-	public GameViewModel(Func<DifficultyLevel, IAIStrategy>? aiFactory, bool startDeferred = false, OthelloSettings? settings = null, Func<DifficultyLevel, IAIStrategy>? cpuVsCpuAiFactory = null, IStatsRepository? statsRepository = null, string? settingsFilePath = null)
+	/// <param name="hintAiFactory">
+	/// ヒント計算専用 AI ファクトリ。null の場合は呼び出しごとに新しい AlphaBetaAI を生成する。
+	/// 呼び出しごとに新規インスタンスを生成する設計自体がスレッド安全性を保証する要（Issue #117）のため、
+	/// テストで差し込む場合もこの前提を崩さないこと。
+	/// </param>
+	public GameViewModel(Func<DifficultyLevel, IAIStrategy>? aiFactory, bool startDeferred = false, OthelloSettings? settings = null, Func<DifficultyLevel, IAIStrategy>? cpuVsCpuAiFactory = null, IStatsRepository? statsRepository = null, string? settingsFilePath = null, Func<DifficultyLevel, IAIStrategy>? hintAiFactory = null)
 	{
 		_aiFactory = aiFactory ?? CreateDefaultAI;
 		_cpuVsCpuAiFactory = cpuVsCpuAiFactory ?? (d => new AlphaBetaAI(d));
+		_hintAiFactory = hintAiFactory ?? (d => new AlphaBetaAI(d));
 		_statsRepo = statsRepository ?? new StatsRepository();
 		Stats = new StatsViewModel(_statsRepo);
 		_settingsFilePath = settingsFilePath;
@@ -1028,16 +1049,23 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 	/// </summary>
 	private async Task RefreshHintAsync(CancellationToken ct)
 	{
+		// 自分の世代番号を控える。AlphaBetaAI.GetBestMove は中断不能な同期メソッドのため、
+		// 後から起動した呼び出しの方が先に完了することもある。完了時にこの番号が最新でなければ
+		// 結果を破棄することで、古い局面のヒントが新しい局面の結果を上書きすることを防ぐ。
+		var version = Interlocked.Increment(ref _hintRequestVersion);
 		var board = _engine.CurrentBoard.Clone();
 		var player = HumanColor;
+		// 呼び出しごとに新規インスタンスを生成する（置換表の共有を避ける。Issue #117）。
+		var ai = _hintAiFactory(DifficultyLevel.Easy);
 		Position hint;
 		try
 		{
-			hint = await Task.Run(() => _hintAi.GetBestMove(board, player), ct);
+			hint = await Task.Run(() => ai.GetBestMove(board, player), ct);
 		}
 		catch (OperationCanceledException) { return; }
 		catch { return; }
 
+		if (version != _hintRequestVersion) return; // より新しい要求が既に発行されている → 破棄
 		if (ct.IsCancellationRequested || !IsHintEnabled) return;
 
 		foreach (var sq in BoardSquares)
