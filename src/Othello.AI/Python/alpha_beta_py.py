@@ -16,7 +16,13 @@ import random
 import time
 from enum import IntEnum
 
-from board import BOARD_SIZE, get_valid_moves, has_valid_cell_values, make_move, opponent
+from board import (
+    BOARD_SIZE,
+    get_valid_moves,
+    has_valid_cell_values,
+    make_move,
+    opponent,
+)
 from evaluator import WEIGHTS, evaluate, evaluate_final
 
 

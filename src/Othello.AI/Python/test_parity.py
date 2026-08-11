@@ -157,7 +157,7 @@ class RustPythonInvalidInputParityTests(unittest.TestCase):
         """
         board = [[EMPTY] * BOARD_SIZE for _ in range(BOARD_SIZE - 1)]  # 7 行しかない
 
-        # noqa: B017 - Python は IndexError、Rust は ValueError と型が異なる
+        # Python は IndexError、Rust は ValueError と型が異なる
         # （Issue #116: 盤面サイズ検証は Rust 側のみ明示チェックを持つ設計判断のため）。
         with self.assertRaises(Exception):  # noqa: B017
             alpha_beta_py.AlphaBetaAI().get_best_move(board, BLACK, 2)
