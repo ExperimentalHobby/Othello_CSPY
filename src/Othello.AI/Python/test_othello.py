@@ -21,6 +21,7 @@ from board import (
     get_flips,
     get_valid_moves,
     has_any_flip,
+    has_any_valid_move,
     has_valid_cell_values,
     make_move,
     opponent,
@@ -133,6 +134,29 @@ class GetValidMovesTests(unittest.TestCase):
                     count_valid_moves(board, player),
                     len(get_valid_moves(board, player)),
                     msg=f"player={player}")
+
+    def test_has_any_valid_move_matches_get_valid_moves_nonempty(self):
+        """has_any_valid_move が get_valid_moves の「非空判定」と一致することを確認する。
+        パス条件: 初期盤面と一手後の盤面の両方で両プレイヤーについて
+                  has_any_valid_move(board, player) == bool(get_valid_moves(board, player)) であること。"""
+        boards = [make_initial_board(), make_move(make_initial_board(), 2, 3, BLACK)]
+        for board in boards:
+            for player in (BLACK, WHITE):
+                self.assertEqual(
+                    has_any_valid_move(board, player),
+                    bool(get_valid_moves(board, player)),
+                    msg=f"player={player}")
+
+    def test_has_any_valid_move_false_when_no_moves(self):
+        """有効手が 1 つもない局面（全マス黒）で白の has_any_valid_move が False を返すことを確認する。
+        パス条件: has_any_valid_move(full_black_board, WHITE) が False であること。"""
+        full_board = [[BLACK] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        self.assertFalse(has_any_valid_move(full_board, WHITE))
+
+    def test_has_any_valid_move_true_when_move_exists(self):
+        """有効手が存在する局面で True を返すことを確認する。
+        パス条件: 初期盤面の黒に対し has_any_valid_move が True であること。"""
+        self.assertTrue(has_any_valid_move(make_initial_board(), BLACK))
 
 
 class MakeMoveTests(unittest.TestCase):
