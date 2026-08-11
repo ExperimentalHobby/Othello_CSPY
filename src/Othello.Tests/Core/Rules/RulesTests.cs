@@ -121,6 +121,45 @@ public class OthelloRulesTests
 			() => OthelloRules.MakeMove(board, new Position(0, 0), PlayerColor.Black));
 	}
 
+	// ---- TryMakeMove (Issue #120: 妥当性判定と反転リスト取得・適用を1回のスキャンに統合) ----
+
+	/// <summary>
+	/// 有効な手に TryMakeMove すると true を返し、盤面が更新され、flipped に反転座標が入ることを確認する。
+	/// パス条件: 戻り値が true、盤面の黒石数が着手前より増加、flipped が (3,3) を含む 1 件であること。
+	/// </summary>
+	[Fact]
+	public void TryMakeMove_ValidMove_ReturnsTrueAndUpdatesBoardAndFlipped()
+	{
+		var board = new Board();
+		int beforeCount = board.CountPieces(PlayerColor.Black);
+
+		bool result = OthelloRules.TryMakeMove(board, new Position(3, 2), PlayerColor.Black, out var flipped);
+
+		Assert.True(result);
+		Assert.True(board.CountPieces(PlayerColor.Black) > beforeCount);
+		Assert.Single(flipped);
+		Assert.Contains(new Position(3, 3), flipped);
+	}
+
+	/// <summary>
+	/// 無効な手（隅 (0,0)、挟めない）に TryMakeMove すると false を返し、盤面が変更されないことを確認する。
+	/// パス条件: 戻り値が false、盤面が着手前と完全に一致すること。
+	/// </summary>
+	[Fact]
+	public void TryMakeMove_InvalidMove_ReturnsFalseAndBoardUnchanged()
+	{
+		var board = new Board();
+		var beforeBoard = board.Clone();
+
+		bool result = OthelloRules.TryMakeMove(board, new Position(0, 0), PlayerColor.Black, out var flipped);
+
+		Assert.False(result);
+		Assert.Empty(flipped);
+		for (int r = 0; r < 8; r++)
+			for (int c = 0; c < 8; c++)
+				Assert.Equal(beforeBoard.GetPiece(r, c), board.GetPiece(r, c));
+	}
+
 	// ---- HasAnyValidMove 短絡判定 -------------------------------------------
 
 	/// <summary>
