@@ -1,13 +1,15 @@
 using System.Globalization;
 using System.Windows.Data;
 using System.Windows.Media;
-using Technopro.Othello.Core.Models;
+using Technopro.Othello.ViewModels.Converters;
 
 namespace Technopro.Othello.WPF.Converters;
 
 /// <summary>
 /// PlayerColor を WPF の SolidColorBrush に変換する。
 /// BoardSquareViewModel から SolidColorBrush を削除した代替として使用する。
+/// どの色を使うかの判定は <see cref="PlayerColorBrushRule"/>（WPF/WinUI3 共通）に委譲し、
+/// このクラスは WPF 固有の SolidColorBrush インスタンスへのマッピングのみを担う（Issue #128）。
 /// </summary>
 public class PlayerColorToBrushConverter : IValueConverter
 {
@@ -18,14 +20,12 @@ public class PlayerColorToBrushConverter : IValueConverter
     private static SolidColorBrush Frozen(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
 
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        value is PlayerColor pc
-            ? pc switch
-            {
-                PlayerColor.Black => BlackBrush,
-                PlayerColor.White => WhiteBrush,
-                _                 => TransparentBrush
-            }
-            : TransparentBrush;
+        PlayerColorBrushRule.Resolve(value) switch
+        {
+            PlayerColorBrushRule.BrushKind.Black => BlackBrush,
+            PlayerColorBrushRule.BrushKind.White => WhiteBrush,
+            _                                     => TransparentBrush
+        };
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotSupportedException();

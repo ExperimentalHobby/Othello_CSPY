@@ -22,16 +22,7 @@ public sealed partial class KifuWindow : Window
 
     private void OnBoardSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (BoardRepeater.Layout is not UniformGridLayout layout) return;
-
-        const double border = 4.0;
-        double cellW = (e.NewSize.Width  - border * 2) / 8;
-        double cellH = (e.NewSize.Height - border * 2) / 8;
-
-        if (cellW >= 20 && cellH >= 20)
-        {
-            layout.MinItemWidth  = cellW;
-            layout.MinItemHeight = cellH;
-        }
+        if (BoardRepeater.Layout is UniformGridLayout layout)
+            BoardLayoutHelper.UpdateCellSize(layout, e.NewSize);
     }
 }

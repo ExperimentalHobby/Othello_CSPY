@@ -147,33 +147,30 @@ public sealed partial class MainWindow : Window
 
     private void RedrawScoreGraph()
     {
-        var history = _viewModel.ScoreHistory;
         var w = ScoreCanvas.ActualWidth;
         var h = ScoreCanvas.ActualHeight;
-        if (w <= 0 || h <= 0 || history.Count == 0) return;
 
-        double xScale = history.Count > 1 ? w / (history.Count - 1) : w;
-        double yScale = h / 64.0;
+        // 座標計算本体は ScoreGraphCalculator（WPF/WinUI3 共通）に委譲する（Issue #128）。
+        // このメソッドは計算結果を WinUI3 描画用の型（Point/PointCollection）に変換するだけ。
+        var result = ScoreGraphCalculator.Calculate(_viewModel.ScoreHistory, w, h);
+        if (result is not { } r) return;
 
         // 中央ガイド線（石数 32）
-        double midY = h - 32 * yScale;
         MidLine.X1 = 0; MidLine.X2 = w;
-        MidLine.Y1 = midY; MidLine.Y2 = midY;
+        MidLine.Y1 = r.MidLineY; MidLine.Y2 = r.MidLineY;
 
         var blackPoints = new PointCollection();
         var whitePoints = new PointCollection();
-        for (int i = 0; i < history.Count; i++)
+        for (int i = 0; i < r.BlackPoints.Count; i++)
         {
-            double x = history.Count > 1 ? i * xScale : 0;
-            blackPoints.Add(new Point(x, h - history[i].BlackCount * yScale));
-            whitePoints.Add(new Point(x, h - history[i].WhiteCount * yScale));
+            blackPoints.Add(new Point(r.BlackPoints[i].X, r.BlackPoints[i].Y));
+            whitePoints.Add(new Point(r.WhitePoints[i].X, r.WhitePoints[i].Y));
         }
         BlackScoreLine.Points = blackPoints;
         WhiteScoreLine.Points = whitePoints;
 
-        double cx = history.Count > 1 ? (history.Count - 1) * xScale : 0;
-        CurrentMoveLine.X1 = cx; CurrentMoveLine.X2 = cx;
-        CurrentMoveLine.Y1 = 0;  CurrentMoveLine.Y2 = h;
+        CurrentMoveLine.X1 = r.CurrentMoveX; CurrentMoveLine.X2 = r.CurrentMoveX;
+        CurrentMoveLine.Y1 = 0;              CurrentMoveLine.Y2 = h;
     }
 
     private void OnTimeLimitSecondsLostFocus(object sender, RoutedEventArgs e)
@@ -293,19 +290,7 @@ public sealed partial class MainWindow : Window
 
     private void OnBoardBorderSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (BoardRepeater.Layout is not UniformGridLayout layout) return;
-
-        // BorderThickness="4" なので各辺 4px ずつコンテンツ領域が縮む
-        // Math.Floor を使わず正確な値を渡す: ItemsStretch="Fill" が横方向を、
-        // MinItemHeight の正確な値が縦方向の隙間をなくす
-        const double border = 4.0;
-        double cellW = (e.NewSize.Width  - border * 2) / 8;
-        double cellH = (e.NewSize.Height - border * 2) / 8;
-
-        if (cellW >= 20 && cellH >= 20)
-        {
-            layout.MinItemWidth  = cellW;
-            layout.MinItemHeight = cellH;
-        }
+        if (BoardRepeater.Layout is UniformGridLayout layout)
+            BoardLayoutHelper.UpdateCellSize(layout, e.NewSize);
     }
 }

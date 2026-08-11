@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
+using Technopro.Othello.ViewModels.Converters;
 
 namespace Technopro.Othello.WPF.Converters;
 
@@ -9,6 +10,7 @@ namespace Technopro.Othello.WPF.Converters;
 /// true → Visible、false → Collapsed に変換する。
 /// Collapsed はレイアウト上のスペースも解放するため、
 /// パネルの表示切替（IsCpuVsCpu / IsHumanVsCpu）に使うとスペースが詰まる。
+/// 変換ルール本体は <see cref="BoolVisibilityRule"/>（WPF/WinUI3 共通）に委譲する（Issue #128）。
 /// </summary>
 public class BoolToVisibilityConverter : IValueConverter
 {
@@ -21,7 +23,7 @@ public class BoolToVisibilityConverter : IValueConverter
     /// <param name="culture">使用しない</param>
     /// <returns>true → Visible、false または非 bool → Collapsed</returns>
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        value is bool b && b ? Visibility.Visible : Visibility.Collapsed;
+        BoolVisibilityRule.IsVisible(value) ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>
     /// Visibility から bool に逆変換する（TwoWay バインディング用）。
@@ -39,6 +41,7 @@ public class BoolToVisibilityConverter : IValueConverter
 /// bool 値を反転して bool を返す XAML バインディング用コンバーター。
 /// IsHitTestVisible のような bool プロパティに「AI 思考中は false」を渡す用途で使用する。
 /// （Visibility を返すコンバーターを bool プロパティに誤バインドしないようにするための専用変換器。）
+/// 変換ルール本体は <see cref="InverseBooleanRule"/>（WPF/WinUI3 共通）に委譲する（Issue #128）。
 /// </summary>
 public class InverseBooleanConverter : IValueConverter
 {
@@ -51,7 +54,7 @@ public class InverseBooleanConverter : IValueConverter
     /// <param name="culture">使用しない</param>
     /// <returns>true → false、false または非 bool → true</returns>
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        !(value is bool b && b);
+        InverseBooleanRule.Invert(value);
 
     /// <summary>
     /// bool を反転して返す（双方向対応）。
@@ -62,5 +65,5 @@ public class InverseBooleanConverter : IValueConverter
     /// <param name="culture">使用しない</param>
     /// <returns>true → false、false または非 bool → true</returns>
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        !(value is bool b && b);
+        InverseBooleanRule.Invert(value);
 }
