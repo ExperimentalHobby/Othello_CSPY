@@ -18,10 +18,11 @@ from enum import IntEnum
 
 from board import (
     BOARD_SIZE,
+    EMPTY,
     get_valid_moves,
     has_any_valid_move,
     has_valid_cell_values,
-    make_move,
+    make_move_with_flips,
     opponent,
 )
 from evaluator import WEIGHTS, evaluate, evaluate_final
@@ -61,6 +62,34 @@ def _zobrist_hash(board):
     for r in range(BOARD_SIZE):
         for c in range(BOARD_SIZE):
             h ^= _ZOBRIST[r][c][board[r][c]]
+    return h
+
+
+def _zobrist_diff(base_hash, position, player, flipped):
+    """
+    着手前の盤面ハッシュ（base_hash）から、着手後の盤面ハッシュを差分（XOR）更新で計算する。
+
+    着手 1 手による盤面の差分は「着手位置が EMPTY→player に変わる」ことと
+    「flipped の各マスが 相手色→player に変わる」ことのみのため、
+    _zobrist_hash による O(64) の全面再計算をせず O(1 + len(flipped)) で求められる
+    （XOR は自身が逆演算のため、旧値を XOR で打ち消してから新値を XOR すれば更新になる。Issue #121）。
+
+    Args:
+        base_hash (int): 着手前の盤面の Zobrist ハッシュ（_zobrist_hash または本関数の戻り値）
+        position (tuple[int, int]): 着手した座標 (row, col)
+        player (int): 着手したプレイヤーの色
+        flipped (list[tuple[int, int]]): 着手によって反転された座標のリスト
+
+    Returns:
+        int: 着手後の盤面の Zobrist ハッシュ（_zobrist_hash(着手後の盤面) と常に一致する）
+    """
+    r, c = position
+    h = base_hash ^ _ZOBRIST[r][c][EMPTY] ^ _ZOBRIST[r][c][player]
+
+    opp = opponent(player)
+    for fr, fc in flipped:
+        h ^= _ZOBRIST[fr][fc][opp] ^ _ZOBRIST[fr][fc][player]
+
     return h
 
 
@@ -118,12 +147,16 @@ class AlphaBetaAI:
         # TT はこの呼び出し（1 回の探索）専用。呼び出しをまたいで永続化しない
         # （C# 版 GetBestMoveFixedDepth と同じ設計。メモリ上限や eviction が不要になる）。
         tt = {}
+        # ルート盤面のハッシュは 1 回だけフル計算し、以降は各候補手について
+        # _zobrist_diff で差分更新する（Issue #121）。
+        root_hash = _zobrist_hash(board)
 
         # 各候補手についてアルファベータ探索を実行し、最もスコアが高い手を選ぶ
         for move in moves:
-            new_board = make_move(board, move[0], move[1], player)
+            new_board, flipped = make_move_with_flips(board, move[0], move[1], player)
+            new_hash = _zobrist_diff(root_hash, move, player, flipped)
             # player は最大化側なので次の階層は最小化（is_maximizing=False）
-            score = self._alpha_beta(new_board, depth - 1, alpha, beta, False, player, tt)
+            score = self._alpha_beta(new_board, depth - 1, alpha, beta, False, player, tt, new_hash)
             if score > best_score:
                 best_score = score
                 best_move  = move
@@ -162,11 +195,17 @@ class AlphaBetaAI:
         deadline  = time.monotonic() + time_ms / 1000.0
         best_move = moves[0]  # ソート後の先頭（最大重みの手）を初期フォールバックとする
 
+        # 反復深化の全深さで 1 つの TT を使い回す（Issue #121）。
+        # TT の各エントリは自身の残り探索深さを保持し、参照時に cached_depth >= depth で
+        # 十分な深さかどうかを判定しているため、深さをまたいで使い回しても意味論は変わらない
+        # （より深い探索の結果が同じキーに後から上書きされるだけ）。
+        tt = {}
+
         for depth in range(1, max_depth + 1):
             if time.monotonic() >= deadline:
                 break
             try:
-                result = self._get_best_move_at_depth(board, player, depth, deadline)
+                result = self._get_best_move_at_depth(board, player, depth, deadline, tt)
                 if result is not None:
                     best_move = result
             except _TimeoutError:
@@ -175,8 +214,9 @@ class AlphaBetaAI:
 
         return best_move
 
-    def _get_best_move_at_depth(self, board, player, depth, deadline):
-        """指定した深さで最善手を探索する（時間切れ時は _TimeoutError を送出）。"""
+    def _get_best_move_at_depth(self, board, player, depth, deadline, tt):
+        """指定した深さで最善手を探索する（時間切れ時は _TimeoutError を送出）。
+        tt は呼び出し元（get_best_move_timed）が反復深化の全深さで使い回す TT。"""
         moves = get_valid_moves(board, player)
         if not moves:
             return None
@@ -187,13 +227,14 @@ class AlphaBetaAI:
         best_score = float('-inf')
         alpha      = float('-inf')
         beta       = float('inf')
-        # 深さごとに TT を作り直す（C# 版 GetBestMoveIterativeDeepening と同じ。
-        # 深さをまたいだ TT 再利用は行わない＝安全側）。
-        tt = {}
+        # ルート盤面のハッシュは 1 回だけフル計算し、以降は各候補手について
+        # _zobrist_diff で差分更新する（Issue #121）。
+        root_hash = _zobrist_hash(board)
 
         for move in moves:
-            new_board = make_move(board, move[0], move[1], player)
-            score = self._alpha_beta_timed(new_board, depth - 1, alpha, beta, False, player, deadline, tt)
+            new_board, flipped = make_move_with_flips(board, move[0], move[1], player)
+            new_hash = _zobrist_diff(root_hash, move, player, flipped)
+            score = self._alpha_beta_timed(new_board, depth - 1, alpha, beta, False, player, deadline, tt, new_hash)
             if score > best_score:
                 best_score = score
                 best_move  = move
@@ -201,13 +242,17 @@ class AlphaBetaAI:
 
         return best_move
 
-    def _alpha_beta_timed(self, board, depth, alpha, beta, is_maximizing, ai_player, deadline, tt):
+    def _alpha_beta_timed(self, board, depth, alpha, beta, is_maximizing, ai_player, deadline, tt, board_hash=None):
         """時間制限付きアルファベータ探索（時間切れ時は _TimeoutError を送出）。
-        tt（トランスポジションテーブル）参照ロジックは _alpha_beta と同一。"""
+        tt（トランスポジションテーブル）参照ロジックは _alpha_beta と同一。
+
+        board_hash は呼び出し元が _zobrist_diff で差分計算した board のハッシュ値（Issue #121）。
+        探索の再帰呼び出しは常に指定する。省略時（None）は _zobrist_hash でフル計算する
+        フォールバックで、ホワイトボックステストなど board のみを渡す呼び出し向け。"""
         if time.monotonic() >= deadline:
             raise _TimeoutError
 
-        h = _zobrist_hash(board)
+        h = board_hash if board_hash is not None else _zobrist_hash(board)
         key = (h, is_maximizing)
         entry = tt.get(key)
         if entry is not None:
@@ -240,7 +285,8 @@ class AlphaBetaAI:
                 return value
 
             # 現在のプレイヤーに有効手がない → パス（相手にターンを渡す）
-            value = self._alpha_beta_timed(board, depth - 1, alpha, beta, not is_maximizing, ai_player, deadline, tt)
+            # 盤面自体は変わらないため、ハッシュも h をそのまま渡す（再計算不要）。
+            value = self._alpha_beta_timed(board, depth - 1, alpha, beta, not is_maximizing, ai_player, deadline, tt, h)
             tt[key] = (value, depth, _NodeType.EXACT)
             return value
 
@@ -251,16 +297,18 @@ class AlphaBetaAI:
         if is_maximizing:
             value = float('-inf')
             for move in moves:
-                new_board = make_move(board, move[0], move[1], current)
-                value = max(value, self._alpha_beta_timed(new_board, depth - 1, alpha, beta, False, ai_player, deadline, tt))
+                new_board, flipped = make_move_with_flips(board, move[0], move[1], current)
+                new_hash = _zobrist_diff(h, move, current, flipped)
+                value = max(value, self._alpha_beta_timed(new_board, depth - 1, alpha, beta, False, ai_player, deadline, tt, new_hash))
                 alpha = max(alpha, value)
                 if alpha >= beta:
                     break
         else:
             value = float('inf')
             for move in moves:
-                new_board = make_move(board, move[0], move[1], current)
-                value = min(value, self._alpha_beta_timed(new_board, depth - 1, alpha, beta, True, ai_player, deadline, tt))
+                new_board, flipped = make_move_with_flips(board, move[0], move[1], current)
+                new_hash = _zobrist_diff(h, move, current, flipped)
+                value = min(value, self._alpha_beta_timed(new_board, depth - 1, alpha, beta, True, ai_player, deadline, tt, new_hash))
                 beta = min(beta, value)
                 if alpha >= beta:
                     break
@@ -274,7 +322,7 @@ class AlphaBetaAI:
         tt[key] = (value, depth, node_type)
         return value
 
-    def _alpha_beta(self, board, depth, alpha, beta, is_maximizing, ai_player, tt):
+    def _alpha_beta(self, board, depth, alpha, beta, is_maximizing, ai_player, tt, board_hash=None):
         """
         アルファベータ探索の再帰関数。
         is_maximizing=True の場合は AI 側（最大化）、False の場合は相手側（最小化）として動作する。
@@ -289,13 +337,17 @@ class AlphaBetaAI:
             tt (dict): トランスポジションテーブル。呼び出し元の get_best_move が1回の探索用に
                 新規作成したものをそのまま渡す（呼び出しをまたいで永続化しない）。
                 キーは (盤面の Zobrist ハッシュ, is_maximizing)、値は (score, depth, _NodeType)。
+            board_hash (int | None): 呼び出し元が _zobrist_diff で差分計算した board のハッシュ値
+                （Issue #121）。探索の再帰呼び出しは常に指定する。省略時（None）は
+                _zobrist_hash でフル計算するフォールバックで、ホワイトボックステストなど
+                board のみを渡す呼び出し向け。
 
         Returns:
             float: この局面の評価値
         """
         # TT 参照: 十分な深さで探索済みのエントリがあれば再探索を省略する
         # （C# 版 AlphaBetaAI.AlphaBeta と同じ順序・意味論）。
-        h = _zobrist_hash(board)
+        h = board_hash if board_hash is not None else _zobrist_hash(board)
         key = (h, is_maximizing)
         entry = tt.get(key)
         if entry is not None:
@@ -334,7 +386,8 @@ class AlphaBetaAI:
             # 現在のプレイヤーに有効手がない → パス（相手にターンを渡す）
             # パスも 1 手消費するため depth - 1 を渡す。is_maximizing を反転して相手ターンを表現する。
             # パスは分岐がなく窓の影響を受けないため、常に Exact として格納してよい。
-            value = self._alpha_beta(board, depth - 1, alpha, beta, not is_maximizing, ai_player, tt)
+            # 盤面自体は変わらないため、ハッシュも h をそのまま渡す（再計算不要）。
+            value = self._alpha_beta(board, depth - 1, alpha, beta, not is_maximizing, ai_player, tt, h)
             tt[key] = (value, depth, _NodeType.EXACT)
             return value
 
@@ -348,8 +401,9 @@ class AlphaBetaAI:
             # 最大化プレイヤー（AI）のターン: できるだけ高い評価値を選ぶ
             value = float('-inf')
             for move in moves:
-                new_board = make_move(board, move[0], move[1], current)
-                value = max(value, self._alpha_beta(new_board, depth - 1, alpha, beta, False, ai_player, tt))
+                new_board, flipped = make_move_with_flips(board, move[0], move[1], current)
+                new_hash = _zobrist_diff(h, move, current, flipped)
+                value = max(value, self._alpha_beta(new_board, depth - 1, alpha, beta, False, ai_player, tt, new_hash))
                 alpha = max(alpha, value)
                 if alpha >= beta:
                     # ベータカット: 最小化側がすでにこれより小さい値を持っているため探索不要
@@ -358,8 +412,9 @@ class AlphaBetaAI:
             # 最小化プレイヤー（相手）のターン: できるだけ低い評価値を選ぶ
             value = float('inf')
             for move in moves:
-                new_board = make_move(board, move[0], move[1], current)
-                value = min(value, self._alpha_beta(new_board, depth - 1, alpha, beta, True, ai_player, tt))
+                new_board, flipped = make_move_with_flips(board, move[0], move[1], current)
+                new_hash = _zobrist_diff(h, move, current, flipped)
+                value = min(value, self._alpha_beta(new_board, depth - 1, alpha, beta, True, ai_player, tt, new_hash))
                 beta = min(beta, value)
                 if alpha >= beta:
                     # アルファカット: 最大化側がすでにこれより大きい値を持っているため探索不要

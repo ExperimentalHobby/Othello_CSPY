@@ -250,18 +250,45 @@ fn count_valid_moves(board: &Board, player: i8) -> i32 {
     count
 }
 
-/// 座標 (r, c) に player の石を置き、反転処理を行った新しい盤面を返す（元盤面は不変）。
-fn make_move(board: &Board, r: usize, c: usize, player: i8) -> Board {
+/// 座標 (r, c) に player の石を置き、反転処理を行った新しい盤面と反転したマスの
+/// インデックスリストを返す（元盤面は不変）。
+///
+/// 反転リストも一緒に返すため、呼び出し側が反転結果を再利用したい場合
+/// （例: Zobrist ハッシュの差分更新。Issue #121）に collect_flips の再計算を避けられる。
+/// 探索本体は反転リストを使わない場合も含め、常にこの関数を経由する
+/// （盤面のみ必要な呼び出し元は戻り値の `.0` を使う）。
+fn make_move_with_flips(board: &Board, r: usize, c: usize, player: i8) -> (Board, Vec<usize>) {
     let mut new_board = *board; // [i8; 64] は Copy なので値コピーで複製される
     new_board[idx(r, c)] = player;
 
     let mut flips = Vec::new();
     collect_flips(board, r as i32, c as i32, player, &mut flips);
-    for f in flips {
+    for &f in &flips {
         new_board[f] = player;
     }
 
-    new_board
+    (new_board, flips)
+}
+
+/// 着手前の盤面ハッシュ（base_hash）から、着手後の盤面ハッシュを差分（XOR）更新で計算する。
+///
+/// 着手 1 手による盤面の差分は「着手位置が EMPTY→player に変わる」ことと
+/// 「flipped の各マスが 相手色→player に変わる」ことのみのため、zobrist_hash による
+/// O(64) の全面再計算をせず O(1 + flipped.len()) で求められる（XOR は自身が逆演算のため、
+/// 旧値を XOR で打ち消してから新値を XOR すれば更新になる。Issue #121）。
+///
+/// flipped は make_move_with_flips が返すインデックスリスト（row*8+col 形式）を渡す。
+fn zobrist_diff(base_hash: u64, r: usize, c: usize, player: i8, flipped: &[usize]) -> u64 {
+    let table = ZOBRIST.get_or_init(build_zobrist_table);
+    let mut h = base_hash ^ table[r][c][EMPTY as usize] ^ table[r][c][player as usize];
+
+    let opp = opponent(player);
+    for &f in flipped {
+        let (fr, fc) = (f / SIZE, f % SIZE);
+        h ^= table[fr][fc][opp as usize] ^ table[fr][fc][player as usize];
+    }
+
+    h
 }
 
 /// 安定石判定の半軸チェック（evaluator.py の _is_half_axis_stable と同一）。
@@ -452,6 +479,14 @@ fn evaluate_final(board: &Board, player: i8, depth: i32) -> i32 {
 ///
 /// tt はこの探索呼び出し専用のトランスポジションテーブル。呼び出し元（best_move /
 /// best_move_timed の深さ1段）が新規作成したものをそのまま渡す（呼び出しをまたいで永続化しない）。
+///
+/// board_hash は呼び出し元が zobrist_diff で差分計算した board のハッシュ値（Issue #121）。
+/// 探索の再帰呼び出しは常に Some を渡す。None の場合は zobrist_hash でフル計算する
+/// フォールバックで、テストなど board のみを渡す呼び出し向け。
+///
+/// 引数が 8 個になり clippy::too_many_arguments に抵触するが、ホットパスの再帰関数を
+/// 構造体でラップすると呼び出し側の可変借用が絡み合い可読性が下がるため許容する。
+#[allow(clippy::too_many_arguments)]
 fn alpha_beta(
     board: &Board,
     depth: i32,
@@ -460,10 +495,12 @@ fn alpha_beta(
     is_maximizing: bool,
     ai_player: i8,
     tt: &mut TT,
+    board_hash: Option<u64>,
 ) -> i32 {
     // TT 参照: 十分な深さで探索済みのエントリがあれば再探索を省略する
     // （C# 版 AlphaBetaAI.AlphaBeta と同じ順序・意味論）。
-    let key: TTKey = (zobrist_hash(board), is_maximizing);
+    let h = board_hash.unwrap_or_else(|| zobrist_hash(board));
+    let key: TTKey = (h, is_maximizing);
     if let Some(&(cached_score, cached_depth, node_type)) = tt.get(&key) {
         if cached_depth >= depth {
             match node_type {
@@ -501,7 +538,8 @@ fn alpha_beta(
         }
         // パス: 深さを 1 減らし is_maximizing を反転して相手にターンを渡す
         // パスは分岐がなく窓の影響を受けないため、常に Exact として格納してよい。
-        let value = alpha_beta(board, depth - 1, alpha, beta, !is_maximizing, ai_player, tt);
+        // 盤面自体は変わらないため、ハッシュも h をそのまま渡す（再計算不要）。
+        let value = alpha_beta(board, depth - 1, alpha, beta, !is_maximizing, ai_player, tt, Some(h));
         tt.insert(key, (value, depth, NodeType::Exact));
         return value;
     }
@@ -515,7 +553,8 @@ fn alpha_beta(
     let value = if is_maximizing {
         let mut value = NEG_INF;
         for (r, c) in moves {
-            let next = make_move(board, r, c, current);
+            let (next, flipped) = make_move_with_flips(board, r, c, current);
+            let next_hash = zobrist_diff(h, r, c, current, &flipped);
             value = value.max(alpha_beta(
                 &next,
                 depth - 1,
@@ -524,6 +563,7 @@ fn alpha_beta(
                 false,
                 ai_player,
                 tt,
+                Some(next_hash),
             ));
             alpha = alpha.max(value);
             if alpha >= beta {
@@ -534,7 +574,8 @@ fn alpha_beta(
     } else {
         let mut value = INF;
         for (r, c) in moves {
-            let next = make_move(board, r, c, current);
+            let (next, flipped) = make_move_with_flips(board, r, c, current);
+            let next_hash = zobrist_diff(h, r, c, current, &flipped);
             value = value.min(alpha_beta(
                 &next,
                 depth - 1,
@@ -543,6 +584,7 @@ fn alpha_beta(
                 true,
                 ai_player,
                 tt,
+                Some(next_hash),
             ));
             beta = beta.min(value);
             if alpha >= beta {
@@ -584,11 +626,15 @@ fn best_move(board: &Board, player: i8, depth: i32) -> Option<(usize, usize)> {
     // TT はこの呼び出し（1 回の探索）専用。呼び出しをまたいで永続化しない
     // （C# 版 GetBestMoveFixedDepth と同じ設計。メモリ上限や eviction が不要になる）。
     let mut tt: TT = HashMap::new();
+    // ルート盤面のハッシュは 1 回だけフル計算し、以降は各候補手について
+    // zobrist_diff で差分更新する（Issue #121）。
+    let root_hash = zobrist_hash(board);
 
     for (r, c) in moves {
-        let next = make_move(board, r, c, player);
+        let (next, flipped) = make_move_with_flips(board, r, c, player);
+        let next_hash = zobrist_diff(root_hash, r, c, player, &flipped);
         // player は最大化側 → 次は最小化（is_maximizing=false）
-        let score = alpha_beta(&next, depth - 1, alpha, beta, false, player, &mut tt);
+        let score = alpha_beta(&next, depth - 1, alpha, beta, false, player, &mut tt, Some(next_hash));
         if score > best_score {
             // 同点は先に出た（＝位置重みの高い）手を維持（Python の > と一致）
             best_score = score;
@@ -610,7 +656,8 @@ struct TimedSearchContext {
 }
 
 /// 時間制限付きアルファベータ探索（alpha_beta と同一ロジック、deadline 超過で Err(()) を返す）。
-/// tt の意味論は alpha_beta と同一。
+/// tt の意味論は alpha_beta と同一。board_hash の意味論も alpha_beta と同一（Issue #121）。
+#[allow(clippy::too_many_arguments)] // alpha_beta と同じ理由（コメント参照）
 fn alpha_beta_timed(
     board: &Board,
     depth: i32,
@@ -619,12 +666,14 @@ fn alpha_beta_timed(
     is_maximizing: bool,
     ctx: &TimedSearchContext,
     tt: &mut TT,
+    board_hash: Option<u64>,
 ) -> TimedResult {
     if Instant::now() >= ctx.deadline {
         return Err(());
     }
 
-    let key: TTKey = (zobrist_hash(board), is_maximizing);
+    let h = board_hash.unwrap_or_else(|| zobrist_hash(board));
+    let key: TTKey = (h, is_maximizing);
     if let Some(&(cached_score, cached_depth, node_type)) = tt.get(&key) {
         if cached_depth >= depth {
             match node_type {
@@ -657,7 +706,8 @@ fn alpha_beta_timed(
             tt.insert(key, (value, depth, NodeType::Exact));
             return Ok(value);
         }
-        let value = alpha_beta_timed(board, depth - 1, alpha, beta, !is_maximizing, ctx, tt)?;
+        // 盤面自体は変わらないため、ハッシュも h をそのまま渡す（再計算不要）。
+        let value = alpha_beta_timed(board, depth - 1, alpha, beta, !is_maximizing, ctx, tt, Some(h))?;
         tt.insert(key, (value, depth, NodeType::Exact));
         return Ok(value);
     }
@@ -669,7 +719,8 @@ fn alpha_beta_timed(
     let value = if is_maximizing {
         let mut value = NEG_INF;
         for (r, c) in moves {
-            let next = make_move(board, r, c, current);
+            let (next, flipped) = make_move_with_flips(board, r, c, current);
+            let next_hash = zobrist_diff(h, r, c, current, &flipped);
             value = value.max(alpha_beta_timed(
                 &next,
                 depth - 1,
@@ -678,6 +729,7 @@ fn alpha_beta_timed(
                 false,
                 ctx,
                 tt,
+                Some(next_hash),
             )?);
             alpha = alpha.max(value);
             if alpha >= beta {
@@ -688,7 +740,8 @@ fn alpha_beta_timed(
     } else {
         let mut value = INF;
         for (r, c) in moves {
-            let next = make_move(board, r, c, current);
+            let (next, flipped) = make_move_with_flips(board, r, c, current);
+            let next_hash = zobrist_diff(h, r, c, current, &flipped);
             value = value.min(alpha_beta_timed(
                 &next,
                 depth - 1,
@@ -697,6 +750,7 @@ fn alpha_beta_timed(
                 true,
                 ctx,
                 tt,
+                Some(next_hash),
             )?);
             beta = beta.min(value);
             if alpha >= beta {
@@ -741,6 +795,15 @@ fn best_move_timed(
     // 最低限の初期値（深さ 1 の完了で必ず上書きされる）
     let mut best = moves[0];
 
+    // 反復深化の全深さで 1 つの TT を使い回す（Issue #121）。
+    // TT の各エントリは自身の残り探索深さを保持し、参照時に cached_depth >= depth で
+    // 十分な深さかどうかを判定しているため、深さをまたいで使い回しても意味論は変わらない
+    // （より深い探索の結果が同じキーに後から上書きされるだけ）。
+    let mut tt: TT = HashMap::new();
+    // ルート盤面のハッシュは 1 回だけフル計算し、以降は各候補手について
+    // zobrist_diff で差分更新する（Issue #121）。
+    let root_hash = zobrist_hash(board);
+
     'outer: for depth in 1..=max_depth {
         if Instant::now() >= deadline {
             break;
@@ -750,13 +813,11 @@ fn best_move_timed(
         let mut current_best_score = NEG_INF;
         let mut alpha = NEG_INF;
         let beta = INF;
-        // 深さごとに TT を作り直す（C# 版 GetBestMoveIterativeDeepening と同じ。
-        // 深さをまたいだ TT 再利用は行わない＝安全側）。
-        let mut tt: TT = HashMap::new();
 
         for &(r, c) in &moves {
-            let next = make_move(board, r, c, player);
-            match alpha_beta_timed(&next, depth - 1, alpha, beta, false, &ctx, &mut tt) {
+            let (next, flipped) = make_move_with_flips(board, r, c, player);
+            let next_hash = zobrist_diff(root_hash, r, c, player, &flipped);
+            match alpha_beta_timed(&next, depth - 1, alpha, beta, false, &ctx, &mut tt, Some(next_hash)) {
                 Ok(score) => {
                     if score > current_best_score {
                         current_best_score = score;
@@ -949,7 +1010,7 @@ mod tests {
 
     #[test]
     fn count_valid_moves_matches_get_valid_moves() {
-        let boards = [initial_board(), make_move(&initial_board(), 2, 3, BLACK)];
+        let boards = [initial_board(), make_move_with_flips(&initial_board(), 2, 3, BLACK).0];
         for board in &boards {
             for &player in &[BLACK, WHITE] {
                 assert_eq!(
@@ -963,7 +1024,7 @@ mod tests {
     #[test]
     fn make_move_places_and_flips() {
         let board = initial_board();
-        let new_board = make_move(&board, 2, 3, BLACK);
+        let new_board = make_move_with_flips(&board, 2, 3, BLACK).0;
         assert_eq!(new_board[idx(2, 3)], BLACK);
         assert_eq!(new_board[idx(3, 3)], BLACK);
     }
@@ -971,9 +1032,70 @@ mod tests {
     #[test]
     fn make_move_keeps_original_unchanged() {
         let board = initial_board();
-        let _ = make_move(&board, 2, 3, BLACK);
+        let _ = make_move_with_flips(&board, 2, 3, BLACK).0;
         assert_eq!(board[idx(2, 3)], EMPTY);
         assert_eq!(board[idx(3, 3)], WHITE);
+    }
+
+    #[test]
+    fn make_move_with_flips_returns_flipped_positions() {
+        let board = initial_board();
+        let (_, flipped) = make_move_with_flips(&board, 2, 3, BLACK);
+        assert_eq!(flipped, vec![idx(3, 3)]);
+    }
+
+    // ===== zobrist_diff（Issue #121: 全面再計算に代わる差分更新）のテスト =====
+    // zobrist_diff(親ハッシュ, 位置, 着手した色, 反転リスト) が、着手後の盤面を
+    // zobrist_hash でフル計算した値と常に一致することを検証する。
+
+    fn assert_diff_matches_full_recompute(board: &Board, r: usize, c: usize, player: i8) {
+        let base_hash = zobrist_hash(board);
+        let (new_board, flipped) = make_move_with_flips(board, r, c, player);
+
+        let diff_hash = zobrist_diff(base_hash, r, c, player, &flipped);
+        let full_hash = zobrist_hash(&new_board);
+
+        assert_eq!(diff_hash, full_hash, "position=({r},{c}) player={player}");
+    }
+
+    #[test]
+    fn zobrist_diff_matches_full_recompute_single_flip() {
+        let board = initial_board();
+        assert_diff_matches_full_recompute(&board, 2, 3, BLACK);
+    }
+
+    #[test]
+    fn zobrist_diff_matches_full_recompute_multiple_flips() {
+        // (0,0)=黒, (1,1)=白, (2,2)=白, (3,0)=黒, (3,1)=白, (3,2)=白 → 黒が (3,3) に打つ
+        // （左方向・左斜め上方向の 2 方向で計 4 個反転）
+        let mut board: Board = [EMPTY; SIZE * SIZE];
+        board[idx(0, 0)] = BLACK;
+        board[idx(1, 1)] = WHITE;
+        board[idx(2, 2)] = WHITE;
+        board[idx(3, 0)] = BLACK;
+        board[idx(3, 1)] = WHITE;
+        board[idx(3, 2)] = WHITE;
+        assert_diff_matches_full_recompute(&board, 3, 3, BLACK);
+    }
+
+    #[test]
+    fn zobrist_diff_matches_full_recompute_across_self_play() {
+        let mut board = initial_board();
+        let mut player = BLACK;
+        for _ in 0..10 {
+            let mut moves = get_valid_moves(&board, player);
+            if moves.is_empty() {
+                player = opponent(player);
+                moves = get_valid_moves(&board, player);
+                if moves.is_empty() {
+                    break;
+                }
+            }
+            let (r, c) = moves[0];
+            assert_diff_matches_full_recompute(&board, r, c, player);
+            board = make_move_with_flips(&board, r, c, player).0;
+            player = opponent(player);
+        }
     }
 
     #[test]
@@ -1135,7 +1257,7 @@ mod tests {
         let mut tt: TT = HashMap::new();
         tt.insert(key, (fake_score, 10, NodeType::Exact));
 
-        let score = alpha_beta(&board, 3, NEG_INF, INF, true, BLACK, &mut tt);
+        let score = alpha_beta(&board, 3, NEG_INF, INF, true, BLACK, &mut tt, None);
 
         assert_eq!(score, fake_score);
     }
@@ -1148,7 +1270,7 @@ mod tests {
         let mut tt: TT = HashMap::new();
         tt.insert(key, (fake_score, 0, NodeType::Exact)); // depth=0 < 要求 depth=2
 
-        let score = alpha_beta(&board, 2, NEG_INF, INF, true, BLACK, &mut tt);
+        let score = alpha_beta(&board, 2, NEG_INF, INF, true, BLACK, &mut tt, None);
 
         assert_ne!(score, fake_score);
     }
@@ -1161,7 +1283,7 @@ mod tests {
         let mut tt: TT = HashMap::new();
         tt.insert(key, (fake_bound, 10, NodeType::LowerBound));
 
-        let score = alpha_beta(&board, 3, NEG_INF, INF, true, BLACK, &mut tt);
+        let score = alpha_beta(&board, 3, NEG_INF, INF, true, BLACK, &mut tt, None);
 
         assert_ne!(score, fake_bound);
     }
@@ -1174,7 +1296,7 @@ mod tests {
         let mut tt: TT = HashMap::new();
         tt.insert(key, (fake_bound, 10, NodeType::UpperBound));
 
-        let score = alpha_beta(&board, 3, NEG_INF, INF, true, BLACK, &mut tt);
+        let score = alpha_beta(&board, 3, NEG_INF, INF, true, BLACK, &mut tt, None);
 
         assert_ne!(score, fake_bound);
     }
@@ -1188,7 +1310,7 @@ mod tests {
         tt.insert(key, (cached_score, 10, NodeType::LowerBound));
 
         // beta を cached_score 以下に設定 → alpha が cached_score まで上がった時点で alpha >= beta
-        let score = alpha_beta(&board, 3, NEG_INF, cached_score, true, BLACK, &mut tt);
+        let score = alpha_beta(&board, 3, NEG_INF, cached_score, true, BLACK, &mut tt, None);
 
         assert_eq!(score, cached_score);
     }

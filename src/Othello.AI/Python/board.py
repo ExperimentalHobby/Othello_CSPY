@@ -192,6 +192,35 @@ def count_valid_moves(board, player):
     return count
 
 
+def make_move_with_flips(board, r, c, player):
+    """
+    指定した座標に player の石を置き、反転処理を行った新しい盤面と反転された座標リストを返す。
+
+    make_move と異なり反転座標リストも一緒に返すため、呼び出し側が反転結果を再利用したい場合
+    （例: Zobrist ハッシュの差分更新。Issue #121）に get_flips の再計算を避けられる。
+    元の盤面は変更しない（イミュータブルな操作）。
+
+    Args:
+        board (list[list[int]]): 元の盤面（変更しない）
+        r (int): 着手する行（0-7）
+        c (int): 着手する列（0-7）
+        player (int): 着手するプレイヤーの色
+
+    Returns:
+        tuple[list[list[int]], list[tuple[int, int]]]: (着手・反転後の新しい盤面, 反転された座標リスト)
+    """
+    # 元の盤面を行ごとにシャローコピーして新しい盤面を生成する
+    new_board = [row[:] for row in board]
+    new_board[r][c] = player  # 指定マスに石を置く
+
+    # 反転する相手石を自分の色に変える
+    flips = get_flips(board, r, c, player)
+    for fr, fc in flips:
+        new_board[fr][fc] = player
+
+    return new_board, flips
+
+
 def make_move(board, r, c, player):
     """
     指定した座標に player の石を置き、反転処理を行った新しい盤面を返す。
@@ -207,12 +236,5 @@ def make_move(board, r, c, player):
     Returns:
         list[list[int]]: 着手・反転後の新しい盤面
     """
-    # 元の盤面を行ごとにシャローコピーして新しい盤面を生成する
-    new_board = [row[:] for row in board]
-    new_board[r][c] = player  # 指定マスに石を置く
-
-    # 反転する相手石を自分の色に変える
-    for fr, fc in get_flips(board, r, c, player):
-        new_board[fr][fc] = player
-
+    new_board, _ = make_move_with_flips(board, r, c, player)
     return new_board

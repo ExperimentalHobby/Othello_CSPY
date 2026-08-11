@@ -287,3 +287,87 @@ public class AlphaBetaAITests
 		return board;
 	}
 }
+
+/// <summary>
+/// Zobrist ハッシュ差分更新（Issue #121）のテスト。
+///
+/// ComputeChildHashForTest（差分更新）が、着手後盤面を ComputeBoardHashForTest（フル計算）
+/// した値と常に一致することを検証する（差分更新が正しいことのリファレンス照合）。
+/// </summary>
+public class ZobristHashDiffTests
+{
+	private static void AssertDiffMatchesFullRecompute(Board board, Position position, PlayerColor player)
+	{
+		ulong baseHash = AlphaBetaAI.ComputeBoardHashForTest(board);
+		var newBoard = board.Clone();
+		OthelloRules.TryMakeMove(newBoard, position, player, out var flipped);
+
+		ulong diffHash = AlphaBetaAI.ComputeChildHashForTest(baseHash, position, player, flipped);
+		ulong fullHash = AlphaBetaAI.ComputeBoardHashForTest(newBoard);
+
+		Assert.Equal(fullHash, diffHash);
+	}
+
+	/// <summary>
+	/// 初期盤面での1手（反転1個）で、差分ハッシュがフル計算と一致することを確認する。
+	/// パス条件: ComputeChildHashForTest の戻り値が着手後盤面の ComputeBoardHashForTest と等しいこと。
+	/// </summary>
+	[Fact]
+	public void ComputeChildHash_SingleFlip_MatchesFullRecompute()
+	{
+		var board = new Board();
+		AssertDiffMatchesFullRecompute(board, new Position(2, 3), PlayerColor.Black);
+	}
+
+	/// <summary>
+	/// 複数方向で反転が起きる手で、差分ハッシュがフル計算と一致することを確認する。
+	/// 盤面: (0,0)=黒, (1,1)=白, (2,2)=白, (3,0)=黒, (3,1)=白, (3,2)=白 → 黒が (3,3) に打つ
+	/// （左方向・左斜め上方向の 2 方向で計 4 個反転）。
+	/// パス条件: ComputeChildHashForTest の戻り値が着手後盤面の ComputeBoardHashForTest と等しいこと。
+	/// </summary>
+	[Fact]
+	public void ComputeChildHash_MultipleFlips_MatchesFullRecompute()
+	{
+		var board = new Board();
+		for (int r = 0; r < Board.BoardSize; r++)
+			for (int c = 0; c < Board.BoardSize; c++)
+				board.SetPiece(r, c, PlayerColor.Empty);
+		board.SetPiece(0, 0, PlayerColor.Black);
+		board.SetPiece(1, 1, PlayerColor.White);
+		board.SetPiece(2, 2, PlayerColor.White);
+		board.SetPiece(3, 0, PlayerColor.Black);
+		board.SetPiece(3, 1, PlayerColor.White);
+		board.SetPiece(3, 2, PlayerColor.White);
+
+		AssertDiffMatchesFullRecompute(board, new Position(3, 3), PlayerColor.Black);
+	}
+
+	/// <summary>
+	/// 自己対局で進行する複数局面・複数手について、差分ハッシュが一致し続けることを確認する。
+	/// パス条件: 各手について ComputeChildHashForTest の戻り値が着手後盤面の
+	/// ComputeBoardHashForTest と等しいこと。
+	/// </summary>
+	[Fact]
+	public void ComputeChildHash_AcrossSelfPlay_MatchesFullRecompute()
+	{
+		var board = new Board();
+		var player = PlayerColor.Black;
+
+		for (int i = 0; i < 10; i++)
+		{
+			var moves = OthelloRules.GetValidMoves(board, player);
+			if (moves.Count == 0)
+			{
+				player = player.Opponent();
+				moves = OthelloRules.GetValidMoves(board, player);
+				if (moves.Count == 0)
+					break;
+			}
+
+			var move = moves[0];
+			AssertDiffMatchesFullRecompute(board, move, player);
+			OthelloRules.MakeMove(board, move, player);
+			player = player.Opponent();
+		}
+	}
+}
