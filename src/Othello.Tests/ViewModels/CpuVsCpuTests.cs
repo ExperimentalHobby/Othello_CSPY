@@ -30,6 +30,34 @@ public class CpuVsCpuTests
 		}
 	}
 
+	/// <summary>Dispose() の呼び出し回数を数えるためのカウンタ（複数インスタンス間で共有する）。</summary>
+	private sealed class DisposeCounter
+	{
+		public int Count;
+	}
+
+	/// <summary>
+	/// IDisposable を実装した AI モック。Dispose() が呼ばれた回数を DisposeCounter に記録する
+	/// （PythonSubprocessAI のようなプロセスリソースを持つ AI を模す。Issue #118）。
+	/// </summary>
+	private sealed class DisposableFakeAI : IAIStrategy, IDisposable
+	{
+		private readonly DisposeCounter _counter;
+		public DifficultyLevel Difficulty { get; }
+		public string EngineName => "AI: DisposableFake";
+
+		public DisposableFakeAI(DifficultyLevel difficulty, DisposeCounter counter)
+		{
+			Difficulty = difficulty;
+			_counter = counter;
+		}
+
+		public Position GetBestMove(Board board, PlayerColor playerColor)
+			=> OthelloRules.GetValidMoves(board, playerColor)[0];
+
+		public void Dispose() => Interlocked.Increment(ref _counter.Count);
+	}
+
 	private static async Task<GameViewModel> CreateCpuVsCpuViewModelAsync()
 	{
 		var vm = new GameViewModel(
@@ -282,5 +310,85 @@ public class CpuVsCpuTests
 
 		Assert.True(vm.IsGameInProgress);
 		Assert.True(vm.IsHumanVsCpu);
+	}
+
+	// ===== CPU vs CPU の AI が Dispose されずリークする問題（Issue #118） =====
+
+	/// <summary>
+	/// パス条件: 対戦が自然終了すると（EndGame 経路）、黒・白の CPU AI が計 2 回 Dispose されること。
+	/// </summary>
+	[Fact]
+	public async Task CpuVsCpu_GameEndsNaturally_DisposesCpuAis()
+	{
+		var counter = new DisposeCounter();
+		var vm = new GameViewModel(
+			aiFactory: _ => new FakeAI(),
+			startDeferred: true,
+			cpuVsCpuAiFactory: d => new DisposableFakeAI(d, counter));
+		vm.GameMode = GameMode.CpuVsCpu;
+		vm.CpuVsCpuDelayMs = 0;
+		await vm.StartNewGameAsync();
+		vm.PauseCommand.Execute(null); // 「開始」ボタン相当
+
+		var deadline = DateTime.UtcNow.AddSeconds(30);
+		while (vm.IsGameInProgress && DateTime.UtcNow < deadline)
+			await Task.Delay(20);
+
+		Assert.False(vm.IsGameInProgress);
+		Assert.Equal(2, counter.Count); // 黒・白の CPU AI が両方 Dispose される
+	}
+
+	/// <summary>
+	/// パス条件: CpuVsCpu 対戦中に StartNewGameAsync が再度呼ばれると、
+	/// 古い CPU AI が Dispose され、新しい CPU AI はまだ Dispose されないこと。
+	/// </summary>
+	[Fact]
+	public async Task StartNewGameAsync_CalledAgainDuringCpuVsCpu_DisposesPreviousCpuAis()
+	{
+		var firstCounter = new DisposeCounter();
+		var secondCounter = new DisposeCounter();
+		int callCount = 0;
+		var vm = new GameViewModel(
+			aiFactory: _ => new FakeAI(),
+			startDeferred: true,
+			cpuVsCpuAiFactory: d =>
+			{
+				callCount++;
+				// 最初の 2 回（黒・白）は firstCounter、以降（2 回目の StartNewGameAsync）は secondCounter を使う
+				return callCount <= 2
+					? new DisposableFakeAI(d, firstCounter)
+					: new DisposableFakeAI(d, secondCounter);
+			});
+		vm.GameMode = GameMode.CpuVsCpu;
+		await vm.StartNewGameAsync(); // 1 回目: firstCounter の AI が黒・白に割り当てられる（IsPaused=true のまま自動進行しない）
+
+		Assert.Equal(0, firstCounter.Count); // まだ Dispose されていない
+
+		await vm.StartNewGameAsync(); // 2 回目: 古い（firstCounter の）AI が Dispose され、secondCounter の AI に置き換わる
+
+		Assert.Equal(2, firstCounter.Count);  // 黒・白とも Dispose された
+		Assert.Equal(0, secondCounter.Count); // 新しい AI はまだ Dispose されていない
+	}
+
+	/// <summary>
+	/// パス条件: CpuVsCpu 対戦中に GameViewModel.Dispose() が呼ばれると、
+	/// 黒・白の CPU AI が計 2 回 Dispose されること。
+	/// </summary>
+	[Fact]
+	public async Task Dispose_WhileCpuVsCpuInProgress_DisposesCpuAis()
+	{
+		var counter = new DisposeCounter();
+		var vm = new GameViewModel(
+			aiFactory: _ => new FakeAI(),
+			startDeferred: true,
+			cpuVsCpuAiFactory: d => new DisposableFakeAI(d, counter));
+		vm.GameMode = GameMode.CpuVsCpu;
+		await vm.StartNewGameAsync(); // IsPaused=true のまま、CPU AI は黒・白とも割り当て済み
+
+		Assert.Equal(0, counter.Count);
+
+		vm.Dispose();
+
+		Assert.Equal(2, counter.Count);
 	}
 }
