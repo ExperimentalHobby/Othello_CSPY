@@ -106,9 +106,17 @@ public partial class MainWindow : Window
 
         if (dlg.ShowDialog() == true)
         {
-            await KifuSerializer.SaveAsync(record, dlg.FileName);
-            MessageBox.Show($"棋譜を保存しました:\n{dlg.FileName}",
-                "棋譜を保存", MessageBoxButton.OK, MessageBoxImage.Information);
+            try
+            {
+                await KifuSerializer.SaveAsync(record, dlg.FileName);
+                MessageBox.Show($"棋譜を保存しました:\n{dlg.FileName}",
+                    "棋譜を保存", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                MessageBox.Show($"棋譜の保存に失敗しました:\n{ex.Message}",
+                    "棋譜を保存", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
     }
 
@@ -124,7 +132,18 @@ public partial class MainWindow : Window
         if (dlg.ShowDialog() != true)
             return;
 
-        var record = await KifuSerializer.LoadAsync(dlg.FileName);
+        KifuRecord? record;
+        try
+        {
+            record = await KifuSerializer.LoadAsync(dlg.FileName);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            MessageBox.Show($"棋譜ファイルの読み込みに失敗しました:\n{ex.Message}",
+                "棋譜を開く", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
         if (record is null)
         {
             MessageBox.Show("棋譜ファイルを読み込めませんでした。ファイルが正しい形式か確認してください。",

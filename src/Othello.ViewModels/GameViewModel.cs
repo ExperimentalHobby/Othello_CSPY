@@ -113,9 +113,16 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 		}
 	}
 
-	/// <summary>現在の TimeLimitSeconds を設定ファイルに保存する。UI 層から TextBox 確定時に呼ぶ。</summary>
+	/// <summary>
+	/// 現在の TimeLimitSeconds を設定ファイルに保存する。UI 層から TextBox 確定時に呼ぶ。
+	/// 保存に失敗しても例外は投げず、ログに残すのみとする（設定保存の失敗でゲームを止めないため）。
+	/// </summary>
 	public void SaveTimeLimitSettings()
-		=> OthelloSettingsManager.Save(new OthelloSettings { TimeLimitSeconds = _timeLimitSeconds }, _settingsFilePath);
+	{
+		bool saved = OthelloSettingsManager.Save(new OthelloSettings { TimeLimitSeconds = _timeLimitSeconds }, _settingsFilePath);
+		if (!saved)
+			Debug.WriteLine("制限時間設定の保存に失敗しました。");
+	}
 
 	/// <summary>現在の手番の残り秒数。制限時間 OFF または AI ターン中は 0。</summary>
 	public int RemainingSeconds

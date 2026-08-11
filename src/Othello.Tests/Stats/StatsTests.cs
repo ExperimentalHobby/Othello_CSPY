@@ -215,6 +215,30 @@ public class StatsTests
 		}
 	}
 
+	/// <summary>
+	/// 書き込み不可能な対象（既存ディレクトリをファイルパスとして渡す）への保存で
+	/// 例外を投げないことを確認する。
+	/// パス条件: 例外が伝播しないこと。
+	/// </summary>
+	[Fact]
+	public void StatsRepository_Save_WhenTargetIsDirectory_DoesNotThrow()
+	{
+		var directoryPath = Path.Combine(Path.GetTempPath(), $"stats_test_dir_{Guid.NewGuid():N}");
+		Directory.CreateDirectory(directoryPath);
+		try
+		{
+			var repo = new StatsRepository(directoryPath);
+
+			var exception = Record.Exception(() => repo.Save(new GameStats()));
+
+			Assert.Null(exception);
+		}
+		finally
+		{
+			Directory.Delete(directoryPath);
+		}
+	}
+
 	// ─── GameViewModel 統合 ───────────────────────────────────────────────────
 
 	private sealed class FakeAI : IAIStrategy

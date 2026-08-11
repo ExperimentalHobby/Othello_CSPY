@@ -45,13 +45,23 @@ public static class OthelloSettingsManager
 	/// <summary>
 	/// 設定を指定ファイルへ保存する。
 	/// ディレクトリが存在しない場合は自動作成する。
+	/// 書き込みに失敗した場合は例外をスローせず false を返す。
 	/// </summary>
-	public static void Save(OthelloSettings settings, string? filePath = null)
+	/// <returns>保存に成功した場合は true、失敗した場合は false。</returns>
+	public static bool Save(OthelloSettings settings, string? filePath = null)
 	{
 		filePath ??= DefaultFilePath;
-		var dir = Path.GetDirectoryName(filePath);
-		if (!string.IsNullOrEmpty(dir))
-			Directory.CreateDirectory(dir);
-		File.WriteAllText(filePath, JsonSerializer.Serialize(settings, Options));
+		try
+		{
+			var dir = Path.GetDirectoryName(filePath);
+			if (!string.IsNullOrEmpty(dir))
+				Directory.CreateDirectory(dir);
+			File.WriteAllText(filePath, JsonSerializer.Serialize(settings, Options));
+			return true;
+		}
+		catch
+		{
+			return false;
+		}
 	}
 }

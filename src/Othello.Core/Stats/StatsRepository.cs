@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 
 namespace Technopro.Othello.Core.Stats;
@@ -42,13 +43,25 @@ public class StatsRepository : IStatsRepository
 		}
 	}
 
+	/// <summary>
+	/// 統計を保存する。書き込みに失敗した場合も例外はスローせず、保存をあきらめて処理を継続する
+	/// （統計保存の失敗でゲーム進行を止めないため）。
+	/// </summary>
 	/// <inheritdoc/>
 	public void Save(GameStats stats)
 	{
-		var dir = Path.GetDirectoryName(_filePath);
-		if (!string.IsNullOrEmpty(dir))
-			Directory.CreateDirectory(dir);
-		File.WriteAllText(_filePath, JsonSerializer.Serialize(stats, Options));
+		try
+		{
+			var dir = Path.GetDirectoryName(_filePath);
+			if (!string.IsNullOrEmpty(dir))
+				Directory.CreateDirectory(dir);
+			File.WriteAllText(_filePath, JsonSerializer.Serialize(stats, Options));
+		}
+		catch
+		{
+			// 保存失敗はログに残すのみとし、呼び出し元（GameViewModel）の処理を継続させる。
+			Debug.WriteLine($"棋力統計の保存に失敗しました: {_filePath}");
+		}
 	}
 
 	/// <inheritdoc/>

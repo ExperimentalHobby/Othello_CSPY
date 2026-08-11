@@ -261,4 +261,28 @@ public class TimeLimitTests
 				File.Delete(tmpFile);
 		}
 	}
+
+	/// <summary>
+	/// 書き込み不可能な保存先（既存ディレクトリをファイルパスとして注入）でも
+	/// SaveTimeLimitSettings() が例外を投げないことを確認する。
+	/// パス条件: 例外が伝播しないこと。
+	/// </summary>
+	[Fact]
+	public void SaveTimeLimitSettings_WhenTargetIsDirectory_DoesNotThrow()
+	{
+		var directoryPath = Path.Combine(Path.GetTempPath(), $"othello_settings_dir_{Guid.NewGuid():N}");
+		Directory.CreateDirectory(directoryPath);
+		try
+		{
+			var vm = new GameViewModel(d => new FakeAI(d), settings: new OthelloSettings(), settingsFilePath: directoryPath);
+
+			var exception = Record.Exception(() => vm.SaveTimeLimitSettings());
+
+			Assert.Null(exception);
+		}
+		finally
+		{
+			Directory.Delete(directoryPath);
+		}
+	}
 }
