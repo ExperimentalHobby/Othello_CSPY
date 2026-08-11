@@ -21,6 +21,7 @@ from board import (
     get_flips,
     get_valid_moves,
     has_any_flip,
+    has_valid_cell_values,
     make_move,
     opponent,
 )
@@ -55,6 +56,29 @@ class OpponentTests(unittest.TestCase):
             opponent(EMPTY)
         with self.assertRaises(ValueError):
             opponent(99)
+
+
+class HasValidCellValuesTests(unittest.TestCase):
+    """has_valid_cell_values() のテスト（Issue #116）。"""
+
+    def test_initial_board_is_valid(self):
+        """標準初期配置の盤面は有効であることを確認する。パス条件: True が返ること。"""
+        self.assertTrue(has_valid_cell_values(make_initial_board()))
+
+    def test_out_of_range_positive_cell_is_invalid(self):
+        """セル値 3（0/1/2 以外の正の値）を含む盤面は無効であることを確認する。
+        パス条件: False が返ること。"""
+        board = make_initial_board()
+        board[0][0] = 3
+        self.assertFalse(has_valid_cell_values(board))
+
+    def test_negative_cell_is_invalid(self):
+        """セル値 -1（負の値）を含む盤面は無効であることを確認する。
+        パス条件: False が返ること（Python の負インデックス wraparound で
+                  例外にならず誤ったハッシュが使われる問題の回帰確認）。"""
+        board = make_initial_board()
+        board[0][0] = -1
+        self.assertFalse(has_valid_cell_values(board))
 
 
 class GetFlipsTests(unittest.TestCase):
@@ -194,6 +218,56 @@ class AlphaBetaTests(unittest.TestCase):
         move = self.ai.get_best_move(board, BLACK, depth=3)
         self.assertIn(move, get_valid_moves(board, BLACK))
 
+    def test_negative_cell_value_raises_value_error(self):
+        """負のセル値（-1）を含む盤面で ValueError が送出されることを確認する。
+        パス条件: 例外を送出せず誤ったハッシュで探索を継続する（Issue #116）ことなく、
+                  ValueError が送出されること。"""
+        board = make_initial_board()
+        board[0][0] = -1
+        with self.assertRaises(ValueError):
+            self.ai.get_best_move(board, BLACK, depth=2)
+
+    def test_out_of_range_positive_cell_value_raises_value_error(self):
+        """範囲外の正のセル値（3）を含む盤面で ValueError が送出されることを確認する。
+        パス条件: ValueError が送出されること。"""
+        board = make_initial_board()
+        board[0][0] = 3
+        with self.assertRaises(ValueError):
+            self.ai.get_best_move(board, BLACK, depth=2)
+
+
+class AlphaBetaPyDirectCellValidationTests(unittest.TestCase):
+    """
+    純 Python 実装（alpha_beta_py.AlphaBetaAI）を直接呼び出し、セル値検証が
+    バックエンド選択（Rust/Python いずれが有効か）に依存せず機能することを確認する。
+    Issue #116: 負のセル値は Python のリスト負インデックス wraparound により
+    例外を送出せず誤ったハッシュで探索を継続してしまうバグの回帰テスト。
+    """
+
+    def setUp(self):
+        self.ai = alpha_beta_py.AlphaBetaAI()
+
+    def test_negative_cell_value_raises_value_error(self):
+        """パス条件: 負のセル値 -1 を含む盤面で get_best_move が ValueError を送出すること。"""
+        board = make_initial_board()
+        board[0][0] = -1
+        with self.assertRaises(ValueError):
+            self.ai.get_best_move(board, BLACK, depth=2)
+
+    def test_out_of_range_positive_cell_value_raises_value_error(self):
+        """パス条件: 範囲外の正のセル値 3 を含む盤面で get_best_move が ValueError を送出すること。"""
+        board = make_initial_board()
+        board[0][0] = 3
+        with self.assertRaises(ValueError):
+            self.ai.get_best_move(board, BLACK, depth=2)
+
+    def test_negative_cell_value_raises_value_error_timed(self):
+        """パス条件: 負のセル値を含む盤面で get_best_move_timed も ValueError を送出すること。"""
+        board = make_initial_board()
+        board[0][0] = -1
+        with self.assertRaises(ValueError):
+            self.ai.get_best_move_timed(board, BLACK, max_depth=2, time_ms=1000)
+
     def test_handles_forced_opponent_pass(self):
         """探索中に相手が強制パスする局面でも、例外なく合法手を返すことを確認する。
         パス条件: 白が着手不能・黒のみ着手可能な盤面で、get_best_move が黒の合法手を返すこと。"""
@@ -294,6 +368,27 @@ class AiMainLoopTests(unittest.TestCase):
         try:
             res = self._request(proc, full_board, WHITE)
             self.assertIn('error', res)
+        finally:
+            self._close_ai(proc)
+
+    def test_invalid_cell_value_does_not_kill_process(self):
+        """不正なセル値（0/1/2 以外）を含む盤面を送ってもプロセスが終了せず、
+        error レスポンスを返したうえで後続のリクエストも継続して処理できることを確認する
+        （Rust バックエンドの panic によるプロセス死を防ぐ回帰テスト。Issue #116）。
+        パス条件: 1 件目のレスポンスに 'error' キーが含まれ、2 件目（正常な盤面）は
+                  'error' キーを含まない正常なレスポンスが返ること。"""
+        invalid_board = make_initial_board()
+        invalid_board[0][0] = 3  # 不正なセル値
+        proc = self._launch_ai()
+        try:
+            res = self._request(proc, invalid_board, BLACK)
+            self.assertIn('error', res)
+
+            # プロセスが継続していること（次のリクエストも正常応答すること）を確認する
+            valid_board = make_initial_board()
+            res2 = self._request(proc, valid_board, BLACK)
+            self.assertNotIn('error', res2)
+            self.assertIn((res2['row'], res2['col']), get_valid_moves(valid_board, BLACK))
         finally:
             self._close_ai(proc)
 

@@ -99,7 +99,11 @@ def main():
                 # 最善手の座標を JSON で返す
                 response = json.dumps({'row': move[0], 'col': move[1]})
 
-        except Exception as e:  # noqa: BLE001 - 予期せぬ例外もプロセスを継続させ C# 側へ JSON でエラー通知するため意図的に broad except
+        except BaseException as e:  # noqa: BLE001 - 予期せぬ例外もプロセスを継続させ C# 側へ JSON でエラー通知するため意図的に broad except。
+            # Rust バックエンド（othello_ai_rust）の panic は pyo3_runtime.PanicException
+            # として送出され、これは Exception ではなく BaseException 直下のため except Exception
+            # では捕捉できない（Issue #116）。個別の入力検証（Rust 側の validate_request）を
+            # 素通りした未知の panic に対する多重防御として BaseException で受ける。
             response = json.dumps({'error': str(e)})
 
         # flush=True で即座に出力する（C# の ReadLine がブロッキング待機しているため必須）

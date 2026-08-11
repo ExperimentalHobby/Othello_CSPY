@@ -109,5 +109,54 @@ class RustPythonParityTests(unittest.TestCase):
                 msg=f"timed 不一致: player={player} board={board}")
 
 
+@unittest.skipUnless(HAS_RUST, "Rust 拡張 othello_ai_rust が未ビルドのためスキップ")
+class RustPythonInvalidInputParityTests(unittest.TestCase):
+    """
+    不正な入力（セル値域外・非8×8盤面）に対して Python/Rust 両バックエンドが
+    共に Exception のサブクラスを送出することを検証する（Issue #116）。
+
+    Rust バックエンドの `pyo3_runtime.PanicException` は BaseException 直下であり
+    Exception のサブクラスではないため、この一致検証はバックエンド分岐の回帰を検出する。
+    """
+
+    def test_out_of_range_cell_value_raises_exception_subclass_both_backends(self):
+        """
+        パス条件: セル値に 3（0/1/2 以外）を含む盤面で、Python/Rust 双方が
+                  Exception のサブクラスを送出すること。
+        """
+        board = make_initial_board()
+        board[0][0] = 3  # 不正なセル値
+
+        with self.assertRaises(Exception):
+            alpha_beta_py.AlphaBetaAI().get_best_move(board, BLACK, 2)
+        with self.assertRaises(Exception):
+            othello_ai_rust.get_best_move(board, BLACK, 2)
+
+    def test_negative_cell_value_raises_exception_subclass_both_backends(self):
+        """
+        パス条件: セル値に -1（負値）を含む盤面で、Python/Rust 双方が
+                  Exception のサブクラスを送出すること。
+        """
+        board = make_initial_board()
+        board[0][0] = -1  # 不正なセル値
+
+        with self.assertRaises(Exception):
+            alpha_beta_py.AlphaBetaAI().get_best_move(board, BLACK, 2)
+        with self.assertRaises(Exception):
+            othello_ai_rust.get_best_move(board, BLACK, 2)
+
+    def test_non_square_board_raises_exception_subclass_both_backends(self):
+        """
+        パス条件: 8×8 でない盤面（7 行のみ）で、Python/Rust 双方が
+                  Exception のサブクラスを送出すること。
+        """
+        board = [[EMPTY] * BOARD_SIZE for _ in range(BOARD_SIZE - 1)]  # 7 行しかない
+
+        with self.assertRaises(Exception):
+            alpha_beta_py.AlphaBetaAI().get_best_move(board, BLACK, 2)
+        with self.assertRaises(Exception):
+            othello_ai_rust.get_best_move(board, BLACK, 2)
+
+
 if __name__ == "__main__":
     unittest.main()

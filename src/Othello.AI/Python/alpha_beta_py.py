@@ -16,7 +16,7 @@ import random
 import time
 from enum import IntEnum
 
-from board import BOARD_SIZE, get_valid_moves, make_move, opponent
+from board import BOARD_SIZE, get_valid_moves, has_valid_cell_values, make_move, opponent
 from evaluator import WEIGHTS, evaluate, evaluate_final
 
 
@@ -57,6 +57,22 @@ def _zobrist_hash(board):
     return h
 
 
+def _validate_board(board):
+    """
+    盤面のセル値を検証する（get_best_move / get_best_move_timed の入口で 1 回だけ呼ぶ）。
+    探索中の全ノードで検証すると O(64) の走査コストが毎回かかるため、
+    Rust 版（validate_request）と同様にエントリポイントでの一括検証とする。
+
+    Raises:
+        ValueError: セル値が EMPTY(0)/BLACK(1)/WHITE(2) 以外を含む場合
+                    （Issue #116: 負値は Python の負インデックス wraparound で
+                    例外にならず誤ったハッシュを使ってしまうため、事前に弾く）
+    """
+    if not has_valid_cell_values(board):
+        raise ValueError(
+            "board contains an invalid cell value; each cell must be EMPTY(0), BLACK(1), or WHITE(2).")
+
+
 class AlphaBetaAI:
     """
     アルファベータ法でオセロの最善手を探索する AI クラス。
@@ -75,7 +91,11 @@ class AlphaBetaAI:
 
         Returns:
             tuple[int, int] | None: 最善手の (row, col)、有効手なしの場合は None
+
+        Raises:
+            ValueError: board に不正なセル値が含まれる場合
         """
+        _validate_board(board)
         moves = get_valid_moves(board, player)
         if not moves:
             return None  # 有効手なし → 呼び出し元でパス処理を行う
@@ -119,7 +139,11 @@ class AlphaBetaAI:
 
         Returns:
             tuple[int, int] | None: 最善手の (row, col)、有効手なしの場合は None
+
+        Raises:
+            ValueError: board に不正なセル値が含まれる場合
         """
+        _validate_board(board)
         moves = get_valid_moves(board, player)
         if not moves:
             return None
