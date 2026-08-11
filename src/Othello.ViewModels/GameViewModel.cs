@@ -308,6 +308,25 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 	}
 
 	/// <summary>
+	/// 盤面・棋譜・ScoreHistory を初期状態に戻し、関連する通知・盤面再描画を行う共通処理。
+	/// <see cref="StopCurrentGameForModeChange"/> / <see cref="ApplyNewGameState"/> 両方から
+	/// 呼ばれる（Issue #126: 2箇所の逐語重複を解消）。
+	/// </summary>
+	private void ResetGameStateForNewGame()
+	{
+		_engine.Initialize();
+		_kifuMoves.Clear();
+		_kifuMoveEntryCounts.Clear();
+		_lastMovePosition = null;
+		LastKifuRecord = null;
+		ScoreHistory.Clear();
+		RecordCurrentScore();
+		OnPropertyChanged(nameof(IsSettingsEditable));
+		OnPropertyChanged(nameof(IsTimeLimitEditable));
+		RefreshBoardDisplay();
+	}
+
+	/// <summary>
 	/// CPU vs CPU モードへの切替時に現在のゲームを中断し「新規ゲーム待ち」状態に移行する。
 	/// ゲーム進行中でも呼び出し可能。
 	/// </summary>
@@ -324,16 +343,7 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 		DisposeCpuAis();
 
 		IsGameInProgress = false;
-		_engine.Initialize();
-		_kifuMoves.Clear();
-		_kifuMoveEntryCounts.Clear();
-		_lastMovePosition = null;
-		LastKifuRecord = null;
-		ScoreHistory.Clear();
-		RecordCurrentScore();
-		OnPropertyChanged(nameof(IsSettingsEditable));
-		OnPropertyChanged(nameof(IsTimeLimitEditable));
-		RefreshBoardDisplay();
+		ResetGameStateForNewGame();
 		StatusMessage = "新規ゲームボタンで CPU vs CPU 対戦を開始してください";
 		UpdateScoreBoardState();
 	}
@@ -610,16 +620,7 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 	{
 		AiEngineLabel = IsCpuVsCpu ? "AI vs AI" : _ai!.EngineName;
 
-		_engine.Initialize();
-		_kifuMoves.Clear();
-		_kifuMoveEntryCounts.Clear();
-		_lastMovePosition = null;
-		LastKifuRecord = null;
-		ScoreHistory.Clear();
-		RecordCurrentScore();
-		OnPropertyChanged(nameof(IsSettingsEditable));
-		OnPropertyChanged(nameof(IsTimeLimitEditable));
-		RefreshBoardDisplay();
+		ResetGameStateForNewGame();
 		IsGameInProgress = true;
 
 		if (IsCpuVsCpu)
@@ -667,11 +668,7 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 		RecordMove(HumanColor, position);
 		RecordCurrentScore();
 
-		_ = AnimateFlipsAsync(result.FlippedPieces, _cts!.Token);
-		NotifyIfPassed();
-		OnPropertyChanged(nameof(IsSettingsEditable));
-		OnPropertyChanged(nameof(IsTimeLimitEditable));
-		RefreshBoardDisplay();
+		AfterMoveApplied(result, _cts!.Token);
 		_ = CheckAndProcessNextTurnAsync(_cts!.Token);
 	}
 
@@ -750,11 +747,7 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 
 			RecordMove(aiColor, bestMove);
 			RecordCurrentScore();
-			_ = AnimateFlipsAsync(moveResult.FlippedPieces, ct);
-			NotifyIfPassed();
-			OnPropertyChanged(nameof(IsSettingsEditable));
-			OnPropertyChanged(nameof(IsTimeLimitEditable));
-			RefreshBoardDisplay();
+			AfterMoveApplied(moveResult, ct);
 			UpdateScoreBoardState();
 
 			if (_engine.GameState.IsGameInProgress())
@@ -834,11 +827,7 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 
 				RecordMove(currentColor, bestMove);
 				RecordCurrentScore();
-				_ = AnimateFlipsAsync(moveResult.FlippedPieces, ct);
-				NotifyIfPassed();
-				OnPropertyChanged(nameof(IsSettingsEditable));
-				OnPropertyChanged(nameof(IsTimeLimitEditable));
-				RefreshBoardDisplay();
+				AfterMoveApplied(moveResult, ct);
 				UpdateScoreBoardState();
 
 				IsAIThinking = false;
@@ -859,6 +848,21 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 			if (!ct.IsCancellationRequested)
 				IsAIThinking = false;
 		}
+	}
+
+	/// <summary>
+	/// 着手適用後の共通後処理（反転アニメーション起動・パス通知・編集可否通知・盤面再描画）。
+	/// 人間・AI・CPU vs CPU いずれの着手経路からも呼ばれる（Issue #126: 3箇所の逐語重複を解消）。
+	/// </summary>
+	/// <param name="result">直前に適用した着手の結果（反転した石のリストを含む）</param>
+	/// <param name="ct">反転アニメーションに渡すキャンセルトークン</param>
+	private void AfterMoveApplied(MoveResult result, CancellationToken ct)
+	{
+		_ = AnimateFlipsAsync(result.FlippedPieces, ct);
+		NotifyIfPassed();
+		OnPropertyChanged(nameof(IsSettingsEditable));
+		OnPropertyChanged(nameof(IsTimeLimitEditable));
+		RefreshBoardDisplay();
 	}
 
 	/// <summary>
