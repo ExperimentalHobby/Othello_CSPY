@@ -16,5 +16,6 @@
     <Compile Include="$(MSBuildThisFileDirectory)KifuViewModel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)ScorePoint.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)StatsViewModel.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)TurnTimerService.cs" />
   </ItemGroup>
 </Project>
