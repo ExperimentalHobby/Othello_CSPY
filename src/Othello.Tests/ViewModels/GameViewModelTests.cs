@@ -956,6 +956,76 @@ public class GameViewModelTests
 
 		Assert.DoesNotContain(vm.BoardSquares, sq => sq.IsLastMove);
 	}
+
+	// ===== ヒント AI の並行実行（Issue #117） =====
+
+	/// <summary>
+	/// 古い（遅い）ヒント要求が新しい（速い）要求より後に完了しても、
+	/// 表示中の新しいヒント結果を上書きしないことを確認する。
+	/// パス条件: 遅延要求を解放した後も、新しい要求の結果マスのみ IsHint=true であること。
+	/// </summary>
+	[Fact]
+	public async Task RefreshHintAsync_StaleSlowerRequest_DoesNotOverwriteNewerResult()
+	{
+		using var gate = new ManualResetEventSlim(false);
+		int callCount = 0;
+		var staleMove = new Position(2, 3);
+		var freshMove = new Position(3, 2);
+
+		using var vm = new GameViewModel(
+			d => new FakeAI(d),
+			hintAiFactory: d =>
+			{
+				callCount++;
+				// 1 回目（古い要求）は gate が解放されるまでブロックする。
+				// 2 回目以降（新しい要求）は即座に完了する。
+				return callCount == 1
+					? new HintFakeAI(d, staleMove, gate)
+					: new HintFakeAI(d, freshMove);
+			});
+
+		vm.IsHintEnabled = true;  // 1 回目のヒント要求発火（ブロック中）
+		vm.IsHintEnabled = false; // ClearHint のみ（新規要求なし）
+		vm.IsHintEnabled = true;  // 2 回目のヒント要求発火（即完了）
+
+		// 2 回目（新しい要求）の完了を待つ
+		var deadline = DateTime.UtcNow + Timeout;
+		while (!vm.BoardSquares.Single(s => s.Position.Equals(freshMove)).IsHint && DateTime.UtcNow < deadline)
+			await Task.Delay(10);
+		Assert.True(vm.BoardSquares.Single(s => s.Position.Equals(freshMove)).IsHint);
+
+		// 1 回目（古い要求）を解放して完了させる
+		gate.Set();
+		await Task.Delay(300); // 完了を確実に待つ猶予
+
+		Assert.False(vm.BoardSquares.Single(s => s.Position.Equals(staleMove)).IsHint);
+		Assert.True(vm.BoardSquares.Single(s => s.Position.Equals(freshMove)).IsHint);
+	}
+
+	/// <summary>
+	/// ヒントを短時間に連続してトリガーしても例外なく動作することを確認する
+	/// （旧実装では単一インスタンス共有の置換表破損により InvalidOperationException 等が起こり得た）。
+	/// パス条件: 10 回連続トリガーしても例外が伝播しないこと。
+	/// </summary>
+	[Fact]
+	public async Task IsHintEnabled_RapidToggling_DoesNotThrow()
+	{
+		using var vm = new GameViewModel(
+			d => new FakeAI(d),
+			hintAiFactory: d => new AlphaBetaAI(d));
+
+		var exception = await Record.ExceptionAsync(async () =>
+		{
+			for (int i = 0; i < 10; i++)
+			{
+				vm.IsHintEnabled = false;
+				vm.IsHintEnabled = true;
+			}
+			await Task.Delay(200);
+		});
+
+		Assert.Null(exception);
+	}
 }
 
 // ========== テスト専用 AI モック ==========
@@ -989,4 +1059,21 @@ file sealed class FixedMoveFakeAI(DifficultyLevel difficulty, Position fixedMove
 	public DifficultyLevel Difficulty { get; } = difficulty;
 	public string EngineName => "AI: FixedMove";
 	public Position GetBestMove(Board board, PlayerColor playerColor) => fixedMove;
+}
+
+/// <summary>
+/// 常に指定した固定座標を返すヒント AI モック。
+/// gate（ManualResetEventSlim）を渡すと、それが解放されるまで GetBestMove をブロックする。
+/// ヒント計算の並行実行（Issue #117）で「古い要求が新しい要求より遅く完了する」状況を再現するために使う。
+/// </summary>
+file sealed class HintFakeAI(DifficultyLevel difficulty, Position move, ManualResetEventSlim? gate = null) : IAIStrategy
+{
+	public DifficultyLevel Difficulty { get; } = difficulty;
+	public string EngineName => "AI: HintFake";
+
+	public Position GetBestMove(Board board, PlayerColor playerColor)
+	{
+		gate?.Wait();
+		return move;
+	}
 }
