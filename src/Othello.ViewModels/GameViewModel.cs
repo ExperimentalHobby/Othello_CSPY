@@ -100,7 +100,7 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 	private bool _isTimeLimitEnabled;
 	private int _timeLimitSeconds;
 	private int _remainingSeconds;
-	private CancellationTokenSource? _timerCts;
+	private readonly TurnTimerService _turnTimer = new();
 	private readonly string? _settingsFilePath;
 
 	/// <summary>直近のゲームの棋譜。ゲーム終了後に設定され、新規ゲーム開始時に null にリセットされる。</summary>
@@ -472,6 +472,9 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 		_statsRepo = statsRepository ?? new StatsRepository();
 		Stats = new StatsViewModel(_statsRepo);
 		_settingsFilePath = settingsFilePath;
+
+		_turnTimer.Tick += OnTurnTimerTick;
+		_turnTimer.Expired += OnTurnTimerExpired;
 
 		// 設定ファイルから制限時間を読み込む（注入されなければファイルまたはデフォルト 30 秒）
 		var loadedSettings = settings ?? OthelloSettingsManager.Load(_settingsFilePath);
@@ -980,7 +983,7 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 		RestartTurnTimer();
 	}
 
-	// ===== 制限時間タイマー =====
+	// ===== 制限時間タイマー（カウントダウン本体は TurnTimerService に分離。Issue #127） =====
 
 	/// <summary>
 	/// 人間ターン開始時にカウントダウンタイマーを起動する。
@@ -988,58 +991,34 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 	/// </summary>
 	private void RestartTurnTimer()
 	{
-		_timerCts?.Cancel();
-		_timerCts?.Dispose();
-		_timerCts = null;
-		RemainingSeconds = 0;
-		OnPropertyChanged(nameof(IsTimerRunning));
-		OnPropertyChanged(nameof(IsTimerWarning));
-		OnPropertyChanged(nameof(RemainingSecondsText));
+		_turnTimer.Stop();
 
 		if (!IsTimeLimitEnabled || !IsGameInProgress || _engine.CurrentPlayer != HumanColor || IsCpuVsCpu)
 			return;
 
-		var cts = new CancellationTokenSource();
-		_timerCts = cts;
-		_ = RunTurnTimerAsync(cts.Token);
+		_turnTimer.Start(TimeLimitSeconds);
 	}
 
 	/// <summary>タイマーを停止して残り時間を 0 にリセットする。</summary>
-	private void StopTurnTimer()
+	private void StopTurnTimer() => _turnTimer.Stop();
+
+	/// <summary>
+	/// TurnTimerService.Tick のハンドラ。UI スレッドの SynchronizationContext で再開するため
+	/// Dispatcher.Invoke 不要。
+	/// </summary>
+	private void OnTurnTimerTick(int remaining)
 	{
-		_timerCts?.Cancel();
-		_timerCts?.Dispose();
-		_timerCts = null;
-		RemainingSeconds = 0;
+		RemainingSeconds = remaining;
 		OnPropertyChanged(nameof(IsTimerRunning));
 		OnPropertyChanged(nameof(IsTimerWarning));
 		OnPropertyChanged(nameof(RemainingSecondsText));
 	}
 
 	/// <summary>
-	/// 1 秒ごとにカウントダウンし、0 になったら有効手[0]を強制着手する。
-	/// UI スレッドの SynchronizationContext で再開するため Dispatcher.Invoke 不要。
+	/// TurnTimerService.Expired のハンドラ。時間切れ時に有効手[0]を強制着手する。
 	/// </summary>
-	private async Task RunTurnTimerAsync(CancellationToken ct)
+	private void OnTurnTimerExpired()
 	{
-		RemainingSeconds = TimeLimitSeconds;
-		OnPropertyChanged(nameof(IsTimerRunning));
-		OnPropertyChanged(nameof(IsTimerWarning));
-
-		try
-		{
-			while (RemainingSeconds > 0)
-			{
-				await Task.Delay(1000, ct);
-				RemainingSeconds--;
-				OnPropertyChanged(nameof(IsTimerRunning));
-				OnPropertyChanged(nameof(IsTimerWarning));
-				OnPropertyChanged(nameof(RemainingSecondsText));
-			}
-		}
-		catch (OperationCanceledException) { return; }
-
-		// 時間切れ
 		if (IsGameInProgress && _engine.CurrentPlayer == HumanColor)
 		{
 			StatusMessage = "時間切れ！自動着手します";
@@ -1209,9 +1188,9 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 		_cts?.Dispose();
 		_cts = null;
 
-		_timerCts?.Cancel();
-		_timerCts?.Dispose();
-		_timerCts = null;
+		_turnTimer.Tick -= OnTurnTimerTick;
+		_turnTimer.Expired -= OnTurnTimerExpired;
+		_turnTimer.Dispose();
 
 		(_ai as IDisposable)?.Dispose();
 		_ai = null;
