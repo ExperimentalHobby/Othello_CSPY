@@ -48,17 +48,32 @@ public static class OthelloRules
 	/// <exception cref="InvalidOperationException">position への着手が無効な場合</exception>
 	public static void MakeMove(Board board, Position position, PlayerColor playerColor)
 	{
-		// 事前条件チェック: 無効な着手は例外で弾く
-		if (!IsValidMove(board, position, playerColor))
+		if (!TryMakeMove(board, position, playerColor, out _))
 			throw new InvalidOperationException($"無効な移動: {position}");
+	}
 
-		// 反転対象を計算してから石を置く
-		var flipped = FlipCalculator.GetFlippablePieces(board, position, playerColor);
+	/// <summary>
+	/// 指定した position に playerColor の石を置き、挟んだ相手の石を反転する（例外を投げない版）。
+	/// <see cref="FlipCalculator.GetFlippablePieces"/> を 1 回だけ呼び、結果が空かどうかで
+	/// 妥当性を判定する（別途 IsValidMove を呼ばない）ことで、
+	/// 妥当性判定・反転リスト取得・盤面適用を 1 回のスキャンに統合している（Issue #120）。
+	/// </summary>
+	/// <param name="board">変更対象の盤面。着手が無効な場合は変更しない</param>
+	/// <param name="position">着手するマス</param>
+	/// <param name="playerColor">着手するプレイヤーの色</param>
+	/// <param name="flipped">反転された石の座標リスト（無効な着手の場合は空リスト）</param>
+	/// <returns>着手が有効で盤面を更新した場合は true</returns>
+	public static bool TryMakeMove(Board board, Position position, PlayerColor playerColor, out List<Position> flipped)
+	{
+		flipped = FlipCalculator.GetFlippablePieces(board, position, playerColor);
+		if (flipped.Count == 0)
+			// 空きマスでない、またはどの方向でも挟めない → 無効な手（盤面は変更しない）
+			return false;
+
 		board.SetPiece(position, playerColor);
-
-		// 挟んだ相手の石を自分の色に変える
 		foreach (var flippedPos in flipped)
 			board.SetPiece(flippedPos, playerColor);
+		return true;
 	}
 
 	/// <summary>

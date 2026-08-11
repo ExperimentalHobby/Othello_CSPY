@@ -98,13 +98,10 @@ public class GameEngine
 		if (!_gameState.IsGameInProgress())
 			return MoveResult.Failure("ゲームが進行中ではありません");
 
-		// 有効手でない場合は盤面を変更せずに失敗を返す
-		if (!OthelloRules.IsValidMove(_board, position, _currentPlayer))
+		// 妥当性判定・反転リスト取得・盤面適用を 1 回のスキャンで行う（Issue #120）。
+		// 無効な手の場合は盤面を変更せずに失敗を返す
+		if (!OthelloRules.TryMakeMove(_board, position, _currentPlayer, out var flipped))
 			return MoveResult.Failure("その位置は有効な移動ではありません");
-
-		// 反転する石を計算してから盤面に反映する
-		var flipped = FlipCalculator.GetFlippablePieces(_board, position, _currentPlayer);
-		OthelloRules.MakeMove(_board, position, _currentPlayer);
 
 		// 手番・状態を進めてから、その結果を 1 つのスナップショットとして履歴に積む
 		// （履歴の末尾＝現在の状態という不変条件を保つ）
