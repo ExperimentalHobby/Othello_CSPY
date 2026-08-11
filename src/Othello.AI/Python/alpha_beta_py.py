@@ -19,6 +19,7 @@ from enum import IntEnum
 from board import (
     BOARD_SIZE,
     get_valid_moves,
+    has_any_valid_move,
     has_valid_cell_values,
     make_move,
     opponent,
@@ -226,17 +227,19 @@ class AlphaBetaAI:
             tt[key] = (value, depth, _NodeType.EXACT)
             return value
 
-        current   = ai_player if is_maximizing else opponent(ai_player)
-        opp       = opponent(current)
-        moves     = get_valid_moves(board, current)
-        opp_moves = get_valid_moves(board, opp)
-
-        if not moves and not opp_moves:
-            value = evaluate_final(board, ai_player, depth)
-            tt[key] = (value, depth, _NodeType.EXACT)
-            return value
+        current = ai_player if is_maximizing else opponent(ai_player)
+        # moves が空のときだけ相手の有効手有無を確認する（Rust 版と同じ遅延評価。
+        # moves が非空なら opp の有効手は判定に使わないため無条件生成をやめる。Issue #119）。
+        moves = get_valid_moves(board, current)
 
         if not moves:
+            if not has_any_valid_move(board, opponent(current)):
+                # 両者ともに有効手がない → 終局（残り depth を渡して早い決着を選好させる）
+                value = evaluate_final(board, ai_player, depth)
+                tt[key] = (value, depth, _NodeType.EXACT)
+                return value
+
+            # 現在のプレイヤーに有効手がない → パス（相手にターンを渡す）
             value = self._alpha_beta_timed(board, depth - 1, alpha, beta, not is_maximizing, ai_player, deadline, tt)
             tt[key] = (value, depth, _NodeType.EXACT)
             return value
@@ -316,18 +319,18 @@ class AlphaBetaAI:
 
         # 現在のターンのプレイヤーを決定する
         current = ai_player if is_maximizing else opponent(ai_player)
-        opp     = opponent(current)  # current の相手色を一度だけ計算して再利用
-        moves    = get_valid_moves(board, current)
-        opp_moves = get_valid_moves(board, opp)
-
-        # 両者ともに有効手がない場合は終局 → 終局評価を返す
-        # 残り depth を渡して「早い決着」を選好させる
-        if not moves and not opp_moves:
-            value = evaluate_final(board, ai_player, depth)
-            tt[key] = (value, depth, _NodeType.EXACT)
-            return value
+        # moves が空のときだけ相手の有効手有無を確認する（Rust 版と同じ遅延評価。
+        # moves が非空なら相手の有効手は判定に使わないため無条件生成をやめる。Issue #119）。
+        moves = get_valid_moves(board, current)
 
         if not moves:
+            if not has_any_valid_move(board, opponent(current)):
+                # 両者ともに有効手がない場合は終局 → 終局評価を返す
+                # 残り depth を渡して「早い決着」を選好させる
+                value = evaluate_final(board, ai_player, depth)
+                tt[key] = (value, depth, _NodeType.EXACT)
+                return value
+
             # 現在のプレイヤーに有効手がない → パス（相手にターンを渡す）
             # パスも 1 手消費するため depth - 1 を渡す。is_maximizing を反転して相手ターンを表現する。
             # パスは分岐がなく窓の影響を受けないため、常に Exact として格納してよい。

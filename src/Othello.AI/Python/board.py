@@ -129,6 +129,28 @@ def has_any_flip(board, r, c, player):
     return False
 
 
+def has_any_valid_move(board, player):
+    """
+    指定したプレイヤーに 1 つでも有効手があるかを返す。
+
+    get_valid_moves と異なり座標リストを構築せず、最初の有効手が見つかった時点で
+    True を返す（短絡評価）。「有無」だけ知りたい場面（探索中のパス判定・終局判定）で、
+    リスト構築コストを避けて高速化する（Rust 版 has_any_valid_move と同一の意味論。Issue #119）。
+
+    Args:
+        board (list[list[int]]): 現在の盤面
+        player (int): 対象プレイヤーの色
+
+    Returns:
+        bool: 1 つ以上有効手があれば True
+    """
+    for r in range(BOARD_SIZE):
+        for c in range(BOARD_SIZE):
+            if board[r][c] == EMPTY and has_any_flip(board, r, c, player):
+                return True
+    return False
+
+
 def get_valid_moves(board, player):
     """
     指定したプレイヤーが着手できる全有効座標のリストを返す。
