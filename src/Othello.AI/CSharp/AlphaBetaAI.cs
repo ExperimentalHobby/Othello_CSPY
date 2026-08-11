@@ -67,6 +67,33 @@ public class AlphaBetaAI : IAIStrategy
 	}
 
 	/// <summary>
+	/// 着手前の盤面ハッシュ（baseHash）から、着手後の盤面ハッシュを差分（XOR）更新で計算する。
+	///
+	/// 着手 1 手による盤面の差分は「着手位置が Empty→player に変わる」ことと
+	/// 「flipped の各マスが 相手色→player に変わる」ことのみのため、ComputeBoardHash による
+	/// O(64) の全面再計算をせず O(1 + flipped.Count) で求められる（XOR は自身が逆演算のため、
+	/// 旧値を XOR で打ち消してから新値を XOR すれば更新になる。Issue #121）。
+	/// </summary>
+	private static ulong ComputeChildHash(ulong baseHash, Position position, PlayerColor player, List<Position> flipped)
+	{
+		int playerIdx = player == PlayerColor.Black ? 1 : 2;
+		ulong hash = baseHash ^ ZobristTable[position.Row, position.Column, 0] ^ ZobristTable[position.Row, position.Column, playerIdx];
+
+		int opponentIdx = playerIdx == 1 ? 2 : 1;
+		foreach (var pos in flipped)
+			hash ^= ZobristTable[pos.Row, pos.Column, opponentIdx] ^ ZobristTable[pos.Row, pos.Column, playerIdx];
+
+		return hash;
+	}
+
+	/// <summary>テスト専用: ComputeBoardHash() を直接呼び出す（差分更新の正しさをフル計算と照合するため）。</summary>
+	internal static ulong ComputeBoardHashForTest(Board board) => ComputeBoardHash(board);
+
+	/// <summary>テスト専用: ComputeChildHash() を直接呼び出す。</summary>
+	internal static ulong ComputeChildHashForTest(ulong baseHash, Position position, PlayerColor player, List<Position> flipped)
+		=> ComputeChildHash(baseHash, position, player, flipped);
+
+	/// <summary>
 	/// 現在の難易度に応じた探索（固定深さ or 反復深化）で最善手を返す。
 	/// </summary>
 	/// <param name="board">現在の盤面。</param>
@@ -98,13 +125,20 @@ public class AlphaBetaAI : IAIStrategy
 		var bestMove = sortedMoves[0];
 		int maxDepth = Difficulty.GetSearchDepth();
 		var deadline = DateTime.UtcNow.AddMilliseconds(timeLimitMs);
+		// ルート盤面のハッシュは 1 回だけフル計算し、以降は各候補手について
+		// ComputeChildHash で差分更新する（Issue #121）。
+		var rootHash = ComputeBoardHash(board);
+
+		// 反復深化の全深さで 1 つの TT を使い回す（Issue #121）。
+		// TT の各エントリは自身の残り探索深さ（Depth）を保持し、参照時に tt.Depth >= depth で
+		// 十分な深さかどうかを判定しているため、深さをまたいで使い回しても意味論は変わらない
+		// （より深い探索の結果が同じキーに後から上書きされるだけ）。
+		_transpositionTable = new Dictionary<ulong, TTEntry>(capacity: 1 << 16);
 
 		for (int depth = 1; depth <= maxDepth; depth++)
 		{
 			if (DateTime.UtcNow >= deadline)
 				break;
-
-			_transpositionTable = new Dictionary<ulong, TTEntry>(capacity: 1 << 16);
 
 			var currentBest = sortedMoves[0];
 			var bestScore = int.MinValue;
@@ -120,12 +154,13 @@ public class AlphaBetaAI : IAIStrategy
 				}
 
 				var newBoard = board.Clone();
-				OthelloRules.MakeMove(newBoard, move, playerColor);
+				OthelloRules.TryMakeMove(newBoard, move, playerColor, out var flipped);
+				var newHash = ComputeChildHash(rootHash, move, playerColor, flipped);
 
 				try
 				{
 					var score = AlphaBeta(newBoard, depth - 1, alpha, int.MaxValue, false,
-						playerColor.Opponent(), playerColor, deadline);
+						playerColor.Opponent(), playerColor, deadline, newHash);
 
 					if (score > bestScore)
 					{
@@ -162,6 +197,9 @@ public class AlphaBetaAI : IAIStrategy
 
 		int depth = Difficulty.GetSearchDepth();
 		_transpositionTable = new Dictionary<ulong, TTEntry>(capacity: 1 << 16);
+		// ルート盤面のハッシュは 1 回だけフル計算し、以降は各候補手について
+		// ComputeChildHash で差分更新する（Issue #121）。
+		var rootHash = ComputeBoardHash(board);
 
 		var sortedMoves = SortMovesByHeuristic(validMoves);
 		var bestScore = int.MinValue;
@@ -171,10 +209,11 @@ public class AlphaBetaAI : IAIStrategy
 		foreach (var move in sortedMoves)
 		{
 			var newBoard = board.Clone();
-			OthelloRules.MakeMove(newBoard, move, playerColor);
+			OthelloRules.TryMakeMove(newBoard, move, playerColor, out var flipped);
+			var newHash = ComputeChildHash(rootHash, move, playerColor, flipped);
 
 			var score = AlphaBeta(newBoard, depth - 1, alpha, int.MaxValue, false,
-				playerColor.Opponent(), playerColor);
+				playerColor.Opponent(), playerColor, boardHash: newHash);
 
 			if (score > bestScore)
 			{
@@ -206,22 +245,24 @@ public class AlphaBetaAI : IAIStrategy
 	/// 現プレイヤーに有効手がない場合の処理。
 	/// TryEvaluateTerminalNode が null を返した後に到達するため、ゲームは終わっておらず
 	/// 対戦相手には必ず有効手がある。isMaximizing を反転して対戦相手の手番に進む（F1）。
+	/// 盤面自体は変わらないため、ハッシュも hash をそのまま渡す（再計算不要。Issue #121）。
 	/// </summary>
 	private int HandleNoValidMoves(Board board, int depth, int alpha, int beta,
-		bool isMaximizing, PlayerColor currentPlayer, PlayerColor aiPlayer, DateTime? deadline)
+		bool isMaximizing, PlayerColor currentPlayer, PlayerColor aiPlayer, DateTime? deadline, ulong hash)
 		=> AlphaBeta(board, depth - 1, alpha, beta, !isMaximizing,
-			   currentPlayer.Opponent(), aiPlayer, deadline);
+			   currentPlayer.Opponent(), aiPlayer, deadline, hash);
 
 	private int EvaluateMaximizing(Board board, int depth, int alpha, int beta,
-		PlayerColor currentPlayer, PlayerColor aiPlayer, List<Position> sortedMoves, DateTime? deadline)
+		PlayerColor currentPlayer, PlayerColor aiPlayer, List<Position> sortedMoves, DateTime? deadline, ulong hash)
 	{
 		var value = int.MinValue;
 		foreach (var move in sortedMoves)
 		{
 			var newBoard = board.Clone();
-			OthelloRules.MakeMove(newBoard, move, currentPlayer);
+			OthelloRules.TryMakeMove(newBoard, move, currentPlayer, out var flipped);
+			var newHash = ComputeChildHash(hash, move, currentPlayer, flipped);
 			value = Math.Max(value, AlphaBeta(newBoard, depth - 1, alpha, beta, false,
-				currentPlayer.Opponent(), aiPlayer, deadline));
+				currentPlayer.Opponent(), aiPlayer, deadline, newHash));
 			alpha = Math.Max(alpha, value);
 			if (beta <= alpha) break;
 		}
@@ -229,15 +270,16 @@ public class AlphaBetaAI : IAIStrategy
 	}
 
 	private int EvaluateMinimizing(Board board, int depth, int alpha, int beta,
-		PlayerColor currentPlayer, PlayerColor aiPlayer, List<Position> sortedMoves, DateTime? deadline)
+		PlayerColor currentPlayer, PlayerColor aiPlayer, List<Position> sortedMoves, DateTime? deadline, ulong hash)
 	{
 		var value = int.MaxValue;
 		foreach (var move in sortedMoves)
 		{
 			var newBoard = board.Clone();
-			OthelloRules.MakeMove(newBoard, move, currentPlayer);
+			OthelloRules.TryMakeMove(newBoard, move, currentPlayer, out var flipped);
+			var newHash = ComputeChildHash(hash, move, currentPlayer, flipped);
 			value = Math.Min(value, AlphaBeta(newBoard, depth - 1, alpha, beta, true,
-				currentPlayer.Opponent(), aiPlayer, deadline));
+				currentPlayer.Opponent(), aiPlayer, deadline, newHash));
 			beta = Math.Min(beta, value);
 			if (beta <= alpha) break;
 		}
@@ -250,14 +292,18 @@ public class AlphaBetaAI : IAIStrategy
 	/// 超過していれば <see cref="TimeoutException"/> を送出して即座に打ち切る
 	/// （Python の _alpha_beta_timed / Rust の alpha_beta_timed と同じ設計）。
 	/// null の場合（固定深さ探索）はこのチェックを行わない。
+	/// <paramref name="boardHash"/> は呼び出し元が ComputeChildHash で差分計算した board の
+	/// ハッシュ値（Issue #121）。探索の再帰呼び出しは常に指定する。省略時（null）は
+	/// ComputeBoardHash でフル計算するフォールバックで、AlphaBetaForTest など board のみを
+	/// 渡す呼び出し向け。
 	/// </summary>
 	private int AlphaBeta(Board board, int depth, int alpha, int beta, bool isMaximizing,
-		PlayerColor currentPlayer, PlayerColor aiPlayer, DateTime? deadline = null)
+		PlayerColor currentPlayer, PlayerColor aiPlayer, DateTime? deadline = null, ulong? boardHash = null)
 	{
 		if (deadline.HasValue && DateTime.UtcNow >= deadline.Value)
 			throw new TimeoutException("AlphaBeta 探索が時間制限を超過しました");
 
-		var hash = ComputeBoardHash(board);
+		var hash = boardHash ?? ComputeBoardHash(board);
 		// isMaximizing を含めてコンテキストを検証する。
 		// さらに NodeType を考慮して境界値を正確値として誤用しない。
 		if (_transpositionTable!.TryGetValue(hash, out var tt)
@@ -288,7 +334,7 @@ public class AlphaBetaAI : IAIStrategy
 		if (validMoves.Count == 0)
 		{
 			var noMoveScore = HandleNoValidMoves(board, depth, alpha, beta, isMaximizing,
-				currentPlayer, aiPlayer, deadline);
+				currentPlayer, aiPlayer, deadline, hash);
 			_transpositionTable[hash] = new TTEntry(noMoveScore, depth, isMaximizing, NodeType.Exact);
 			return noMoveScore;
 		}
@@ -296,8 +342,8 @@ public class AlphaBetaAI : IAIStrategy
 		var originalAlpha = alpha;
 		var sortedMoves = SortMovesByHeuristic(validMoves);
 		var result = isMaximizing
-			? EvaluateMaximizing(board, depth, alpha, beta, currentPlayer, aiPlayer, sortedMoves, deadline)
-			: EvaluateMinimizing(board, depth, alpha, beta, currentPlayer, aiPlayer, sortedMoves, deadline);
+			? EvaluateMaximizing(board, depth, alpha, beta, currentPlayer, aiPlayer, sortedMoves, deadline, hash)
+			: EvaluateMinimizing(board, depth, alpha, beta, currentPlayer, aiPlayer, sortedMoves, deadline, hash);
 
 		// 探索後のスコアに基づいてノード種別を決定する
 		var nodeType = result <= originalAlpha ? NodeType.UpperBound  // fail-low（上界値）

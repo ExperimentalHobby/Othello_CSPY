@@ -24,6 +24,7 @@ from board import (
     has_any_valid_move,
     has_valid_cell_values,
     make_move,
+    make_move_with_flips,
     opponent,
 )
 from evaluator import count_frontier, count_stable, evaluate, evaluate_final
@@ -177,6 +178,26 @@ class MakeMoveTests(unittest.TestCase):
         _ = make_move(board, 2, 3, BLACK)
         self.assertEqual(board[2][3], EMPTY)
         self.assertEqual(board[3][3], WHITE)
+
+
+class MakeMoveWithFlipsTests(unittest.TestCase):
+    """make_move_with_flips() のテスト（Issue #121: Zobrist ハッシュ差分更新用に反転リストを返す）。"""
+
+    def test_returns_same_board_as_make_move(self):
+        """make_move_with_flips が返す盤面が make_move の結果と一致することを確認する。
+        パス条件: 両者の戻り値盤面が等しいこと。"""
+        board = make_initial_board()
+        expected = make_move(board, 2, 3, BLACK)
+        new_board, _ = make_move_with_flips(board, 2, 3, BLACK)
+        self.assertEqual(new_board, expected)
+
+    def test_returns_flipped_positions(self):
+        """反転された座標リストが get_flips の結果と一致することを確認する。
+        パス条件: 戻り値の flipped が [(3, 3)] であること。"""
+        board = make_initial_board()
+        _, flipped = make_move_with_flips(board, 2, 3, BLACK)
+        self.assertEqual(flipped, get_flips(board, 2, 3, BLACK))
+        self.assertEqual(flipped, [(3, 3)])
 
 
 class EvaluateTests(unittest.TestCase):
@@ -824,6 +845,60 @@ class DecideMoveTests(unittest.TestCase):
         self.assertEqual(move, (0, 2))
         self.assertTrue(fake_ai.get_best_move_called)
         self.assertFalse(fake_ai.get_best_move_timed_called)
+
+
+class ZobristDiffTests(unittest.TestCase):
+    """_zobrist_diff() のテスト（Issue #121: 全面再計算に代わる差分更新）。
+
+    _zobrist_diff(親ハッシュ, 着手位置, 着手した色, 反転リスト) が、着手後の盤面を
+    _zobrist_hash でフル計算した値と常に一致することを検証する
+    （差分更新が正しいことのリファレンス照合）。
+    """
+
+    def _assert_diff_matches_full_recompute(self, board, position, player):
+        r, c = position
+        base_hash = alpha_beta_py._zobrist_hash(board)
+        new_board, flipped = make_move_with_flips(board, r, c, player)
+
+        diff_hash = alpha_beta_py._zobrist_diff(base_hash, position, player, flipped)
+        full_hash = alpha_beta_py._zobrist_hash(new_board)
+
+        self.assertEqual(diff_hash, full_hash,
+                          msg=f"position={position} player={player} flipped={flipped}")
+
+    def test_matches_full_recompute_single_flip(self):
+        """初期盤面での1手（反転1個）で、差分ハッシュがフル計算と一致することを確認する。"""
+        board = make_initial_board()
+        self._assert_diff_matches_full_recompute(board, (2, 3), BLACK)
+
+    def test_matches_full_recompute_multiple_flips(self):
+        """複数方向で反転が起きる手で、差分ハッシュがフル計算と一致することを確認する。
+        盤面: (0,0)=黒, (1,1)=白, (2,2)=白, (3,0)=黒, (3,1)=白, (3,2)=白 → 黒が (3,3) に打つ
+        （左方向・左斜め上方向の 2 方向で計 4 個反転）。"""
+        board = [[EMPTY] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        board[0][0] = BLACK
+        board[1][1] = WHITE
+        board[2][2] = WHITE
+        board[3][0] = BLACK
+        board[3][1] = WHITE
+        board[3][2] = WHITE
+        self._assert_diff_matches_full_recompute(board, (3, 3), BLACK)
+
+    def test_matches_full_recompute_across_self_play(self):
+        """自己対局で進行する複数局面・複数手について、差分ハッシュが一致し続けることを確認する。"""
+        board = make_initial_board()
+        player = BLACK
+        for _ in range(10):
+            moves = get_valid_moves(board, player)
+            if not moves:
+                player = opponent(player)
+                moves = get_valid_moves(board, player)
+                if not moves:
+                    break
+            move = moves[0]
+            self._assert_diff_matches_full_recompute(board, move, player)
+            board = make_move(board, move[0], move[1], player)
+            player = opponent(player)
 
 
 class TranspositionTableTests(unittest.TestCase):
