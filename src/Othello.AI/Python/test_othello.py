@@ -1036,5 +1036,49 @@ class TranspositionTableEquivalenceTests(unittest.TestCase):
         self.assertGreater(checked, 0)
 
 
+class EvaluatorGoldenTests(unittest.TestCase):
+    """evaluate() / evaluate_final() の golden value テスト（Issue #129）。
+
+    evaluator_golden.json は序盤・中盤・終盤の代表局面と evaluate_final の勝敗パターンについて、
+    このモジュールの実装で計算した期待評価値を記録したもの。Python/Rust/C# の 3 実装が
+    同じ JSON を参照してそれぞれ独立に検証することで、評価関数の定数（WEIGHTS・フェーズ閾値・
+    各種係数）が 3 実装間で一致していることを推移的に確認できる（該当箇所は evaluator.py の
+    WEIGHTS 等のコメント参照）。
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        import json
+        import os
+        data_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                  'test_data', 'evaluator_golden.json')
+        with open(data_path, encoding='utf-8') as f:
+            cls.data = json.load(f)
+
+    def test_evaluate_matches_golden_values(self):
+        """evaluate() が全 golden ケースで期待値と一致することを確認する。
+        パス条件: 全 evaluate_cases で戻り値が expected と一致すること。"""
+        checked = 0
+        for case in self.data['evaluate_cases']:
+            actual = evaluate(case['board'], case['player'])
+            self.assertEqual(
+                actual, case['expected'],
+                msg=f"不一致: {case['name']} player={case['player']}")
+            checked += 1
+        self.assertGreater(checked, 0)
+
+    def test_evaluate_final_matches_golden_values(self):
+        """evaluate_final() が全 golden ケースで期待値と一致することを確認する。
+        パス条件: 全 evaluate_final_cases で戻り値が expected と一致すること。"""
+        checked = 0
+        for case in self.data['evaluate_final_cases']:
+            actual = evaluate_final(case['board'], case['player'], case['depth'])
+            self.assertEqual(
+                actual, case['expected'],
+                msg=f"不一致: {case['name']} player={case['player']} depth={case['depth']}")
+            checked += 1
+        self.assertGreater(checked, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

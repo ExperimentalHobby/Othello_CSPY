@@ -8,6 +8,18 @@ using Technopro.Othello.Core.Rules;
 /// </summary>
 public static class Evaluator
 {
+	// ============================================================================
+	// 評価関数の定数同期について（Issue #129）
+	//
+	// 以下の定数群（EvaluationWeights、フェーズ閾値、係数、終局値）は、
+	// Python（Othello.AI/Python/evaluator.py）・Rust（Othello.AI/Rust/src/lib.rs）
+	// の3実装に重複して存在する。
+	// いずれか1箇所を変更する場合は、必ず3ファイルすべてを同時に更新すること。
+	// 変更後は test_data/evaluator_golden.json を使った golden value テスト
+	// （evaluator.py の EvaluatorGoldenTests / lib.rs の evaluate_golden_* /
+	// 本プロジェクトの EvaluatorGoldenTests.cs）で3実装の評価値が
+	// 一致することを確認する。
+	// ============================================================================
 	private const int OpeningEmptyThreshold = 44;
 	private const int EndgameEmptyThreshold = 20;
 	private const int OpeningMobilityMultiplier = 20;

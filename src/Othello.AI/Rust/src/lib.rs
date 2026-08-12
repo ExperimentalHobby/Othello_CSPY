@@ -40,6 +40,20 @@ const DIRS: [(i32, i32); 8] = [
     (1, 1),
 ];
 
+// ============================================================================
+// 評価関数の定数同期について（Issue #129）
+//
+// 以下の WEIGHTS、および evaluate() 内のフェーズ閾値（44/20）・係数
+// （20/10/25/5/10）・evaluate_final() の終局値（10000+depth）は、
+// Python（Othello.AI/Python/evaluator.py）・C#（Othello.AI/CSharp/Evaluator.cs）
+// の 3 実装に重複して存在する。
+// いずれか 1 箇所を変更する場合は、必ず 3 ファイルすべてを同時に更新すること。
+// 変更後は test_data/evaluator_golden.json を使った golden value テスト
+// （evaluator.py の EvaluatorGoldenTests / 本ファイルの evaluate_golden_* /
+// Othello.Tests の EvaluatorGoldenTests.cs）で 3 実装の評価値が
+// 一致することを確認する。
+// ============================================================================
+
 /// 盤面の位置重みテーブル（evaluator.py の WEIGHTS と同一）。
 const WEIGHTS: [[i32; SIZE]; SIZE] = [
     [100, -20, 10, 5, 5, 10, -20, 100],
@@ -988,6 +1002,17 @@ mod tests {
         [color; SIZE * SIZE]
     }
 
+    /// 8x8 の行配列（[row][col]）から Board を作る（Issue #129: golden value テスト用）。
+    fn board_from_rows(rows: [[i8; SIZE]; SIZE]) -> Board {
+        let mut b: Board = [EMPTY; SIZE * SIZE];
+        for r in 0..SIZE {
+            for c in 0..SIZE {
+                b[idx(r, c)] = rows[r][c];
+            }
+        }
+        b
+    }
+
     #[test]
     fn opponent_swaps_colors() {
         assert_eq!(opponent(BLACK), WHITE);
@@ -1230,6 +1255,76 @@ mod tests {
         assert_eq!(evaluate_final(&win, BLACK, 5), 10005);
         assert!(evaluate_final(&win, WHITE, 5) < evaluate_final(&win, WHITE, 1));
         assert_eq!(evaluate_final(&win, WHITE, 5), -10005);
+    }
+
+    // ===== evaluate() / evaluate_final() の golden value テスト（Issue #129） =====
+    // evaluator.py の test_data/evaluator_golden.json と同じ盤面・期待値をハードコードしたもの。
+    // Python/Rust/C# の 3 実装が同じ golden 値に対してそれぞれ独立に assert することで、
+    // 評価関数の定数（WEIGHTS・フェーズ閾値・各種係数）が 3 実装間で一致していることを
+    // 推移的に確認できる（該当箇所は WEIGHTS 定義部のコメント参照）。
+
+    #[test]
+    fn evaluate_golden_opening_initial_board() {
+        let board = board_from_rows([
+            [0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 2, 1, 0, 0, 0],
+            [0, 0, 0, 1, 2, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0],
+        ]);
+        assert_eq!(evaluate(&board, BLACK), 0);
+        assert_eq!(evaluate(&board, WHITE), 0);
+    }
+
+    #[test]
+    fn evaluate_golden_midgame_empty44() {
+        let board = board_from_rows([
+            [2, 2, 2, 2, 2, 0, 0, 0],
+            [2, 2, 2, 2, 2, 0, 0, 0],
+            [2, 1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 1, 1, 1, 0, 0, 0],
+            [0, 0, 0, 1, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0],
+        ]);
+        assert_eq!(evaluate(&board, BLACK), -150);
+        assert_eq!(evaluate(&board, WHITE), 150);
+    }
+
+    #[test]
+    fn evaluate_golden_endgame_empty19() {
+        let board = board_from_rows([
+            [2, 2, 2, 2, 2, 2, 2, 1],
+            [2, 2, 2, 2, 2, 2, 2, 1],
+            [2, 2, 2, 2, 2, 2, 2, 1],
+            [1, 2, 2, 2, 2, 2, 2, 1],
+            [1, 2, 2, 2, 2, 1, 1, 1],
+            [1, 1, 1, 2, 0, 0, 0, 0],
+            [0, 0, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0],
+        ]);
+        assert_eq!(evaluate(&board, BLACK), -136);
+        assert_eq!(evaluate(&board, WHITE), 136);
+    }
+
+    #[test]
+    fn evaluate_final_golden_win_lose_draw() {
+        let win = filled_board(BLACK);
+        assert_eq!(evaluate_final(&win, BLACK, 0), 10000);
+        assert_eq!(evaluate_final(&win, BLACK, 5), 10005);
+        assert_eq!(evaluate_final(&win, WHITE, 3), -10003);
+
+        let mut draw: Board = [EMPTY; SIZE * SIZE];
+        for r in 0..SIZE {
+            for c in 0..SIZE {
+                draw[idx(r, c)] = if r < 4 { BLACK } else { WHITE };
+            }
+        }
+        assert_eq!(evaluate_final(&draw, BLACK, 2), 0);
     }
 
     #[test]

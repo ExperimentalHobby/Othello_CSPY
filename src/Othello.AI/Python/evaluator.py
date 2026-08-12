@@ -15,12 +15,25 @@ alpha_beta.py の探索木でリーフノードの評価値を算出するため
 
 from board import BOARD_SIZE, count_valid_moves, opponent
 
+# ============================================================================
+# 評価関数の定数同期について（Issue #129）
+#
+# 以下の WEIGHTS、および evaluate() 内のフェーズ閾値（44/20）・係数
+# （20/10/25/5/10）・evaluate_final() の終局値（10000+depth）は、
+# Rust（Othello.AI/Rust/src/lib.rs）・C#（Othello.AI/CSharp/Evaluator.cs）
+# の 3 実装に重複して存在する。
+# いずれか 1 箇所を変更する場合は、必ず 3 ファイルすべてを同時に更新すること。
+# 変更後は test_data/evaluator_golden.json を使った golden value テスト
+# （本ファイルの EvaluatorGoldenTests / lib.rs の evaluate_golden_* /
+# Othello.Tests の EvaluatorGoldenTests.cs）で 3 実装の評価値が
+# 一致することを確認する。
+# ============================================================================
+
 # 盤面の位置重みテーブル（8×8）
 # コーナー（0,0 等）: +100  取られると取り返せないため最優先
 # X-square（コーナー斜め隣）: -50  相手にコーナーを与えるリスクが高い
 # 辺（端の行・列）: +10  比較的安定した位置
 # 中央付近: +1〜+5  ゲーム序盤は重要だが終盤では相対的に価値が下がる
-# 同一の値: Othello.Rust/src/lib.rs の WEIGHTS と一致させること（test_parity.py が担保）
 WEIGHTS = [
     [100, -20, 10,  5,  5, 10, -20, 100],
     [-20, -50, -2, -2, -2, -2, -50, -20],
