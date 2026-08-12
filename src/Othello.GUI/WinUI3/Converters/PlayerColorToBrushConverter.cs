@@ -12,18 +12,18 @@ namespace Technopro.Othello.WinUI3.Converters;
 /// </summary>
 public class PlayerColorToBrushConverter : IValueConverter
 {
-    private static readonly SolidColorBrush BlackBrush       = new(Colors.Black);
-    private static readonly SolidColorBrush WhiteBrush       = new(Colors.White);
-    private static readonly SolidColorBrush TransparentBrush = new(Colors.Transparent);
+	private static readonly SolidColorBrush BlackBrush = new(Colors.Black);
+	private static readonly SolidColorBrush WhiteBrush = new(Colors.White);
+	private static readonly SolidColorBrush TransparentBrush = new(Colors.Transparent);
 
-    public object Convert(object value, Type targetType, object parameter, string language) =>
-        PlayerColorBrushRule.Resolve(value) switch
-        {
-            PlayerColorBrushRule.BrushKind.Black => BlackBrush,
-            PlayerColorBrushRule.BrushKind.White => WhiteBrush,
-            _                                     => TransparentBrush
-        };
+	public object Convert(object value, Type targetType, object parameter, string language) =>
+		PlayerColorBrushRule.Resolve(value) switch
+		{
+			PlayerColorBrushRule.BrushKind.Black => BlackBrush,
+			PlayerColorBrushRule.BrushKind.White => WhiteBrush,
+			_ => TransparentBrush
+		};
 
-    public object ConvertBack(object value, Type targetType, object parameter, string language) =>
-        throw new NotSupportedException();
+	public object ConvertBack(object value, Type targetType, object parameter, string language) =>
+		throw new NotSupportedException();
 }

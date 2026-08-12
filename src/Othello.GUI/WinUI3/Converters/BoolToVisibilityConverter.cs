@@ -11,9 +11,9 @@ namespace Technopro.Othello.WinUI3.Converters;
 /// </summary>
 public class BoolToVisibilityConverter : IValueConverter
 {
-    public object Convert(object value, Type targetType, object parameter, string language) =>
-        BoolVisibilityRule.IsVisible(value) ? Visibility.Visible : Visibility.Collapsed;
+	public object Convert(object value, Type targetType, object parameter, string language) =>
+		BoolVisibilityRule.IsVisible(value) ? Visibility.Visible : Visibility.Collapsed;
 
-    public object ConvertBack(object value, Type targetType, object parameter, string language) =>
-        value is Visibility v && v == Visibility.Visible;
+	public object ConvertBack(object value, Type targetType, object parameter, string language) =>
+		value is Visibility v && v == Visibility.Visible;
 }

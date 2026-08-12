@@ -5,9 +5,9 @@ namespace Technopro.Othello.WPF;
 
 public partial class KifuWindow : Window
 {
-    public KifuWindow(KifuViewModel vm)
-    {
-        InitializeComponent();
-        DataContext = vm;
-    }
+	public KifuWindow(KifuViewModel vm)
+	{
+		InitializeComponent();
+		DataContext = vm;
+	}
 }
