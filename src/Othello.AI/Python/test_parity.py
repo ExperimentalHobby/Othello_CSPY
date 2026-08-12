@@ -159,9 +159,9 @@ class RustPythonInvalidInputParityTests(unittest.TestCase):
 
         # Python は IndexError、Rust は ValueError と型が異なる
         # （Issue #116: 盤面サイズ検証は Rust 側のみ明示チェックを持つ設計判断のため）。
-        with self.assertRaises(Exception):  # noqa: B017
+        with self.assertRaises(Exception):
             alpha_beta_py.AlphaBetaAI().get_best_move(board, BLACK, 2)
-        with self.assertRaises(Exception):  # noqa: B017
+        with self.assertRaises(Exception):
             othello_ai_rust.get_best_move(board, BLACK, 2)
 
 

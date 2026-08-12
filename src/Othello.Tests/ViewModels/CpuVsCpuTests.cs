@@ -282,6 +282,15 @@ public class CpuVsCpuTests
 		while (vm.BlackScore + vm.WhiteScore <= 4 && vm.IsGameInProgress && DateTime.UtcNow < deadline)
 			await Task.Delay(20);
 
+		// IsLastMove の更新（前マスの解除→新マスの設定）は非同期の着手処理と並行して行われる。
+		// SynchronizationContext のないテスト環境では GameViewModel の着手処理とこのテストの
+		// 読み取りが別スレッドで並行しうるため、遷移中の瞬間（一時的に0件/2件になる区間）を
+		// 読んでしまうことがある（Issue #124 のPRでCI Linuxジョブにて発覚したflaky failure）。
+		// ちょうど1件に落ち着くまでポーリングしてから最終アサートする。
+		var settledDeadline = DateTime.UtcNow.AddSeconds(5);
+		while (vm.BoardSquares.Count(sq => sq.IsLastMove) != 1 && DateTime.UtcNow < settledDeadline)
+			await Task.Delay(20);
+
 		Assert.Single(vm.BoardSquares, sq => sq.IsLastMove);
 	}
 
