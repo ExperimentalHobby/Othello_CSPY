@@ -11,58 +11,58 @@ namespace Technopro.Othello.WinUI3;
 /// </summary>
 internal static class WindowBackdropHelper
 {
-    /// <summary>
-    /// 指定された Window に Mica を適用する。非対応環境（Windows 10 等）では Acrylic にフォールバックする。
-    /// どちらも非対応の場合は何もしない（既存の Background 描画のまま）。
-    /// </summary>
-    public static void Apply(Window window)
-    {
-        if (window.Content is not FrameworkElement root) return;
+	/// <summary>
+	/// 指定された Window に Mica を適用する。非対応環境（Windows 10 等）では Acrylic にフォールバックする。
+	/// どちらも非対応の場合は何もしない（既存の Background 描画のまま）。
+	/// </summary>
+	public static void Apply(Window window)
+	{
+		if (window.Content is not FrameworkElement root) return;
 
-        SystemBackdropConfiguration configurationSource = new()
-        {
-            IsInputActive = true,
-        };
+		SystemBackdropConfiguration configurationSource = new()
+		{
+			IsInputActive = true,
+		};
 
-        ICompositionSupportsSystemBackdrop target = window.As<ICompositionSupportsSystemBackdrop>();
+		ICompositionSupportsSystemBackdrop target = window.As<ICompositionSupportsSystemBackdrop>();
 
-        ISystemBackdropControllerWithTargets? controller = MicaController.IsSupported()
-            ? new MicaController()
-            : DesktopAcrylicController.IsSupported()
-                ? new DesktopAcrylicController()
-                : null;
+		ISystemBackdropControllerWithTargets? controller = MicaController.IsSupported()
+			? new MicaController()
+			: DesktopAcrylicController.IsSupported()
+				? new DesktopAcrylicController()
+				: null;
 
-        if (controller is null) return;
+		if (controller is null) return;
 
-        void UpdateTheme()
-        {
-            configurationSource.Theme = root.ActualTheme switch
-            {
-                ElementTheme.Dark => SystemBackdropTheme.Dark,
-                ElementTheme.Light => SystemBackdropTheme.Light,
-                _ => SystemBackdropTheme.Default,
-            };
-        }
+		void UpdateTheme()
+		{
+			configurationSource.Theme = root.ActualTheme switch
+			{
+				ElementTheme.Dark => SystemBackdropTheme.Dark,
+				ElementTheme.Light => SystemBackdropTheme.Light,
+				_ => SystemBackdropTheme.Default,
+			};
+		}
 
-        void OnActivated(object sender, WindowActivatedEventArgs e)
-            => configurationSource.IsInputActive = e.WindowActivationState != WindowActivationState.Deactivated;
+		void OnActivated(object sender, WindowActivatedEventArgs e)
+			=> configurationSource.IsInputActive = e.WindowActivationState != WindowActivationState.Deactivated;
 
-        void OnThemeChanged(FrameworkElement sender, object e) => UpdateTheme();
+		void OnThemeChanged(FrameworkElement sender, object e) => UpdateTheme();
 
-        void OnClosed(object sender, WindowEventArgs e)
-        {
-            controller.Dispose();
-            window.Activated -= OnActivated;
-            root.ActualThemeChanged -= OnThemeChanged;
-            window.Closed -= OnClosed;
-        }
+		void OnClosed(object sender, WindowEventArgs e)
+		{
+			controller.Dispose();
+			window.Activated -= OnActivated;
+			root.ActualThemeChanged -= OnThemeChanged;
+			window.Closed -= OnClosed;
+		}
 
-        window.Activated += OnActivated;
-        root.ActualThemeChanged += OnThemeChanged;
-        window.Closed += OnClosed;
+		window.Activated += OnActivated;
+		root.ActualThemeChanged += OnThemeChanged;
+		window.Closed += OnClosed;
 
-        UpdateTheme();
-        controller.AddSystemBackdropTarget(target);
-        controller.SetSystemBackdropConfiguration(configurationSource);
-    }
+		UpdateTheme();
+		controller.AddSystemBackdropTarget(target);
+		controller.SetSystemBackdropConfiguration(configurationSource);
+	}
 }

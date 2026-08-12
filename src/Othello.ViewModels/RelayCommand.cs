@@ -15,8 +15,8 @@ public class RelayCommand : ICommand
 	public event EventHandler? CanExecuteChanged
 	{
 #if WPF
-        add    { CommandManager.RequerySuggested += value; }
-        remove { CommandManager.RequerySuggested -= value; }
+		add { CommandManager.RequerySuggested += value; }
+		remove { CommandManager.RequerySuggested -= value; }
 #else
 		add { _canExecuteChanged += value; }
 		remove { _canExecuteChanged -= value; }
@@ -61,8 +61,8 @@ public class RelayCommand<T> : ICommand
 	public event EventHandler? CanExecuteChanged
 	{
 #if WPF
-        add    { CommandManager.RequerySuggested += value; }
-        remove { CommandManager.RequerySuggested -= value; }
+		add { CommandManager.RequerySuggested += value; }
+		remove { CommandManager.RequerySuggested -= value; }
 #else
 		add { _canExecuteChanged += value; }
 		remove { _canExecuteChanged -= value; }

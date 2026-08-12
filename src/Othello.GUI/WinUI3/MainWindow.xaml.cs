@@ -20,277 +20,277 @@ namespace Technopro.Othello.WinUI3;
 
 public sealed partial class MainWindow : Window
 {
-    /// <summary>初期ウィンドウ幅（px）</summary>
-    private const int WindowWidth = 1350;
+	/// <summary>初期ウィンドウ幅（px）</summary>
+	private const int WindowWidth = 1350;
 
-    /// <summary>初期ウィンドウ高さ（px）</summary>
-    private const int WindowHeight = 1000;
+	/// <summary>初期ウィンドウ高さ（px）</summary>
+	private const int WindowHeight = 1000;
 
-    private readonly GameViewModel _viewModel;
+	private readonly GameViewModel _viewModel;
 
-    public MainWindow()
-    {
-        this.InitializeComponent();
-        WindowBackdropHelper.Apply(this);
+	public MainWindow()
+	{
+		this.InitializeComponent();
+		WindowBackdropHelper.Apply(this);
 
-        _viewModel = new GameViewModel();
-        // WinUI3 は Window に DataContext がないため、XAML ルート要素に設定する
-        if (this.Content is FrameworkElement root)
-        {
-            root.DataContext = _viewModel;
-            // Loaded 後に非同期でゲーム開始することでウィンドウ表示をブロックしない
-            root.Loaded += async (_, _) =>
-            {
-                await _viewModel.StartNewGameAsync();
-                _viewModel.ScoreHistory.CollectionChanged += OnScoreHistoryChanged;
-                RedrawScoreGraph();
-            };
-        }
+		_viewModel = new GameViewModel();
+		// WinUI3 は Window に DataContext がないため、XAML ルート要素に設定する
+		if (this.Content is FrameworkElement root)
+		{
+			root.DataContext = _viewModel;
+			// Loaded 後に非同期でゲーム開始することでウィンドウ表示をブロックしない
+			root.Loaded += async (_, _) =>
+			{
+				await _viewModel.StartNewGameAsync();
+				_viewModel.ScoreHistory.CollectionChanged += OnScoreHistoryChanged;
+				RedrawScoreGraph();
+			};
+		}
 
-        // ウィンドウサイズ・位置を設定
-        AppWindow.Resize(new Windows.Graphics.SizeInt32(WindowWidth, WindowHeight));
-        CenterWindow();
+		// ウィンドウサイズ・位置を設定
+		AppWindow.Resize(new Windows.Graphics.SizeInt32(WindowWidth, WindowHeight));
+		CenterWindow();
 
-        this.Closed += (_, _) => _viewModel.Dispose();
+		this.Closed += (_, _) => _viewModel.Dispose();
 
-        // 各マスの IsBeingFlipped 変更を購読して反転アニメーションをトリガーする
-        foreach (var sq in _viewModel.BoardSquares)
-            sq.PropertyChanged += OnSquarePropertyChanged;
-    }
+		// 各マスの IsBeingFlipped 変更を購読して反転アニメーションをトリガーする
+		foreach (var sq in _viewModel.BoardSquares)
+			sq.PropertyChanged += OnSquarePropertyChanged;
+	}
 
-    private void CenterWindow()
-    {
-        var displayArea = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest);
-        AppWindow.Move(new Windows.Graphics.PointInt32(
-            (displayArea.WorkArea.Width  - WindowWidth)  / 2,
-            (displayArea.WorkArea.Height - WindowHeight) / 2));
-    }
+	private void CenterWindow()
+	{
+		var displayArea = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest);
+		AppWindow.Move(new Windows.Graphics.PointInt32(
+			(displayArea.WorkArea.Width - WindowWidth) / 2,
+			(displayArea.WorkArea.Height - WindowHeight) / 2));
+	}
 
-    /// <summary>
-    /// ボードのマスボタンがクリックされたときの処理。
-    /// WinUI3 では RelativeSource AncestorType が使えないため、
-    /// コードビハインドで DataContext から BoardSquareViewModel を取得して ViewModel に委譲する。
-    /// </summary>
-    private void OnSquareClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button btn && btn.DataContext is BoardSquareViewModel sq)
-            _viewModel.SquareClickedCommand.Execute(sq.Position);
-    }
+	/// <summary>
+	/// ボードのマスボタンがクリックされたときの処理。
+	/// WinUI3 では RelativeSource AncestorType が使えないため、
+	/// コードビハインドで DataContext から BoardSquareViewModel を取得して ViewModel に委譲する。
+	/// </summary>
+	private void OnSquareClick(object sender, RoutedEventArgs e)
+	{
+		if (sender is Button btn && btn.DataContext is BoardSquareViewModel sq)
+			_viewModel.SquareClickedCommand.Execute(sq.Position);
+	}
 
-    // Border のサイズ変化に応じてセルサイズを動的更新し WPF の UniformGrid と同様に盤面を埋める
-    /// <summary>
-    /// BoardSquareViewModel の PropertyChanged を受け、IsBeingFlipped が true になったマスの
-    /// Composition Scale アニメーションをトリガーする（Y 軸 1→0→1、300ms）。
-    /// </summary>
-    private void OnSquarePropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName != nameof(BoardSquareViewModel.IsBeingFlipped)) return;
-        if (sender is not BoardSquareViewModel sq || !sq.IsBeingFlipped) return;
+	// Border のサイズ変化に応じてセルサイズを動的更新し WPF の UniformGrid と同様に盤面を埋める
+	/// <summary>
+	/// BoardSquareViewModel の PropertyChanged を受け、IsBeingFlipped が true になったマスの
+	/// Composition Scale アニメーションをトリガーする（Y 軸 1→0→1、300ms）。
+	/// </summary>
+	private void OnSquarePropertyChanged(object? sender, PropertyChangedEventArgs e)
+	{
+		if (e.PropertyName != nameof(BoardSquareViewModel.IsBeingFlipped)) return;
+		if (sender is not BoardSquareViewModel sq || !sq.IsBeingFlipped) return;
 
-        int index = _viewModel.BoardSquares.IndexOf(sq);
-        if (index < 0) return;
+		int index = _viewModel.BoardSquares.IndexOf(sq);
+		if (index < 0) return;
 
-        DispatcherQueue.TryEnqueue(() => AnimateFlip(index));
-    }
+		DispatcherQueue.TryEnqueue(() => AnimateFlip(index));
+	}
 
-    /// <summary>
-    /// 指定インデックスのセル内にある石 Ellipse のみに Y 軸スケール反転アニメーション（300ms）を適用する。
-    /// セル全体（Button）ではなく石だけを対象にすることで WPF 版と同じ挙動になる。
-    /// </summary>
-    private void AnimateFlip(int index)
-    {
-        if (BoardRepeater.TryGetElement(index) is not FrameworkElement element) return;
+	/// <summary>
+	/// 指定インデックスのセル内にある石 Ellipse のみに Y 軸スケール反転アニメーション（300ms）を適用する。
+	/// セル全体（Button）ではなく石だけを対象にすることで WPF 版と同じ挙動になる。
+	/// </summary>
+	private void AnimateFlip(int index)
+	{
+		if (BoardRepeater.TryGetElement(index) is not FrameworkElement element) return;
 
-        // DataTemplate 内には有効手マーカー・ヒントマーカー等の Ellipse も存在するため、
-        // 位置（何番目か）ではなく Tag="Stone" で石の Ellipse を一意に特定する。
-        var stoneEllipse = FindDescendants<Ellipse>(element)
-            .FirstOrDefault(el => (string?)el.Tag == "Stone");
-        if (stoneEllipse == null) return;
+		// DataTemplate 内には有効手マーカー・ヒントマーカー等の Ellipse も存在するため、
+		// 位置（何番目か）ではなく Tag="Stone" で石の Ellipse を一意に特定する。
+		var stoneEllipse = FindDescendants<Ellipse>(element)
+			.FirstOrDefault(el => (string?)el.Tag == "Stone");
+		if (stoneEllipse == null) return;
 
-        var visual = ElementCompositionPreview.GetElementVisual(stoneEllipse);
-        var compositor = visual.Compositor;
+		var visual = ElementCompositionPreview.GetElementVisual(stoneEllipse);
+		var compositor = visual.Compositor;
 
-        var animation = compositor.CreateVector3KeyFrameAnimation();
-        animation.InsertKeyFrame(0.0f, new Vector3(1f, 1f, 1f));
-        animation.InsertKeyFrame(0.5f, new Vector3(1f, 0f, 1f)); // Y 軸を潰す（石の色が切り替わるタイミング）
-        animation.InsertKeyFrame(1.0f, new Vector3(1f, 1f, 1f));
-        animation.Duration = TimeSpan.FromMilliseconds(300);
+		var animation = compositor.CreateVector3KeyFrameAnimation();
+		animation.InsertKeyFrame(0.0f, new Vector3(1f, 1f, 1f));
+		animation.InsertKeyFrame(0.5f, new Vector3(1f, 0f, 1f)); // Y 軸を潰す（石の色が切り替わるタイミング）
+		animation.InsertKeyFrame(1.0f, new Vector3(1f, 1f, 1f));
+		animation.Duration = TimeSpan.FromMilliseconds(300);
 
-        visual.CenterPoint = new Vector3(
-            (float)(stoneEllipse.ActualWidth  / 2),
-            (float)(stoneEllipse.ActualHeight / 2),
-            0f);
-        visual.StartAnimation("Scale", animation);
-    }
+		visual.CenterPoint = new Vector3(
+			(float)(stoneEllipse.ActualWidth / 2),
+			(float)(stoneEllipse.ActualHeight / 2),
+			0f);
+		visual.StartAnimation("Scale", animation);
+	}
 
-    /// <summary>
-    /// ビジュアルツリーを深さ優先で走査して型 T の子孫を列挙する。
-    /// </summary>
-    private static IEnumerable<T> FindDescendants<T>(DependencyObject parent) where T : DependencyObject
-    {
-        int count = VisualTreeHelper.GetChildrenCount(parent);
-        for (int i = 0; i < count; i++)
-        {
-            var child = VisualTreeHelper.GetChild(parent, i);
-            if (child is T match)
-                yield return match;
-            foreach (var d in FindDescendants<T>(child))
-                yield return d;
-        }
-    }
+	/// <summary>
+	/// ビジュアルツリーを深さ優先で走査して型 T の子孫を列挙する。
+	/// </summary>
+	private static IEnumerable<T> FindDescendants<T>(DependencyObject parent) where T : DependencyObject
+	{
+		int count = VisualTreeHelper.GetChildrenCount(parent);
+		for (int i = 0; i < count; i++)
+		{
+			var child = VisualTreeHelper.GetChild(parent, i);
+			if (child is T match)
+				yield return match;
+			foreach (var d in FindDescendants<T>(child))
+				yield return d;
+		}
+	}
 
-    private void OnScoreHistoryChanged(object? sender, NotifyCollectionChangedEventArgs e)
-        => RedrawScoreGraph();
+	private void OnScoreHistoryChanged(object? sender, NotifyCollectionChangedEventArgs e)
+		=> RedrawScoreGraph();
 
-    private void OnScoreCanvasSizeChanged(object sender, SizeChangedEventArgs e)
-        => RedrawScoreGraph();
+	private void OnScoreCanvasSizeChanged(object sender, SizeChangedEventArgs e)
+		=> RedrawScoreGraph();
 
-    private void RedrawScoreGraph()
-    {
-        var w = ScoreCanvas.ActualWidth;
-        var h = ScoreCanvas.ActualHeight;
+	private void RedrawScoreGraph()
+	{
+		var w = ScoreCanvas.ActualWidth;
+		var h = ScoreCanvas.ActualHeight;
 
-        // 座標計算本体は ScoreGraphCalculator（WPF/WinUI3 共通）に委譲する（Issue #128）。
-        // このメソッドは計算結果を WinUI3 描画用の型（Point/PointCollection）に変換するだけ。
-        var result = ScoreGraphCalculator.Calculate(_viewModel.ScoreHistory, w, h);
-        if (result is not { } r) return;
+		// 座標計算本体は ScoreGraphCalculator（WPF/WinUI3 共通）に委譲する（Issue #128）。
+		// このメソッドは計算結果を WinUI3 描画用の型（Point/PointCollection）に変換するだけ。
+		var result = ScoreGraphCalculator.Calculate(_viewModel.ScoreHistory, w, h);
+		if (result is not { } r) return;
 
-        // 中央ガイド線（石数 32）
-        MidLine.X1 = 0; MidLine.X2 = w;
-        MidLine.Y1 = r.MidLineY; MidLine.Y2 = r.MidLineY;
+		// 中央ガイド線（石数 32）
+		MidLine.X1 = 0; MidLine.X2 = w;
+		MidLine.Y1 = r.MidLineY; MidLine.Y2 = r.MidLineY;
 
-        var blackPoints = new PointCollection();
-        var whitePoints = new PointCollection();
-        for (int i = 0; i < r.BlackPoints.Count; i++)
-        {
-            blackPoints.Add(new Point(r.BlackPoints[i].X, r.BlackPoints[i].Y));
-            whitePoints.Add(new Point(r.WhitePoints[i].X, r.WhitePoints[i].Y));
-        }
-        BlackScoreLine.Points = blackPoints;
-        WhiteScoreLine.Points = whitePoints;
+		var blackPoints = new PointCollection();
+		var whitePoints = new PointCollection();
+		for (int i = 0; i < r.BlackPoints.Count; i++)
+		{
+			blackPoints.Add(new Point(r.BlackPoints[i].X, r.BlackPoints[i].Y));
+			whitePoints.Add(new Point(r.WhitePoints[i].X, r.WhitePoints[i].Y));
+		}
+		BlackScoreLine.Points = blackPoints;
+		WhiteScoreLine.Points = whitePoints;
 
-        CurrentMoveLine.X1 = r.CurrentMoveX; CurrentMoveLine.X2 = r.CurrentMoveX;
-        CurrentMoveLine.Y1 = 0;              CurrentMoveLine.Y2 = h;
-    }
+		CurrentMoveLine.X1 = r.CurrentMoveX; CurrentMoveLine.X2 = r.CurrentMoveX;
+		CurrentMoveLine.Y1 = 0; CurrentMoveLine.Y2 = h;
+	}
 
-    private void OnTimeLimitSecondsLostFocus(object sender, RoutedEventArgs e)
-    {
-        if (sender is TextBox tb)
-            ApplyTimeLimitFromTextBox(tb);
-        _viewModel.SaveTimeLimitSettings();
-    }
+	private void OnTimeLimitSecondsLostFocus(object sender, RoutedEventArgs e)
+	{
+		if (sender is TextBox tb)
+			ApplyTimeLimitFromTextBox(tb);
+		_viewModel.SaveTimeLimitSettings();
+	}
 
-    private void OnTimeLimitSecondsKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
-    {
-        if (e.Key == Windows.System.VirtualKey.Enter && sender is TextBox tb)
-        {
-            ApplyTimeLimitFromTextBox(tb);
-            _viewModel.SaveTimeLimitSettings();
-            e.Handled = true;
-        }
-    }
+	private void OnTimeLimitSecondsKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+	{
+		if (e.Key == Windows.System.VirtualKey.Enter && sender is TextBox tb)
+		{
+			ApplyTimeLimitFromTextBox(tb);
+			_viewModel.SaveTimeLimitSettings();
+			e.Handled = true;
+		}
+	}
 
-    private void ApplyTimeLimitFromTextBox(TextBox tb)
-    {
-        if (int.TryParse(tb.Text, out int seconds) && seconds >= 1)
-            _viewModel.TimeLimitSeconds = seconds;
-        else
-            tb.Text = _viewModel.TimeLimitSeconds.ToString();
-    }
+	private void ApplyTimeLimitFromTextBox(TextBox tb)
+	{
+		if (int.TryParse(tb.Text, out int seconds) && seconds >= 1)
+			_viewModel.TimeLimitSeconds = seconds;
+		else
+			tb.Text = _viewModel.TimeLimitSeconds.ToString();
+	}
 
-    private async void OnSaveKifu(object sender, RoutedEventArgs e)
-    {
-        var record = _viewModel.LastKifuRecord;
-        if (record is null)
-        {
-            var noKifuDlg = new ContentDialog
-            {
-                Title   = "棋譜を保存",
-                Content = "保存できる棋譜がありません。ゲームを終了させてください。",
-                CloseButtonText = "OK",
-                XamlRoot = this.Content.XamlRoot,
-            };
-            await noKifuDlg.ShowAsync();
-            return;
-        }
+	private async void OnSaveKifu(object sender, RoutedEventArgs e)
+	{
+		var record = _viewModel.LastKifuRecord;
+		if (record is null)
+		{
+			var noKifuDlg = new ContentDialog
+			{
+				Title = "棋譜を保存",
+				Content = "保存できる棋譜がありません。ゲームを終了させてください。",
+				CloseButtonText = "OK",
+				XamlRoot = this.Content.XamlRoot,
+			};
+			await noKifuDlg.ShowAsync();
+			return;
+		}
 
-        var picker = new FileSavePicker();
-        WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
-        picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
-        picker.FileTypeChoices.Add("棋譜ファイル", new[] { ".json" });
-        picker.SuggestedFileName = $"kifu_{record.PlayedAt.LocalDateTime:yyyyMMdd_HHmmss}";
+		var picker = new FileSavePicker();
+		WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
+		picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
+		picker.FileTypeChoices.Add("棋譜ファイル", new[] { ".json" });
+		picker.SuggestedFileName = $"kifu_{record.PlayedAt.LocalDateTime:yyyyMMdd_HHmmss}";
 
-        var file = await picker.PickSaveFileAsync();
-        if (file != null)
-        {
-            try
-            {
-                await KifuSerializer.SaveAsync(record, file.Path);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                var errDlg = new ContentDialog
-                {
-                    Title   = "棋譜を保存",
-                    Content = $"棋譜の保存に失敗しました:\n{ex.Message}",
-                    CloseButtonText = "OK",
-                    XamlRoot = this.Content.XamlRoot,
-                };
-                await errDlg.ShowAsync();
-            }
-        }
-    }
+		var file = await picker.PickSaveFileAsync();
+		if (file != null)
+		{
+			try
+			{
+				await KifuSerializer.SaveAsync(record, file.Path);
+			}
+			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+			{
+				var errDlg = new ContentDialog
+				{
+					Title = "棋譜を保存",
+					Content = $"棋譜の保存に失敗しました:\n{ex.Message}",
+					CloseButtonText = "OK",
+					XamlRoot = this.Content.XamlRoot,
+				};
+				await errDlg.ShowAsync();
+			}
+		}
+	}
 
-    private async void OnOpenKifu(object sender, RoutedEventArgs e)
-    {
-        var picker = new FileOpenPicker();
-        WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
-        picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
-        picker.FileTypeFilter.Add(".json");
+	private async void OnOpenKifu(object sender, RoutedEventArgs e)
+	{
+		var picker = new FileOpenPicker();
+		WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(this));
+		picker.SuggestedStartLocation = PickerLocationId.DocumentsLibrary;
+		picker.FileTypeFilter.Add(".json");
 
-        var file = await picker.PickSingleFileAsync();
-        if (file == null) return;
+		var file = await picker.PickSingleFileAsync();
+		if (file == null) return;
 
-        KifuRecord? record;
-        try
-        {
-            record = await KifuSerializer.LoadAsync(file.Path);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            var ioErrDlg = new ContentDialog
-            {
-                Title   = "棋譜を開く",
-                Content = $"棋譜ファイルの読み込みに失敗しました:\n{ex.Message}",
-                CloseButtonText = "OK",
-                XamlRoot = this.Content.XamlRoot,
-            };
-            await ioErrDlg.ShowAsync();
-            return;
-        }
+		KifuRecord? record;
+		try
+		{
+			record = await KifuSerializer.LoadAsync(file.Path);
+		}
+		catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+		{
+			var ioErrDlg = new ContentDialog
+			{
+				Title = "棋譜を開く",
+				Content = $"棋譜ファイルの読み込みに失敗しました:\n{ex.Message}",
+				CloseButtonText = "OK",
+				XamlRoot = this.Content.XamlRoot,
+			};
+			await ioErrDlg.ShowAsync();
+			return;
+		}
 
-        if (record is null)
-        {
-            var errDlg = new ContentDialog
-            {
-                Title   = "棋譜を開く",
-                Content = "棋譜ファイルを読み込めませんでした。",
-                CloseButtonText = "OK",
-                XamlRoot = this.Content.XamlRoot,
-            };
-            await errDlg.ShowAsync();
-            return;
-        }
+		if (record is null)
+		{
+			var errDlg = new ContentDialog
+			{
+				Title = "棋譜を開く",
+				Content = "棋譜ファイルを読み込めませんでした。",
+				CloseButtonText = "OK",
+				XamlRoot = this.Content.XamlRoot,
+			};
+			await errDlg.ShowAsync();
+			return;
+		}
 
-        var player = new KifuPlayer(record);
-        var vm     = new KifuViewModel(player, record);
-        var win    = new KifuWindow(vm);
-        win.Activate();
-    }
+		var player = new KifuPlayer(record);
+		var vm = new KifuViewModel(player, record);
+		var win = new KifuWindow(vm);
+		win.Activate();
+	}
 
-    private void OnBoardBorderSizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        if (BoardRepeater.Layout is UniformGridLayout layout)
-            BoardLayoutHelper.UpdateCellSize(layout, e.NewSize);
-    }
+	private void OnBoardBorderSizeChanged(object sender, SizeChangedEventArgs e)
+	{
+		if (BoardRepeater.Layout is UniformGridLayout layout)
+			BoardLayoutHelper.UpdateCellSize(layout, e.NewSize);
+	}
 }

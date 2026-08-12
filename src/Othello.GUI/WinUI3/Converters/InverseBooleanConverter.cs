@@ -10,9 +10,9 @@ namespace Technopro.Othello.WinUI3.Converters;
 /// </summary>
 public class InverseBooleanConverter : IValueConverter
 {
-    public object Convert(object value, Type targetType, object parameter, string language) =>
-        InverseBooleanRule.Invert(value);
+	public object Convert(object value, Type targetType, object parameter, string language) =>
+		InverseBooleanRule.Invert(value);
 
-    public object ConvertBack(object value, Type targetType, object parameter, string language) =>
-        InverseBooleanRule.Invert(value);
+	public object ConvertBack(object value, Type targetType, object parameter, string language) =>
+		InverseBooleanRule.Invert(value);
 }
