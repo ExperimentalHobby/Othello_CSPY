@@ -19,6 +19,11 @@
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <!-- .NET標準Analyzerのルールセットを最新化(暗黙のデフォルト任せにしない) -->
     <AnalysisLevel>latest</AnalysisLevel>
+    <!-- 警告を品質ゲートとして機能させる（Issue #122）。CIの「C#: Analyzer warnings」ステップは
+         dotnet build を実行しているだけだったため、警告があってもCIが緑のままになっていた。
+         ここで全プロジェクト共通に警告をエラー化することで、ローカル・CIどちらでも
+         警告混入時にビルドが失敗するようにする。 -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
 </Project>
