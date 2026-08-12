@@ -37,35 +37,32 @@ public partial class MainWindow : Window
 
     private void RedrawScoreGraph()
     {
-        var history = _vm.ScoreHistory;
         var w = ScoreCanvas.ActualWidth;
         var h = ScoreCanvas.ActualHeight;
-        if (w <= 0 || h <= 0 || history.Count == 0) return;
 
-        double xScale = history.Count > 1 ? w / (history.Count - 1) : w;
-        double yScale = h / 64.0;
+        // 座標計算本体は ScoreGraphCalculator（WPF/WinUI3 共通）に委譲する（Issue #128）。
+        // このメソッドは計算結果を WPF 描画用の型（Point/PointCollection）に変換するだけ。
+        var result = ScoreGraphCalculator.Calculate(_vm.ScoreHistory, w, h);
+        if (result is not { } r) return;
 
         // 中央線（石数 32 の位置）
-        double midY = h - 32 * yScale;
         MidLine.X1 = 0; MidLine.X2 = w;
-        MidLine.Y1 = midY; MidLine.Y2 = midY;
+        MidLine.Y1 = r.MidLineY; MidLine.Y2 = r.MidLineY;
 
         // 黒・白ラインの点を構築
-        var blackPoints = new PointCollection(history.Count);
-        var whitePoints = new PointCollection(history.Count);
-        for (int i = 0; i < history.Count; i++)
+        var blackPoints = new PointCollection(r.BlackPoints.Count);
+        var whitePoints = new PointCollection(r.WhitePoints.Count);
+        for (int i = 0; i < r.BlackPoints.Count; i++)
         {
-            double x = history.Count > 1 ? i * xScale : 0;
-            blackPoints.Add(new Point(x, h - history[i].BlackCount * yScale));
-            whitePoints.Add(new Point(x, h - history[i].WhiteCount * yScale));
+            blackPoints.Add(new Point(r.BlackPoints[i].X, r.BlackPoints[i].Y));
+            whitePoints.Add(new Point(r.WhitePoints[i].X, r.WhitePoints[i].Y));
         }
         BlackScoreLine.Points = blackPoints;
         WhiteScoreLine.Points = whitePoints;
 
         // 現在手縦線
-        double cx = history.Count > 1 ? (history.Count - 1) * xScale : 0;
-        CurrentMoveLine.X1 = cx; CurrentMoveLine.X2 = cx;
-        CurrentMoveLine.Y1 = 0;  CurrentMoveLine.Y2 = h;
+        CurrentMoveLine.X1 = r.CurrentMoveX; CurrentMoveLine.X2 = r.CurrentMoveX;
+        CurrentMoveLine.Y1 = 0;              CurrentMoveLine.Y2 = h;
     }
 
     private void OnTimeLimitSecondsLostFocus(object sender, RoutedEventArgs e)
