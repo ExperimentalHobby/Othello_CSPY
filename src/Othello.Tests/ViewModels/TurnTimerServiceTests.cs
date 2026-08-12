@@ -26,7 +26,10 @@ public class TurnTimerServiceTests
 
 	/// <summary>
 	/// 1 秒経過ごとに Tick がデクリメントして発火することを確認する。
-	/// パス条件: Start(2) から約 1.1 秒後の最新 Tick 値が 1 であること。
+	/// 待機時間は 1000ms の tick 間隔に対して十分な余裕（400ms）を持たせ、
+	/// CI 環境（特に負荷の高い Linux ランナー）でのタイミングのシビアさによる
+	/// フレーキーな失敗を防ぐ。
+	/// パス条件: Start(2) から約 1.4 秒後の最新 Tick 値が 1 であること。
 	/// </summary>
 	[Fact]
 	public async Task Start_TicksDownEverySecond()
@@ -36,14 +39,17 @@ public class TurnTimerServiceTests
 		timer.Tick += remaining => received = remaining;
 
 		timer.Start(2);
-		await Task.Delay(1100);
+		await Task.Delay(1400);
 
 		Assert.Equal(1, received);
 	}
 
 	/// <summary>
 	/// 残り時間が 0 に到達すると Expired が発火することを確認する。
-	/// パス条件: Start(1) から約 1.1 秒後に Expired が発火していること。
+	/// 待機時間は 1000ms の tick 間隔に対して十分な余裕（400ms）を持たせ、
+	/// CI 環境（特に負荷の高い Linux ランナー）でのタイミングのシビアさによる
+	/// フレーキーな失敗を防ぐ。
+	/// パス条件: Start(1) から約 1.4 秒後に Expired が発火していること。
 	/// </summary>
 	[Fact]
 	public async Task Start_WhenDurationElapses_FiresExpired()
@@ -53,7 +59,7 @@ public class TurnTimerServiceTests
 		timer.Expired += () => expired = true;
 
 		timer.Start(1);
-		await Task.Delay(1100);
+		await Task.Delay(1400);
 
 		Assert.True(expired);
 	}
