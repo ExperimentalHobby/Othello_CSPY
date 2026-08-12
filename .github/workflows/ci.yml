@@ -148,8 +148,11 @@ jobs:
         with:
           workspaces: src/Othello.AI/Rust
 
-      - name: "Rust: clippy"
-        run: cargo clippy --manifest-path ${{ env.RUST_MANIFEST }} --no-default-features
+      - name: "Rust: clippy (pure logic)"
+        run: cargo clippy --manifest-path ${{ env.RUST_MANIFEST }} --no-default-features -- -D warnings
+
+      - name: "Rust: clippy (PyO3 bindings)"
+        run: cargo clippy --manifest-path ${{ env.RUST_MANIFEST }} -- -D warnings
 
       - name: "Rust: fmt check"
         run: cargo fmt --manifest-path ${{ env.RUST_MANIFEST }} --check
