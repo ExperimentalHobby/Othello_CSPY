@@ -7,7 +7,6 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <DefineConstants>$(DefineConstants);WPF</DefineConstants>
     <!-- バージョンリソースの識別情報（共通バージョンは Directory.Build.props で定義） -->
     <AssemblyTitle>Othello WPF</AssemblyTitle>
     <Description>オセロ WPF 版</Description>
@@ -15,9 +14,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Othello.Core\Othello.Core.csproj" />
+    <ProjectReference Include="..\..\Othello.ViewModels\Othello.ViewModels.csproj" />
   </ItemGroup>
-
-  <Import Project="..\..\Othello.ViewModels\Othello.ViewModels.projitems" Label="Shared" />
 
   <ItemGroup>
     <!-- テストファイル（test_*.py）は実行時に不要なため出力にコピーしない -->

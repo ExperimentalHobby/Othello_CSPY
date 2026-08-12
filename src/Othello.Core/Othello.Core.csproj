@@ -13,6 +13,9 @@
   <ItemGroup>
     <!-- テストから内部の検証用シーム（GameEngine.LoadStateForTest 等）にアクセスできるようにする -->
     <InternalsVisibleTo Include="Othello.Tests" />
+    <!-- Othello.ViewModels の GameViewModel.LoadStateForTest（テスト専用シーム）が
+         GameEngine.LoadStateForTest を呼ぶために必要（Issue #125: クラスライブラリ化に伴い追加）。 -->
+    <InternalsVisibleTo Include="Othello.ViewModels" />
   </ItemGroup>
 
   <ItemGroup>

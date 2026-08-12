@@ -7,7 +7,9 @@ namespace Technopro.Othello.ViewModels;
 
 /// <summary>
 /// テスト専用: GameViewModel の internal メンバーへのアクセスを提供する partial クラス。
-/// このファイルは Othello.Tests.csproj にのみ組み込む（projitems には含めない）。
+/// Othello.ViewModels がクラスライブラリ化されたことに伴い（Issue #125）、Othello.Core の
+/// GameEngine.LoadStateForTest と同じパターンで本体プロジェクトに含め、
+/// InternalsVisibleTo("Othello.Tests") 経由でテストからアクセスする。
 /// </summary>
 public partial class GameViewModel
 {

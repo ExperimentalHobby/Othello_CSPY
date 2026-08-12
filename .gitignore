@@ -34,6 +34,10 @@ TestResults/
 *.coverage
 *.coveragexml
 
+# カバレッジ計測結果（Issue #125: CIの --results-directory / reportgenerator 出力先）
+coverage-results/
+coverage-report/
+
 # ===== Python =====
 __pycache__/
 *.py[cod]

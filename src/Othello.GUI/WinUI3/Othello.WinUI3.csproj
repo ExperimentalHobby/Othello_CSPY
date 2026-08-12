@@ -27,9 +27,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Othello.Core\Othello.Core.csproj" />
+    <ProjectReference Include="..\..\Othello.ViewModels\Othello.ViewModels.csproj" />
   </ItemGroup>
-
-  <Import Project="..\..\Othello.ViewModels\Othello.ViewModels.projitems" Label="Shared" />
 
   <ItemGroup>
     <!-- テストファイル（test_*.py）は実行時に不要なため出力にコピーしない -->

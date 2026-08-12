@@ -115,11 +115,24 @@ jobs:
       - name: Build (full solution incl. WPF / WinUI3)
         run: dotnet build Othello.slnx --configuration Release
 
-      - name: Test (C# - full suite)
-        run: dotnet test src/Othello.Tests/Othello.Tests.csproj --configuration Release
+      - name: Test (C# - full suite, with code coverage)
+        run: >
+          dotnet test src/Othello.Tests/Othello.Tests.csproj --configuration Release
+          --settings .runsettings --collect:"XPlat Code Coverage" --results-directory coverage-results
 
       - name: Test (C# - WPF Converters)
         run: dotnet test src/Othello.Tests.WPF/Othello.Tests.WPF.csproj --configuration Release
+
+      - name: Generate coverage report
+        run: |
+          dotnet tool restore
+          dotnet tool run reportgenerator -reports:"coverage-results/**/coverage.cobertura.xml" -targetdir:"coverage-report" -reporttypes:"Html;TextSummary"
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage-report
 
       - name: "C#: format check (WPF / WinUI3 / Tests.WPF)"
         run: |
@@ -181,15 +194,17 @@ jobs:
           pip install bandit
           bandit -r ${{ env.PYTHON_DIR }} -x "*/test_*.py"
 
-      - name: "C#: format check (Core / Console / Tests)"
+      - name: "C#: format check (Core / ViewModels / Console / Tests)"
         run: |
           dotnet format src/Othello.Core/Othello.Core.csproj --verify-no-changes
+          dotnet format src/Othello.ViewModels/Othello.ViewModels.csproj --verify-no-changes
           dotnet format src/Othello.Console/Othello.Console.csproj --verify-no-changes
           dotnet format src/Othello.Tests/Othello.Tests.csproj --verify-no-changes
 
-      - name: "C#: Analyzer warnings (Core / Console / Tests)"
+      - name: "C#: Analyzer warnings (Core / ViewModels / Console / Tests)"
         run: |
           dotnet build src/Othello.Core/Othello.Core.csproj
+          dotnet build src/Othello.ViewModels/Othello.ViewModels.csproj
           dotnet build src/Othello.Console/Othello.Console.csproj
           dotnet build src/Othello.Tests/Othello.Tests.csproj
 
