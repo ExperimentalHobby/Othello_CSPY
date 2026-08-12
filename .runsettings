@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RunSettings>
   <RunConfiguration>
-    <TestSessionTimeout>30000</TestSessionTimeout>
+    <!-- フルテストスイートは通常約2分で完了する（ローカル実測）。CI環境の速度差を見込み
+         余裕を持たせる（Issue #125: 従来値の30000msはCIで一度も実際に適用されたことが
+         なく、実際に本設定ファイルを通すとタイムアウトで試験が中断される
+         ほど短すぎることが判明した）。 -->
+    <TestSessionTimeout>300000</TestSessionTimeout>
     <MaxCpuCount>0</MaxCpuCount>
     <ParallelizeAssembly>true</ParallelizeAssembly>
     <ParallelizeTestClasses>true</ParallelizeTestClasses>
@@ -20,14 +24,18 @@
     <CollectAspDotNet>false</CollectAspDotNet>
   </CodeCoverage>
   <!-- Coverlet (XPlat Code Coverage) 用設定。
-       `dotnet test --collect "XPlat Code Coverage"` 実行時に適用される。
-       レポートは coverage/ ディレクトリに Cobertura 形式で出力される。 -->
+       dotnet test の collect オプションで "XPlat Code Coverage" を指定した際に適用される。
+       レポートは coverage ディレクトリに Cobertura 形式で出力される。 -->
   <DataCollectionRunSettings>
     <DataCollectors>
       <DataCollector friendlyName="XPlat Code Coverage">
         <Configuration>
           <Format>cobertura</Format>
-          <Include>[Technopro.Othello.Core]*,[Technopro.Othello.ViewModels]*,[Technopro.Othello.Console]*</Include>
+          <!-- アセンブリ名を指定する（Include フィルタは名前空間ではなくアセンブリファイル名で
+               マッチする。Issue #125: 実測の結果 Technopro. 接頭辞は付かないことを確認した）。
+               Othello.ViewModels は Shared Project から通常のクラスライブラリへ変更した
+               ことで、独立したアセンブリとしてカバレッジ計測の対象に含められるようになった。 -->
+          <Include>[Othello.Core]*,[Othello.ViewModels]*,[Othello.Console]*</Include>
           <ExcludeByFile>**/obj/**,**/Migrations/**</ExcludeByFile>
         </Configuration>
       </DataCollector>

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Technopro.Othello.ViewModels</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- バージョンリソースの識別情報（共通バージョンは Directory.Build.props で定義） -->
+    <AssemblyTitle>Othello ViewModels</AssemblyTitle>
+    <Description>WPF・WinUI3 で共有する MVVM ViewModel ライブラリ（Issue #125: Shared Project から通常のクラスライブラリへ移行）</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- テストから internal な検証用シーム（GameViewModel.LoadStateForTest 等）にアクセスできるようにする。
+         Othello.Core の GameEngine.LoadStateForTest と同じパターン（Issue #125）。 -->
+    <InternalsVisibleTo Include="Othello.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Othello.Core\Othello.Core.csproj" />
+  </ItemGroup>
+
+</Project>
