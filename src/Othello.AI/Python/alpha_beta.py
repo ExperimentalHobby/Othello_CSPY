@@ -61,4 +61,6 @@ if _rust is not None:
             return _rust.get_best_move_timed(board, player, max_depth, time_ms)
 else:
     # Rust 拡張が無い環境向けの純 Python フォールバック
-    from alpha_beta_py import AlphaBetaAI  # noqa: F401  （再エクスポート）
+    # `as AlphaBetaAI`（冗長な自己再代入）は意図的な再エクスポートであることを示す標準的な記法。
+    # Ruff/Pyflakes はこの記法を認識し F401（未使用インポート）を出さない。
+    from alpha_beta_py import AlphaBetaAI as AlphaBetaAI
