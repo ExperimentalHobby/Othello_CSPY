@@ -40,7 +40,7 @@ public static class PlayerColorBrushRule
 			{
 				PlayerColor.Black => BrushKind.Black,
 				PlayerColor.White => BrushKind.White,
-				_                 => BrushKind.Transparent
+				_ => BrushKind.Transparent
 			}
 			: BrushKind.Transparent;
 }
