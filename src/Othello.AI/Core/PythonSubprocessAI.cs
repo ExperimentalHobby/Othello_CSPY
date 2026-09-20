@@ -161,7 +161,10 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
 
 		// プロセスが既に終了していれば通信不可
 		if (_process.HasExited)
+		{
+			DrainStderrIfExited();
 			throw new InvalidOperationException(ReadProcessError("Python プロセスが予期せず終了しました"));
+		}
 
 		// 盤面・手番・探索深さを JSON にシリアライズして送信する
 		// time_ms: Hard 難易度のみ反復深化用の時間制限を付加する。null の場合は固定深さ探索
@@ -181,7 +184,10 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
 		// ReadLine() はプロセスが応答しない場合に無限ブロックするため、スレッドで制限する
 		string? response = ReadLineWithTimeout(timeoutMs: _responseTimeoutMsOverride ?? AiResponseTimeoutMs);
 		if (response == null)
+		{
+			DrainStderrIfExited();
 			throw new InvalidOperationException(ReadProcessError("Python AI プロセスが応答しませんでした"));
+		}
 
 		// JSON を解析して着手座標を取り出す
 		using var doc = JsonDocument.Parse(response);
@@ -233,6 +239,18 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
 		}
 
 		return readTask.Result;
+	}
+
+	/// <summary>
+	/// プロセスが終了している場合、BeginErrorReadLine による非同期 stderr 読み取りが
+	/// 完了するまで待つ。<see cref="Process.HasExited"/> が true であることは、
+	/// リダイレクトされたストリームの読み取り完了を保証しない（.NET Process クラスの
+	/// 既知の注意点）ため、<see cref="ReadProcessError"/> の呼び出し前に使う（Issue #188）。
+	/// </summary>
+	private void DrainStderrIfExited()
+	{
+		if (_process.HasExited)
+			_process.WaitForExit();
 	}
 
 	/// <summary>
