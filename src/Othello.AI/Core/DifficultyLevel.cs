@@ -41,8 +41,8 @@ public static class DifficultyLevelExtensions
 	};
 
 	/// <summary>
-	/// Hard 難易度の場合は反復深化探索の制限時間（ミリ秒）を返す。
-	/// Easy/Normal は固定深さ探索を使用するため null を返す。
+	/// Hard/Expert 難易度の場合は反復深化探索の制限時間（ミリ秒）を返す。
+	/// Beginner/Easy/Medium は固定深さ探索を使用するため null を返す。
 	/// Python IPC の time_ms フィールドに対応する。
 	/// </summary>
 	public static int? GetTimeLimitMs(this DifficultyLevel difficulty) => difficulty switch
@@ -56,7 +56,7 @@ public static class DifficultyLevelExtensions
 	/// 難易度を日本語の表示文字列に変換する。
 	/// </summary>
 	/// <param name="difficulty">変換対象の難易度</param>
-	/// <returns>"イージー" / "ノーマル" / "ハード" のいずれか</returns>
+	/// <returns>"ビギナー" / "イージー" / "ノーマル" / "ハード" / "エキスパート" のいずれか</returns>
 	public static string ToDisplayString(this DifficultyLevel difficulty) => difficulty switch
 	{
 		DifficultyLevel.Beginner => "ビギナー",
