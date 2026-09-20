@@ -109,4 +109,44 @@ public class OthelloSettingsManagerTests : IDisposable
 			Directory.Delete(directoryPath);
 		}
 	}
+
+	/// <summary>
+	/// Save() が一時ファイル経由のアトミック書き込みになっており、成功後に
+	/// 一時ファイル（&lt;path&gt;.tmp）が残らないことを確認する（Issue #165）。
+	/// パス条件: Save() 後に "&lt;path&gt;.tmp" が存在しないこと。
+	/// </summary>
+	[Fact]
+	public void Save_DoesNotLeaveTempFileBehind()
+	{
+		var tempPath = _tmpFile + ".tmp";
+		OthelloSettingsManager.Save(new OthelloSettings { TimeLimitSeconds = 20 }, _tmpFile);
+
+		Assert.False(File.Exists(tempPath));
+
+		if (File.Exists(tempPath)) File.Delete(tempPath);
+	}
+
+	/// <summary>
+	/// 書き込み不可能な対象への保存に失敗した場合でも、一時ファイルが残らないことを確認する
+	/// （Issue #165）。
+	/// パス条件: Save() 後に一時ファイルが存在しないこと。
+	/// </summary>
+	[Fact]
+	public void Save_WhenTargetIsDirectory_DoesNotLeaveTempFileBehind()
+	{
+		var directoryPath = Path.Combine(Path.GetTempPath(), $"othello_settings_dir_{Guid.NewGuid():N}");
+		var tempPath = directoryPath + ".tmp";
+		Directory.CreateDirectory(directoryPath);
+		try
+		{
+			OthelloSettingsManager.Save(new OthelloSettings { TimeLimitSeconds = 20 }, directoryPath);
+
+			Assert.False(File.Exists(tempPath));
+		}
+		finally
+		{
+			Directory.Delete(directoryPath);
+			if (File.Exists(tempPath)) File.Delete(tempPath);
+		}
+	}
 }
