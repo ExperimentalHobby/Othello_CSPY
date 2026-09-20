@@ -72,6 +72,19 @@ public class ConsoleInputParserTests
 		Assert.Equal(0, result.Value.Column);
 	}
 
+	/// <summary>
+	/// "3  4"（スペース2つ）のように連続する空白区切りでも正しく変換できることを確認する（Issue #169）。
+	/// パス条件: Row=3, Column=4 の Position が返ること。
+	/// </summary>
+	[Fact]
+	public void ParseInput_MultipleSpacesDelimited_ReturnsCorrectPosition()
+	{
+		var result = ConsoleInputParser.ParseInput("3  4");
+		Assert.NotNull(result);
+		Assert.Equal(3, result!.Value.Row);
+		Assert.Equal(4, result.Value.Column);
+	}
+
 	// ---------- ParseInput 異常系 ----------
 
 	/// <summary>

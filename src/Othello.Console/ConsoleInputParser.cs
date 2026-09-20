@@ -27,8 +27,8 @@ internal static class ConsoleInputParser
 					return new Position(row, col);
 			}
 
-			// "3 4" 形式: スペース区切りで 2 つの整数
-			var parts = input.Split(' ');
+			// "3 4" 形式: 空白区切りで 2 つの整数（連続する空白も許容する）
+			var parts = input.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
 			if (parts.Length == 2 && int.TryParse(parts[0], out int r) && int.TryParse(parts[1], out int c))
 			{
 				if (Position.IsValid(r, c))

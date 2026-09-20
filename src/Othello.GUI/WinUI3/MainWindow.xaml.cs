@@ -51,7 +51,14 @@ public sealed partial class MainWindow : Window
 		AppWindow.Resize(new Windows.Graphics.SizeInt32(WindowWidth, WindowHeight));
 		CenterWindow();
 
-		this.Closed += (_, _) => _viewModel.Dispose();
+		this.Closed += (_, _) =>
+		{
+			_viewModel.Dispose();
+			// WPF 版は _vm の Dispose に委ねられるが、WinUI3 はここで個別購読を明示的に解除する
+			_viewModel.ScoreHistory.CollectionChanged -= OnScoreHistoryChanged;
+			foreach (var sq in _viewModel.BoardSquares)
+				sq.PropertyChanged -= OnSquarePropertyChanged;
+		};
 
 		// 各マスの IsBeingFlipped 変更を購読して反転アニメーションをトリガーする
 		foreach (var sq in _viewModel.BoardSquares)
