@@ -842,9 +842,34 @@ class DecideMoveTests(unittest.TestCase):
         fake_ai = _RecordingAI()
 
         move = ai_module.decide_move(fake_ai, board, WHITE, depth=5, time_ms=None)
+        self.assertEqual(move, (0, 2))
+        self.assertTrue(fake_ai.get_best_move_called)
+        self.assertFalse(fake_ai.get_best_move_timed_called)
+
+    def test_low_depth_ignores_book_even_on_book_hit_position(self):
+        """低難易度（depth < Medium 相当）では定石にヒットする局面でも定石を参照せず、
+        通常の探索にフォールバックすることを確認する（Issue #161: Beginner/Easy が
+        序盤から定石通りの強い手を打ってしまう不具合の回帰）。
+        パス条件: 定石手 (4,5) ではなく get_best_move の戻り値 (0,2) が返り、
+        get_best_move が呼ばれること。"""
+        board = make_initial_board()  # 黒番・定石にヒットする局面（f5 → (4,5)）
+        fake_ai = _RecordingAI()
+
+        move = ai_module.decide_move(fake_ai, board, BLACK, depth=2, time_ms=None)  # Easy 相当
 
         self.assertEqual(move, (0, 2))
         self.assertTrue(fake_ai.get_best_move_called)
+
+    def test_medium_depth_boundary_still_uses_book(self):
+        """境界値: depth=5（Medium）ちょうどでは従来通り定石が参照されることを確認する。
+        パス条件: 定石手 (4,5) が返り、探索関数は呼ばれないこと。"""
+        board = make_initial_board()
+        fake_ai = _RecordingAI()
+
+        move = ai_module.decide_move(fake_ai, board, BLACK, depth=5, time_ms=None)
+
+        self.assertEqual(move, (4, 5))
+        self.assertFalse(fake_ai.get_best_move_called)
         self.assertFalse(fake_ai.get_best_move_timed_called)
 
 
