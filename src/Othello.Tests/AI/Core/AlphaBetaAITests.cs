@@ -276,6 +276,56 @@ public class AlphaBetaAITests
 		Assert.Equal(expected, actual);
 	}
 
+	// ---- Issue #155: TT への不正確な Exact 格納 -------------------------------
+
+	/// <summary>
+	/// パスノード（現在のプレイヤーに有効手がなく相手にターンを渡す局面）の TT エントリが、
+	/// 子の探索結果が境界値（fail-high による LowerBound）であっても無条件に Exact として
+	/// 格納されないことを確認する（Issue #155）。
+	///
+	/// White に有効手がなく Black に有効手がある局面で、極端に狭い alpha/beta 窓
+	/// （int.MinValue / int.MinValue+1）を渡すと、パス先の Black の探索は最初の候補手で
+	/// 必ず fail-high し境界値を返す。この値がパスノード自身の TT エントリにそのまま
+	/// Exact として保存されてしまうのが修正前のバグ。
+	/// パス条件: TT エントリの NodeType が "Exact" ではないこと。
+	/// </summary>
+	[Fact]
+	public void AlphaBeta_PassNodeWithFailHighChild_DoesNotCacheAsExact()
+	{
+		var board = ForcedPassBoard();
+		var ai = new AlphaBetaAI();
+
+		ai.AlphaBetaForTest(board, depth: 2, alpha: int.MinValue, beta: int.MinValue + 1,
+			isMaximizing: false, currentPlayer: PlayerColor.White, aiPlayer: PlayerColor.Black);
+
+		var hash = AlphaBetaAI.ComputeBoardHashForTest(board);
+		var entry = ai.PeekTranspositionTableEntryForTest(hash);
+
+		Assert.NotNull(entry);
+		Assert.NotEqual("Exact", entry!.Value.NodeType);
+	}
+
+	/// <summary>
+	/// 終局ノード（EvaluateFinal による評価）の結果が TT に格納されないことを確認する（Issue #155）。
+	/// EvaluateFinal は残り探索深さに依存するタイブレーク値を返すため、depth を含まない TT キーで
+	/// キャッシュすると、パス回数が異なる経路で同じ局面に到達した際に誤った値を再利用しうる。
+	/// パス条件: 終局盤面の TT エントリが存在しない（null）こと。
+	/// </summary>
+	[Fact]
+	public void AlphaBeta_TerminalGameOverNode_IsNotCachedInTranspositionTable()
+	{
+		var board = AllBlackBoard();
+		var ai = new AlphaBetaAI();
+
+		ai.AlphaBetaForTest(board, depth: 3, alpha: int.MinValue, beta: int.MaxValue,
+			isMaximizing: true, currentPlayer: PlayerColor.Black, aiPlayer: PlayerColor.Black);
+
+		var hash = AlphaBetaAI.ComputeBoardHashForTest(board);
+		var entry = ai.PeekTranspositionTableEntryForTest(hash);
+
+		Assert.Null(entry);
+	}
+
 	// ---- ヘルパー ----------------------------------------------------------
 
 	private static Board AllBlackBoard()
@@ -284,6 +334,20 @@ public class AlphaBetaAITests
 		for (int r = 0; r < Board.BoardSize; r++)
 			for (int c = 0; c < Board.BoardSize; c++)
 				board.SetPiece(r, c, PlayerColor.Black);
+		return board;
+	}
+
+	/// <summary>
+	/// (0,0)/(7,7) が空き、(0,1)/(7,6) が白、その他すべて黒の盤面を生成する。
+	/// White は挟める石がなく有効手なし、Black は (0,0)・(7,7) に着手できる（強制パス局面）。
+	/// </summary>
+	private static Board ForcedPassBoard()
+	{
+		var board = AllBlackBoard();
+		board.SetPiece(0, 0, PlayerColor.Empty);
+		board.SetPiece(0, 1, PlayerColor.White);
+		board.SetPiece(7, 7, PlayerColor.Empty);
+		board.SetPiece(7, 6, PlayerColor.White);
 		return board;
 	}
 }

@@ -279,15 +279,23 @@ class AlphaBetaAI:
 
         if not moves:
             if not has_any_valid_move(board, opponent(current)):
-                # 両者ともに有効手がない → 終局（残り depth を渡して早い決着を選好させる）
-                value = evaluate_final(board, ai_player, depth)
-                tt[key] = (value, depth, _NodeType.EXACT)
-                return value
+                # 両者ともに有効手がない → 終局（残り depth を渡して早い決着を選好させる）。
+                # evaluate_final は depth 依存のタイブレーク値を返すが、TT キーは depth を
+                # 含まないため、パス回数が異なる経路で同じ局面に到達すると誤った値を
+                # 再利用しうる（Issue #155）。そのため終局ノードは tt に格納しない。
+                return evaluate_final(board, ai_player, depth)
 
             # 現在のプレイヤーに有効手がない → パス（相手にターンを渡す）
             # 盤面自体は変わらないため、ハッシュも h をそのまま渡す（再計算不要）。
+            # 子の呼び出しは同じ alpha/beta 窓をそのまま引き継ぐため、子側で fail-high/
+            # fail-low が起きれば境界値を返しうる。無条件に EXACT とすると不正確な値を
+            # 正確値として再利用してしまうため、通常の分岐ノードと同じ判定式を使う
+            # （Issue #155）。
             value = self._alpha_beta_timed(board, depth - 1, alpha, beta, not is_maximizing, ai_player, deadline, tt, h)
-            tt[key] = (value, depth, _NodeType.EXACT)
+            node_type = (_NodeType.UPPER_BOUND if value <= alpha
+                         else _NodeType.LOWER_BOUND if value >= beta
+                         else _NodeType.EXACT)
+            tt[key] = (value, depth, node_type)
             return value
 
         moves.sort(key=lambda m: WEIGHTS[m[0]][m[1]], reverse=True)
@@ -378,17 +386,23 @@ class AlphaBetaAI:
         if not moves:
             if not has_any_valid_move(board, opponent(current)):
                 # 両者ともに有効手がない場合は終局 → 終局評価を返す
-                # 残り depth を渡して「早い決着」を選好させる
-                value = evaluate_final(board, ai_player, depth)
-                tt[key] = (value, depth, _NodeType.EXACT)
-                return value
+                # 残り depth を渡して「早い決着」を選好させる。
+                # evaluate_final は depth 依存のタイブレーク値を返すが、TT キーは depth を
+                # 含まないため、パス回数が異なる経路で同じ局面に到達すると誤った値を
+                # 再利用しうる（Issue #155）。そのため終局ノードは tt に格納しない。
+                return evaluate_final(board, ai_player, depth)
 
             # 現在のプレイヤーに有効手がない → パス（相手にターンを渡す）
             # パスも 1 手消費するため depth - 1 を渡す。is_maximizing を反転して相手ターンを表現する。
-            # パスは分岐がなく窓の影響を受けないため、常に Exact として格納してよい。
+            # 子の呼び出しは同じ alpha/beta 窓をそのまま引き継ぐため、子側で fail-high/fail-low が
+            # 起きれば境界値を返しうる。無条件に Exact とすると不正確な値を正確値として
+            # 再利用してしまうため、通常の分岐ノードと同じ判定式を使う（Issue #155）。
             # 盤面自体は変わらないため、ハッシュも h をそのまま渡す（再計算不要）。
             value = self._alpha_beta(board, depth - 1, alpha, beta, not is_maximizing, ai_player, tt, h)
-            tt[key] = (value, depth, _NodeType.EXACT)
+            node_type = (_NodeType.UPPER_BOUND if value <= alpha
+                         else _NodeType.LOWER_BOUND if value >= beta
+                         else _NodeType.EXACT)
+            tt[key] = (value, depth, node_type)
             return value
 
         # ムーブオーダリング: 再帰内でも位置重みで手をソートして枝刈り効率を向上させる
