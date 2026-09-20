@@ -172,15 +172,16 @@ public class GameEngine
 		// 次のプレイヤーが着手できない場合を処理する
 		if (!HasValidMoves(_currentPlayer))
 		{
-			// 次のプレイヤーは有効手なし → 強制パス（通知用に記録）
-			_lastPassedPlayer = _currentPlayer;
+			var skippedPlayer = _currentPlayer;
 			_currentPlayer = _currentPlayer.Opponent();
 			if (!HasValidMoves(_currentPlayer))
 			{
-				// 両者ともに有効手なし → ゲーム終了
+				// 両者ともに有効手なし → ゲーム終了（誰もパスしていないため LastPassedPlayer は設定しない）
 				EndGame();
 				return;
 			}
+			// 相手のみ有効手なし → 強制パス（通知用に記録）
+			_lastPassedPlayer = skippedPlayer;
 		}
 
 		UpdateGameState();

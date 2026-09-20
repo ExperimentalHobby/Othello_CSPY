@@ -172,6 +172,34 @@ public class GameViewModelTests
 	}
 
 	/// <summary>
+	/// ProcessAIMoveAsync が AI（バックグラウンドスレッド上で動く GetBestMove）に渡す盤面が、
+	/// _engine.CurrentBoard の可変な参照そのものではなく Clone された独立コピーであることを確認する
+	/// （Issue #166）。GameEngine.MakeMove は盤面オブジェクトを in-place で書き換えるため、
+	/// 生の参照を渡すと、AI が着手を計算している間に別スレッドから盤面が書き換わる競合リスクがある。
+	/// パス条件: AI が受け取った Board インスタンスが、対局終了後の _engine.CurrentBoard と
+	/// 異なるオブジェクト参照であること（Clone されていれば、AI の着手適用後に同一参照に
+	/// なることはない）。
+	/// </summary>
+	[Fact]
+	public void ProcessAIMoveAsync_PassesClonedBoard_NotLiveEngineReference()
+	{
+		BoardCapturingFakeAI? capturingAi = null;
+		using var aiMoved = new ManualResetEventSlim(false);
+		using var vm = new GameViewModel(d =>
+		{
+			capturingAi = new BoardCapturingFakeAI(d, aiMoved);
+			return capturingAi;
+		});
+
+		vm.SquareClickedCommand.Execute(new Position(2, 3));
+		Assert.True(aiMoved.Wait(Timeout));
+		Thread.Sleep(200); // ProcessAIMoveAsync 内の MakeMove 完了を待つ
+
+		Assert.NotNull(capturingAi!.ReceivedBoard);
+		Assert.NotSame(vm.EngineCurrentBoard, capturingAi.ReceivedBoard);
+	}
+
+	/// <summary>
 	/// AI 思考中に新規ゲームを開始しても、古いタスクの例外が新しいゲームを壊さないことを確認する（#2 回帰）。
 	/// パス条件: 古い AI の強制終了後も IsGameInProgress が true のままであること。
 	/// </summary>
@@ -315,6 +343,34 @@ public class GameViewModelTests
 	}
 
 	/// <summary>
+	/// AI 先手（人間=白）で AI の初手のみが打たれた状態から Undo すると、2 回目の
+	/// _engine.Undo() が履歴不足で失敗するが、その場合でも実際に巻き戻った回数（1回）分だけ
+	/// KifuMovesForTest が正しく巻き戻ることを確認する（Issue #156）。
+	///
+	/// 現在の実装では ScoreHistory.Count > 1 / _kifuMoveEntryCounts.Count > 0 というガードが
+	/// 「実際に存在する件数」でループを自然に打ち切るため、undoCount の値（1 or 2 の誤り）に
+	/// 関わらずこのテストは Green になる。それでも undoCount 自体が正しい値になることは、
+	/// 将来ガード条件が変更された場合の不整合を防ぐ回帰防止として意味を持つ。
+	/// パス条件: Undo 後に KifuMovesForTest が空であること。
+	/// </summary>
+	[Fact]
+	public void Undo_AfterAiFirstMoveWhenHumanIsWhite_RemovesExactlyOneKifuEntry()
+	{
+		using var aiMoved = new ManualResetEventSlim(false);
+		using var vm = new GameViewModel(d => new FakeAI(d, () => aiMoved.Set()));
+
+		vm.HumanColorIndex = 1; // 白に変更 → 再起動 → AI（黒）が先手
+		Assert.True(aiMoved.Wait(Timeout));
+		Thread.Sleep(300);
+
+		Assert.Single(vm.KifuMovesForTest); // 前提: AI の初手のみ 1 件記録されている
+
+		vm.UndoCommand.Execute(null);
+
+		Assert.Empty(vm.KifuMovesForTest);
+	}
+
+	/// <summary>
 	/// Undo を挟んだ複数手の対局後、KifuMovesForTest を KifuPlayer に渡して再生すると
 	/// 実際の盤面（EngineCurrentBoard）と完全一致することを確認する（結合テスト）。
 	/// パス条件: KifuPlayer.GoToEnd() が例外を投げず、全 64 マスが実際の盤面と一致すること。
@@ -353,6 +409,32 @@ public class GameViewModelTests
 		for (int r = 0; r < 8; r++)
 			for (int c = 0; c < 8; c++)
 				Assert.Equal(actualBoard.GetPiece(r, c), player.CurrentBoard.GetPiece(r, c));
+	}
+
+	// ========== #154: 終局時の架空パス記録防止 ==========
+
+	/// <summary>
+	/// 盤面が満杯で終局する着手（誰もパスしていない）の場合、棋譜収集用リストに
+	/// 架空のパス記録が追加されず本手のみが記録されることを確認する（Issue #154 回帰）。
+	/// パス条件: KifuMovesForTest が本手 1 件のみで IsPass が false であること。
+	/// </summary>
+	[Fact]
+	public void MakeMove_FillingLastCellAndEndsGame_DoesNotRecordPhantomPass()
+	{
+		var board = new Board();
+		for (int r = 0; r < 8; r++)
+			for (int c = 0; c < 8; c++)
+				board.SetPiece(r, c, PlayerColor.Black);
+		board.SetPiece(0, 0, PlayerColor.Empty);
+		board.SetPiece(0, 1, PlayerColor.White);
+
+		using var vm = new GameViewModel(d => new FakeAI(d));
+		vm.LoadStateForTest(board, PlayerColor.Black); // 人間=黒（既定）
+
+		vm.SquareClickedCommand.Execute(new Position(0, 0)); // 盤面が埋まり終局。誰もパスしていない
+
+		Assert.Single(vm.KifuMovesForTest);
+		Assert.False(vm.KifuMovesForTest[0].IsPass);
 	}
 
 	// ========== #4: UndoCommand.CanExecute ==========
@@ -1074,6 +1156,25 @@ file sealed class HintFakeAI(DifficultyLevel difficulty, Position move, ManualRe
 	public Position GetBestMove(Board board, PlayerColor playerColor)
 	{
 		gate?.Wait();
+		return move;
+	}
+}
+
+/// <summary>
+/// GetBestMove に渡された Board 参照をそのまま記録するモック AI。
+/// 呼び出し元が生の可変参照ではなく Clone を渡しているかを検証するために使う（Issue #166）。
+/// </summary>
+file sealed class BoardCapturingFakeAI(DifficultyLevel difficulty, ManualResetEventSlim? moved = null) : IAIStrategy
+{
+	public Board? ReceivedBoard;
+	public DifficultyLevel Difficulty { get; } = difficulty;
+	public string EngineName => "AI: BoardCapturing";
+
+	public Position GetBestMove(Board board, PlayerColor playerColor)
+	{
+		ReceivedBoard = board;
+		var move = OthelloRules.GetValidMoves(board, playerColor)[0];
+		moved?.Set();
 		return move;
 	}
 }

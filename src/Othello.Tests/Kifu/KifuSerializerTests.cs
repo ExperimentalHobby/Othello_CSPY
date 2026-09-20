@@ -115,4 +115,41 @@ public class KifuSerializerTests
 		var result = KifuSerializer.Deserialize(string.Empty);
 		Assert.Null(result);
 	}
+
+	/// <summary>
+	/// 構文的には正しいが必須フィールド（moves/finalScore）が欠落した JSON を渡すと
+	/// Deserialize が null を返すことを確認する（Issue #153 回帰）。
+	/// パス条件: 戻り値が null であること（後続の KifuPlayer 構築で例外にならないこと）。
+	/// </summary>
+	[Fact]
+	public void Deserialize_MissingRequiredFields_ReturnsNull()
+	{
+		const string json = """
+			{"version":1,"playedAt":"2026-01-01T00:00:00+09:00","humanColor":"black","difficulty":"medium","result":"black"}
+			""";
+
+		var result = KifuSerializer.Deserialize(json);
+
+		Assert.Null(result);
+	}
+
+	/// <summary>
+	/// 非合法な着手（黒の初手に (0,0)）を含む棋譜 JSON を渡すと Deserialize が null を返すことを確認する
+	/// （Issue #153 回帰）。
+	/// パス条件: 戻り値が null であること（後続の KifuPlayer 構築で例外にならないこと）。
+	/// </summary>
+	[Fact]
+	public void Deserialize_IllegalMove_ReturnsNull()
+	{
+		var record = new KifuRecord(1, DateTimeOffset.Now,
+			PlayerColor.Black, DifficultyLevel.Medium,
+			Result: null,
+			Moves: [new KifuMove(PlayerColor.Black, Row: 0, Col: 0)],
+			FinalScore: new KifuFinalScore(4, 0));
+		var json = KifuSerializer.Serialize(record);
+
+		var result = KifuSerializer.Deserialize(json);
+
+		Assert.Null(result);
+	}
 }

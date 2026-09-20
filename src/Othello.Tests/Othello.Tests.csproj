@@ -42,6 +42,11 @@
     <Content Include="..\Othello.AI\Python\test_data\evaluator_golden.json" Link="test_data\evaluator_golden.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- Rust/Python の TT 導入前後の挙動不変性テスト（TranspositionTableEquivalenceTests）と同じ
+         golden データを C# AI の着手一致検証にも流用する（Issue #162）。 -->
+    <Content Include="..\Othello.AI\Python\test_data\tt_golden_master.json" Link="test_data\tt_golden_master.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

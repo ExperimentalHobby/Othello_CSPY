@@ -467,7 +467,7 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 	public GameViewModel(Func<DifficultyLevel, IAIStrategy>? aiFactory, bool startDeferred = false, OthelloSettings? settings = null, Func<DifficultyLevel, IAIStrategy>? cpuVsCpuAiFactory = null, IStatsRepository? statsRepository = null, string? settingsFilePath = null, Func<DifficultyLevel, IAIStrategy>? hintAiFactory = null)
 	{
 		_aiFactory = aiFactory ?? CreateDefaultAI;
-		_cpuVsCpuAiFactory = cpuVsCpuAiFactory ?? (d => new AlphaBetaAI(d));
+		_cpuVsCpuAiFactory = cpuVsCpuAiFactory ?? CreateDefaultAI;
 		_hintAiFactory = hintAiFactory ?? (d => new AlphaBetaAI(d));
 		_statsRepo = statsRepository ?? new StatsRepository();
 		Stats = new StatsViewModel(_statsRepo);
@@ -582,11 +582,33 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 		_ai = null;
 		DisposeCpuAis();
 
-		// CPU vs CPU モード: AI を同期生成（AlphaBetaAI は I/O なし・再入チェック不要）
+		// CPU vs CPU モード: 既定では Human vs CPU と同じ CreateDefaultAI（Python サブプロセス起動を
+		// 伴う I/O）が使われるため、Human vs CPU と同様にバックグラウンドスレッドで生成する（Issue #160）。
 		if (IsCpuVsCpu)
 		{
-			_blackCpuAi = _cpuVsCpuAiFactory(BlackDifficulty);
-			_whiteCpuAi = _cpuVsCpuAiFactory(WhiteDifficulty);
+			(IAIStrategy Black, IAIStrategy White)? newCpuAis = null;
+			try
+			{
+				newCpuAis = await Task.Run(() => (_cpuVsCpuAiFactory(BlackDifficulty), _cpuVsCpuAiFactory(WhiteDifficulty)));
+			}
+			catch (Exception ex)
+			{
+				StatusMessage = $"AI の起動に失敗しました: {ex.Message}";
+				IsGameInProgress = false;
+				return;
+			}
+
+			// await 完了後に別の StartNewGameAsync が既に始動していたら、
+			// 新しく作った AI を破棄して早期 return する（二重初期化・プロセスリーク防止）（F3）
+			if (cts.IsCancellationRequested)
+			{
+				(newCpuAis.Value.Black as IDisposable)?.Dispose();
+				(newCpuAis.Value.White as IDisposable)?.Dispose();
+				return;
+			}
+
+			_blackCpuAi = newCpuAis.Value.Black;
+			_whiteCpuAi = newCpuAis.Value.White;
 			ApplyNewGameState();
 			return;
 		}
@@ -621,10 +643,14 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 	/// </summary>
 	private void ApplyNewGameState()
 	{
-		AiEngineLabel = IsCpuVsCpu ? "AI vs AI" : _ai!.EngineName;
+		AiEngineLabel = IsCpuVsCpu
+			? $"黒: {_blackCpuAi!.EngineName} / 白: {_whiteCpuAi!.EngineName}"
+			: _ai!.EngineName;
 
-		ResetGameStateForNewGame();
+		// RestartTurnTimer()（RefreshBoardDisplay() 内で呼ばれる）が IsGameInProgress を見て
+		// 起動判定するため、ResetGameStateForNewGame() より前に true にしておく必要がある（Issue #152）
 		IsGameInProgress = true;
+		ResetGameStateForNewGame();
 
 		if (IsCpuVsCpu)
 		{
@@ -731,7 +757,10 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 
 			var aiColor = AiColor;
 			var ai = _ai;
-			var bestMove = await Task.Run(() => ai.GetBestMove(_engine.CurrentBoard, aiColor), ct);
+			// _engine.CurrentBoard は可変な参照をそのまま返すため、RefreshHintAsync（Issue #117）と
+			// 同様に呼び出し前に Clone してからバックグラウンドスレッドへ渡す（Issue #166）。
+			var board = _engine.CurrentBoard.Clone();
+			var bestMove = await Task.Run(() => ai.GetBestMove(board, aiColor), ct);
 
 			ct.ThrowIfCancellationRequested();
 
@@ -815,7 +844,10 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 
 				var aiColor = currentColor;
 				var aiRef = ai;
-				var bestMove = await Task.Run(() => aiRef.GetBestMove(_engine.CurrentBoard, aiColor), ct);
+				// _engine.CurrentBoard は可変な参照をそのまま返すため、RefreshHintAsync（Issue #117）と
+				// 同様に呼び出し前に Clone してからバックグラウンドスレッドへ渡す（Issue #166）。
+				var board = _engine.CurrentBoard.Clone();
+				var bestMove = await Task.Run(() => aiRef.GetBestMove(board, aiColor), ct);
 
 				ct.ThrowIfCancellationRequested();
 				if (_engine.CurrentPlayer != currentColor) break;
@@ -888,9 +920,8 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 			return;
 
 		var undoCount = 1;
-		if (_engine.GameState.IsGameInProgress() && _engine.CurrentPlayer == AiColor)
+		if (_engine.GameState.IsGameInProgress() && _engine.CurrentPlayer == AiColor && _engine.Undo())
 		{
-			_engine.Undo();
 			undoCount = 2;
 		}
 

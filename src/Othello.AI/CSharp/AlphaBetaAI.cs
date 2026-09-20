@@ -1,5 +1,6 @@
 namespace Technopro.Othello.Core.AI;
 
+using System.Diagnostics;
 using Technopro.Othello.Core.Models;
 using Technopro.Othello.Core.Rules;
 
@@ -154,7 +155,9 @@ public class AlphaBetaAI : IAIStrategy
 		var sortedMoves = SortMovesByHeuristic(validMoves);
 		var bestMove = sortedMoves[0];
 		int maxDepth = Difficulty.GetSearchDepth();
-		var deadline = DateTime.UtcNow.AddMilliseconds(timeLimitMs);
+		// システム時刻（DateTime.UtcNow）は NTP 同期等で巻き戻り/進みうる非単調クロックのため、
+		// 単調な Stopwatch ベースの時刻（Python の time.monotonic() / Rust の Instant と同種）を使う（Issue #163）。
+		var deadline = Stopwatch.GetTimestamp() + MillisecondsToTicks(timeLimitMs);
 		// ルート盤面のハッシュは 1 回だけフル計算し、以降は各候補手について
 		// ComputeChildHash で差分更新する（Issue #121）。
 		var rootHash = ComputeBoardHash(board);
@@ -167,7 +170,7 @@ public class AlphaBetaAI : IAIStrategy
 
 		for (int depth = 1; depth <= maxDepth; depth++)
 		{
-			if (DateTime.UtcNow >= deadline)
+			if (Stopwatch.GetTimestamp() >= deadline)
 				break;
 
 			var currentBest = sortedMoves[0];
@@ -177,7 +180,7 @@ public class AlphaBetaAI : IAIStrategy
 
 			foreach (var move in sortedMoves)
 			{
-				if (DateTime.UtcNow >= deadline)
+				if (Stopwatch.GetTimestamp() >= deadline)
 				{
 					timedOut = true;
 					break;
@@ -215,7 +218,17 @@ public class AlphaBetaAI : IAIStrategy
 		return bestMove;
 	}
 
-	private Position GetBestMoveFixedDepth(Board board, PlayerColor playerColor)
+	private Position GetBestMoveFixedDepth(Board board, PlayerColor playerColor) =>
+		GetBestMoveAtDepth(board, playerColor, Difficulty.GetSearchDepth());
+
+	/// <summary>
+	/// テスト専用: DifficultyLevel を介さず、任意の探索深さで最善手を求める（Issue #162）。
+	/// Python/Rust の golden データ（局面×任意深さ→期待着手）と直接照合するために使う。
+	/// </summary>
+	internal Position GetBestMoveAtDepthForTest(Board board, PlayerColor playerColor, int depth) =>
+		GetBestMoveAtDepth(board, playerColor, depth);
+
+	private Position GetBestMoveAtDepth(Board board, PlayerColor playerColor, int depth)
 	{
 		var validMoves = OthelloRules.GetValidMoves(board, playerColor);
 
@@ -225,7 +238,6 @@ public class AlphaBetaAI : IAIStrategy
 		if (validMoves.Count == 1)
 			return validMoves[0];
 
-		int depth = Difficulty.GetSearchDepth();
 		_transpositionTable = new Dictionary<ulong, TTEntry>(capacity: 1 << 16);
 		// ルート盤面のハッシュは 1 回だけフル計算し、以降は各候補手について
 		// ComputeChildHash で差分更新する（Issue #121）。
@@ -260,14 +272,19 @@ public class AlphaBetaAI : IAIStrategy
 	/// 深さ 0 またはゲーム終了時の終端評価を返す。非終端なら null。
 	/// depth==0 を終局判定より先に見る。Python の _alpha_beta / Rust の alpha_beta_timed と同じ順序
 	/// （depth==0 に達した葉は、たとえ終局していても通常の Evaluate を返す。Issue #95）。
+	///
+	/// Cacheable は呼び出し元が TT に格納してよいかを示す。EvaluateFinal は残り探索深さ depth に
+	/// 依存するタイブレーク値を返すが、TT キーは depth を含まないため、パス回数が異なる経路で
+	/// 同じ局面・同じ手番に到達すると誤った depth ボーナス値を再利用しうる（Issue #155）。
+	/// そのため終局ノードはキャッシュ対象から除外する。
 	/// </summary>
-	private static int? TryEvaluateTerminalNode(Board board, int depth, PlayerColor aiPlayer)
+	private static (int Value, bool Cacheable)? TryEvaluateTerminalNode(Board board, int depth, PlayerColor aiPlayer)
 	{
 		if (depth == 0)
-			return Evaluator.Evaluate(board, aiPlayer);
+			return (Evaluator.Evaluate(board, aiPlayer), true);
 
 		return OthelloRules.IsGameOver(board)
-			? Evaluator.EvaluateFinal(board, aiPlayer, depth)  // depth で早い勝ちを選好（F5）
+			? (Evaluator.EvaluateFinal(board, aiPlayer, depth), false)  // depth で早い勝ちを選好（F5）
 			: null;
 	}
 
@@ -278,12 +295,12 @@ public class AlphaBetaAI : IAIStrategy
 	/// 盤面自体は変わらないため、ハッシュも hash をそのまま渡す（再計算不要。Issue #121）。
 	/// </summary>
 	private int HandleNoValidMoves(Board board, int depth, int alpha, int beta,
-		bool isMaximizing, PlayerColor currentPlayer, PlayerColor aiPlayer, DateTime? deadline, ulong hash)
+		bool isMaximizing, PlayerColor currentPlayer, PlayerColor aiPlayer, long? deadline, ulong hash)
 		=> AlphaBeta(board, depth - 1, alpha, beta, !isMaximizing,
 			   currentPlayer.Opponent(), aiPlayer, deadline, hash);
 
 	private int EvaluateMaximizing(Board board, int depth, int alpha, int beta,
-		PlayerColor currentPlayer, PlayerColor aiPlayer, List<Position> sortedMoves, DateTime? deadline, ulong hash)
+		PlayerColor currentPlayer, PlayerColor aiPlayer, List<Position> sortedMoves, long? deadline, ulong hash)
 	{
 		var value = int.MinValue;
 		foreach (var move in sortedMoves)
@@ -300,7 +317,7 @@ public class AlphaBetaAI : IAIStrategy
 	}
 
 	private int EvaluateMinimizing(Board board, int depth, int alpha, int beta,
-		PlayerColor currentPlayer, PlayerColor aiPlayer, List<Position> sortedMoves, DateTime? deadline, ulong hash)
+		PlayerColor currentPlayer, PlayerColor aiPlayer, List<Position> sortedMoves, long? deadline, ulong hash)
 	{
 		var value = int.MaxValue;
 		foreach (var move in sortedMoves)
@@ -328,9 +345,9 @@ public class AlphaBetaAI : IAIStrategy
 	/// 渡す呼び出し向け。
 	/// </summary>
 	private int AlphaBeta(Board board, int depth, int alpha, int beta, bool isMaximizing,
-		PlayerColor currentPlayer, PlayerColor aiPlayer, DateTime? deadline = null, ulong? boardHash = null)
+		PlayerColor currentPlayer, PlayerColor aiPlayer, long? deadline = null, ulong? boardHash = null)
 	{
-		if (deadline.HasValue && DateTime.UtcNow >= deadline.Value)
+		if (deadline.HasValue && Stopwatch.GetTimestamp() >= deadline.Value)
 			throw new TimeoutException("AlphaBeta 探索が時間制限を超過しました");
 
 		var hash = boardHash ?? ComputeBoardHash(board);
@@ -353,11 +370,12 @@ public class AlphaBetaAI : IAIStrategy
 			if (alpha >= beta) return tt.Score;
 		}
 
-		var terminalValue = TryEvaluateTerminalNode(board, depth, aiPlayer);
-		if (terminalValue.HasValue)
+		var terminal = TryEvaluateTerminalNode(board, depth, aiPlayer);
+		if (terminal.HasValue)
 		{
-			StoreEntry(hash, new TTEntry(terminalValue.Value, depth, isMaximizing, NodeType.Exact));
-			return terminalValue.Value;
+			if (terminal.Value.Cacheable)
+				StoreEntry(hash, new TTEntry(terminal.Value.Value, depth, isMaximizing, NodeType.Exact));
+			return terminal.Value.Value;
 		}
 
 		var validMoves = OthelloRules.GetValidMoves(board, currentPlayer);
@@ -365,7 +383,14 @@ public class AlphaBetaAI : IAIStrategy
 		{
 			var noMoveScore = HandleNoValidMoves(board, depth, alpha, beta, isMaximizing,
 				currentPlayer, aiPlayer, deadline, hash);
-			StoreEntry(hash, new TTEntry(noMoveScore, depth, isMaximizing, NodeType.Exact));
+			// パスノードも通常の分岐ノードと同じ判定式で NodeType を決定する。
+			// 子の呼び出しは同じ alpha/beta 窓をそのまま引き継ぐため、子側で fail-high/fail-low が
+			// 起きれば境界値を返しうる。無条件に Exact とすると不正確な値を正確値として
+			// 再利用してしまう（Issue #155）。
+			var passNodeType = noMoveScore <= alpha ? NodeType.UpperBound
+							  : noMoveScore >= beta ? NodeType.LowerBound
+							  : NodeType.Exact;
+			StoreEntry(hash, new TTEntry(noMoveScore, depth, isMaximizing, passNodeType));
 			return noMoveScore;
 		}
 
@@ -384,6 +409,12 @@ public class AlphaBetaAI : IAIStrategy
 	}
 
 	/// <summary>
+	/// ミリ秒を Stopwatch.GetTimestamp() と同じ単位（タイマー刻み数）に変換する（Issue #163）。
+	/// </summary>
+	private static long MillisecondsToTicks(int milliseconds) =>
+		(long)(milliseconds / 1000.0 * Stopwatch.Frequency);
+
+	/// <summary>
 	/// 位置ウェイトだけでソート（クローンなし）。
 	/// 完全な盤面評価よりやや精度は落ちるが、クローンコストを排除して探索を高速化する（F6）。
 	/// </summary>
@@ -397,9 +428,18 @@ public class AlphaBetaAI : IAIStrategy
 	/// _transpositionTable の初期化も内部で行う。
 	/// </summary>
 	internal int AlphaBetaForTest(Board board, int depth, int alpha, int beta, bool isMaximizing,
-		PlayerColor currentPlayer, PlayerColor aiPlayer, DateTime? deadline = null)
+		PlayerColor currentPlayer, PlayerColor aiPlayer, long? deadline = null)
 	{
 		_transpositionTable = new Dictionary<ulong, TTEntry>();
 		return AlphaBeta(board, depth, alpha, beta, isMaximizing, currentPlayer, aiPlayer, deadline);
 	}
+
+	/// <summary>
+	/// テスト専用: 指定 hash の TT エントリを検証用に公開する（Issue #155）。
+	/// NodeType は private な列挙型のため文字列化して返す。エントリが無ければ null。
+	/// </summary>
+	internal (int Score, int Depth, string NodeType)? PeekTranspositionTableEntryForTest(ulong hash) =>
+		_transpositionTable != null && _transpositionTable.TryGetValue(hash, out var entry)
+			? (entry.Score, entry.Depth, entry.Type.ToString())
+			: null;
 }

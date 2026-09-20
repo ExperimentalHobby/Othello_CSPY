@@ -25,6 +25,13 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
 	/// <summary>Python 実行可能ファイルの候補を検出する際のプロセス起動タイムアウト（ミリ秒）。</summary>
 	private const int PythonProbeTimeoutMs = 3_000;
 
+	/// <summary>
+	/// テスト専用: GetBestMove の応答待ちタイムアウトを上書きする。null なら既定の
+	/// AiResponseTimeoutMs（60秒）を使う。タイムアウト系の異常系テストで実際に60秒待たずに
+	/// 検証するために使用する（Issue #159）。
+	/// </summary>
+	private readonly int? _responseTimeoutMsOverride;
+
 	/// <summary>起動した Python プロセスの参照</summary>
 	private readonly Process _process;
 
@@ -54,7 +61,14 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
 	/// <exception cref="FileNotFoundException">ai.py が指定パスに存在しない場合</exception>
 	/// <exception cref="InvalidOperationException">Python が見つからない場合</exception>
 	public PythonSubprocessAI(DifficultyLevel difficulty, string pythonScriptPath)
+		: this(difficulty, pythonScriptPath, responseTimeoutMsOverride: null)
 	{
+	}
+
+	/// <summary>テスト専用: 応答待ちタイムアウトを指定できるコンストラクタ（Issue #159）。</summary>
+	internal PythonSubprocessAI(DifficultyLevel difficulty, string pythonScriptPath, int? responseTimeoutMsOverride)
+	{
+		_responseTimeoutMsOverride = responseTimeoutMsOverride;
 		Difficulty = difficulty;
 		// ハンドシェイクを読む前のデフォルト（ファイル存在ベース）。
 		// プロセス起動後に上書きされる。
@@ -165,7 +179,7 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
 
 		// Python 側から 1 行（JSON）を読む（タイムアウト付き）
 		// ReadLine() はプロセスが応答しない場合に無限ブロックするため、スレッドで制限する
-		string? response = ReadLineWithTimeout(timeoutMs: AiResponseTimeoutMs);
+		string? response = ReadLineWithTimeout(timeoutMs: _responseTimeoutMsOverride ?? AiResponseTimeoutMs);
 		if (response == null)
 			throw new InvalidOperationException(ReadProcessError("Python AI プロセスが応答しませんでした"));
 

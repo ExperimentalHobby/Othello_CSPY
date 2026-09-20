@@ -30,6 +30,25 @@ public class CpuVsCpuTests
 		}
 	}
 
+	/// <summary>
+	/// GetBestMove に渡された Board 参照をそのまま記録するモック AI。
+	/// 呼び出し元が生の可変参照ではなく Clone を渡しているかを検証するために使う（Issue #166）。
+	/// </summary>
+	private sealed class BoardCapturingFakeAI : IAIStrategy
+	{
+		public Board? ReceivedBoard;
+		public DifficultyLevel Difficulty { get; }
+		public string EngineName => "AI: BoardCapturing";
+
+		public BoardCapturingFakeAI(DifficultyLevel difficulty) => Difficulty = difficulty;
+
+		public Position GetBestMove(Board board, PlayerColor playerColor)
+		{
+			ReceivedBoard ??= board; // 最初の呼び出しのみ記録する
+			return OthelloRules.GetValidMoves(board, playerColor)[0];
+		}
+	}
+
 	/// <summary>Dispose() の呼び出し回数を数えるためのカウンタ（複数インスタンス間で共有する）。</summary>
 	private sealed class DisposeCounter
 	{
@@ -71,6 +90,31 @@ public class CpuVsCpuTests
 		return vm;
 	}
 
+	// ========== Issue #160: 既定 AI（Rust/Python 優先）の使用 ==========
+
+	/// <summary>
+	/// cpuVsCpuAiFactory を省略（既定値）して CPU vs CPU を開始した場合、
+	/// AiEngineLabel が固定文字列 "AI vs AI" ではなく、Human vs CPU と同じ既定ファクトリ
+	/// （Rust/Python 優先、失敗時 C# フォールバック）による実際のエンジン名を反映することを確認する
+	/// （Issue #160）。
+	/// パス条件: AiEngineLabel が "AI vs AI" という固定文字列ではなく、
+	/// "AI: Rust" / "AI: Python" / "AI: C#" のいずれかを含むこと。
+	/// </summary>
+	[Fact]
+	public async Task CpuVsCpu_DefaultAiFactory_UsesActualEngineNamesNotHardcodedLabel()
+	{
+		using var vm = new GameViewModel(aiFactory: null, startDeferred: true);
+		vm.GameMode = GameMode.CpuVsCpu;
+		vm.CpuVsCpuDelayMs = 0;
+
+		await vm.StartNewGameAsync(); // 新規ゲームは IsPaused=true の状態で止まる（開始ボタン待ち）
+
+		Assert.NotEqual("AI vs AI", vm.AiEngineLabel);
+		Assert.True(
+			vm.AiEngineLabel.Contains("AI: Rust") || vm.AiEngineLabel.Contains("AI: Python") || vm.AiEngineLabel.Contains("AI: C#"),
+			$"予期しない AiEngineLabel: {vm.AiEngineLabel}");
+	}
+
 	/// <summary>
 	/// パス条件: CpuVsCpu モードでゲーム開始後、最終的に IsGameInProgress = false になること。
 	/// </summary>
@@ -85,6 +129,39 @@ public class CpuVsCpuTests
 
 		Assert.False(vm.IsGameInProgress);
 		Assert.True(vm.BlackScore + vm.WhiteScore > 4);
+	}
+
+	/// <summary>
+	/// ProcessCpuVsCpuTurnAsync が AI に渡す盤面が、_engine.CurrentBoard の可変な参照そのものではなく
+	/// Clone された独立コピーであることを確認する（Issue #166）。
+	/// パス条件: 黒 AI が最初に受け取った Board インスタンスが、後の _engine.CurrentBoard と
+	/// 異なるオブジェクト参照であること。
+	/// </summary>
+	[Fact]
+	public async Task CpuVsCpu_PassesClonedBoard_NotLiveEngineReference()
+	{
+		var capturedAis = new List<BoardCapturingFakeAI>();
+		var vm = new GameViewModel(
+			aiFactory: _ => new FakeAI(),
+			startDeferred: true,
+			cpuVsCpuAiFactory: d =>
+			{
+				var ai = new BoardCapturingFakeAI(d);
+				capturedAis.Add(ai);
+				return ai;
+			});
+		vm.GameMode = GameMode.CpuVsCpu;
+		vm.CpuVsCpuDelayMs = 0;
+		await vm.StartNewGameAsync(); // 新規ゲーム: IsPaused = true の状態
+		vm.PauseCommand.Execute(null); // 「開始」ボタン相当 → IsPaused = false
+
+		var deadline = DateTime.UtcNow.AddSeconds(10);
+		while (capturedAis.TrueForAll(a => a.ReceivedBoard == null) && DateTime.UtcNow < deadline)
+			await Task.Delay(20);
+
+		var blackAi = capturedAis[0]; // BlackDifficulty 用が先に生成される
+		Assert.NotNull(blackAi.ReceivedBoard);
+		Assert.NotSame(vm.EngineCurrentBoard, blackAi.ReceivedBoard);
 	}
 
 	/// <summary>

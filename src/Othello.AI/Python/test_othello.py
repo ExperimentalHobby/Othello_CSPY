@@ -7,6 +7,7 @@ test_othello.py - Python AI（board / evaluator / alpha_beta）の単体テス�
     py -m unittest discover -s src/Othello.Python -p "test_*.py"
 """
 
+import time
 import unittest
 
 import ai as ai_module
@@ -841,9 +842,34 @@ class DecideMoveTests(unittest.TestCase):
         fake_ai = _RecordingAI()
 
         move = ai_module.decide_move(fake_ai, board, WHITE, depth=5, time_ms=None)
+        self.assertEqual(move, (0, 2))
+        self.assertTrue(fake_ai.get_best_move_called)
+        self.assertFalse(fake_ai.get_best_move_timed_called)
+
+    def test_low_depth_ignores_book_even_on_book_hit_position(self):
+        """低難易度（depth < Medium 相当）では定石にヒットする局面でも定石を参照せず、
+        通常の探索にフォールバックすることを確認する（Issue #161: Beginner/Easy が
+        序盤から定石通りの強い手を打ってしまう不具合の回帰）。
+        パス条件: 定石手 (4,5) ではなく get_best_move の戻り値 (0,2) が返り、
+        get_best_move が呼ばれること。"""
+        board = make_initial_board()  # 黒番・定石にヒットする局面（f5 → (4,5)）
+        fake_ai = _RecordingAI()
+
+        move = ai_module.decide_move(fake_ai, board, BLACK, depth=2, time_ms=None)  # Easy 相当
 
         self.assertEqual(move, (0, 2))
         self.assertTrue(fake_ai.get_best_move_called)
+
+    def test_medium_depth_boundary_still_uses_book(self):
+        """境界値: depth=5（Medium）ちょうどでは従来通り定石が参照されることを確認する。
+        パス条件: 定石手 (4,5) が返り、探索関数は呼ばれないこと。"""
+        board = make_initial_board()
+        fake_ai = _RecordingAI()
+
+        move = ai_module.decide_move(fake_ai, board, BLACK, depth=5, time_ms=None)
+
+        self.assertEqual(move, (4, 5))
+        self.assertFalse(fake_ai.get_best_move_called)
         self.assertFalse(fake_ai.get_best_move_timed_called)
 
 
@@ -998,6 +1024,78 @@ class TranspositionTableTests(unittest.TestCase):
         move = self.ai.get_best_move(board, BLACK, depth=4)
 
         self.assertIn(move, [(0, 0), (7, 7)])
+
+    # ---- Issue #155: TT への不正確な EXACT 格納 --------------------------------
+
+    @staticmethod
+    def _forced_pass_board():
+        """(0,0)/(7,7) が空き、(0,1)/(7,6) が白、その他すべて黒の盤面を返す。
+        White は挟める石がなく有効手なし、Black は (0,0)・(7,7) に着手できる（強制パス局面）。"""
+        board = [[BLACK] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        board[0][0] = EMPTY
+        board[0][1] = WHITE
+        board[7][7] = EMPTY
+        board[7][6] = WHITE
+        return board
+
+    def test_pass_node_with_fail_high_child_does_not_cache_as_exact(self):
+        """パスノード（White に有効手がなく Black にターンを渡す局面）の TT エントリが、
+        子（Black）の探索結果が境界値（fail-high による LOWER_BOUND）であっても
+        無条件に EXACT として格納されないことを確認する（Issue #155）。
+
+        極端に狭い alpha/beta 窓を渡すと、パス先の Black の探索は最初の候補手で
+        必ず fail-high し境界値を返す。この値がパスノード自身の TT エントリに
+        そのまま EXACT として保存されてしまうのが修正前のバグ。
+        パス条件: tt に格納された node_type が EXACT ではないこと。"""
+        board = self._forced_pass_board()
+        tt = {}
+        alpha, beta = -10**9, -10**9 + 1  # 通常の評価値より圧倒的に低い窓 → 必ず fail-high
+
+        self.ai._alpha_beta(board, 2, alpha, beta, False, BLACK, tt)
+
+        key = (alpha_beta_py._zobrist_hash(board), False)
+        _, _, node_type = tt[key]
+        self.assertNotEqual(node_type, alpha_beta_py._NodeType.EXACT)
+
+    def test_pass_node_timed_with_fail_high_child_does_not_cache_as_exact(self):
+        """_alpha_beta_timed 版で上記と同じ検証を行う。
+        パス条件: tt に格納された node_type が EXACT ではないこと。"""
+        board = self._forced_pass_board()
+        tt = {}
+        alpha, beta = -10**9, -10**9 + 1
+        deadline = time.monotonic() + 60
+
+        self.ai._alpha_beta_timed(board, 2, alpha, beta, False, BLACK, deadline, tt)
+
+        key = (alpha_beta_py._zobrist_hash(board), False)
+        _, _, node_type = tt[key]
+        self.assertNotEqual(node_type, alpha_beta_py._NodeType.EXACT)
+
+    def test_terminal_game_over_node_is_not_cached(self):
+        """終局ノード（evaluate_final による評価）の結果が tt に格納されないことを確認する
+        （Issue #155）。evaluate_final は残り探索深さに依存するタイブレーク値を返すため、
+        depth を含まない TT キーでキャッシュすると、パス回数が異なる経路で同じ局面に
+        到達した際に誤った値を再利用しうる。
+        パス条件: 終局盤面に対応する tt のキーが存在しないこと。"""
+        board = [[BLACK] * BOARD_SIZE for _ in range(BOARD_SIZE)]  # 全マス黒 = 終局
+        tt = {}
+
+        self.ai._alpha_beta(board, 3, float('-inf'), float('inf'), True, BLACK, tt)
+
+        key = (alpha_beta_py._zobrist_hash(board), True)
+        self.assertNotIn(key, tt)
+
+    def test_terminal_game_over_node_timed_is_not_cached(self):
+        """_alpha_beta_timed 版で上記と同じ検証を行う。
+        パス条件: 終局盤面に対応する tt のキーが存在しないこと。"""
+        board = [[BLACK] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        tt = {}
+        deadline = time.monotonic() + 60
+
+        self.ai._alpha_beta_timed(board, 3, float('-inf'), float('inf'), True, BLACK, deadline, tt)
+
+        key = (alpha_beta_py._zobrist_hash(board), True)
+        self.assertNotIn(key, tt)
 
 
 class TranspositionTableEquivalenceTests(unittest.TestCase):
