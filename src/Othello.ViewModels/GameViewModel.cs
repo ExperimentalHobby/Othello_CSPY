@@ -888,9 +888,8 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 			return;
 
 		var undoCount = 1;
-		if (_engine.GameState.IsGameInProgress() && _engine.CurrentPlayer == AiColor)
+		if (_engine.GameState.IsGameInProgress() && _engine.CurrentPlayer == AiColor && _engine.Undo())
 		{
-			_engine.Undo();
 			undoCount = 2;
 		}
 

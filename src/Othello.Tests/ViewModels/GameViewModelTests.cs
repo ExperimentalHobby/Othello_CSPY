@@ -315,6 +315,34 @@ public class GameViewModelTests
 	}
 
 	/// <summary>
+	/// AI 先手（人間=白）で AI の初手のみが打たれた状態から Undo すると、2 回目の
+	/// _engine.Undo() が履歴不足で失敗するが、その場合でも実際に巻き戻った回数（1回）分だけ
+	/// KifuMovesForTest が正しく巻き戻ることを確認する（Issue #156）。
+	///
+	/// 現在の実装では ScoreHistory.Count > 1 / _kifuMoveEntryCounts.Count > 0 というガードが
+	/// 「実際に存在する件数」でループを自然に打ち切るため、undoCount の値（1 or 2 の誤り）に
+	/// 関わらずこのテストは Green になる。それでも undoCount 自体が正しい値になることは、
+	/// 将来ガード条件が変更された場合の不整合を防ぐ回帰防止として意味を持つ。
+	/// パス条件: Undo 後に KifuMovesForTest が空であること。
+	/// </summary>
+	[Fact]
+	public void Undo_AfterAiFirstMoveWhenHumanIsWhite_RemovesExactlyOneKifuEntry()
+	{
+		using var aiMoved = new ManualResetEventSlim(false);
+		using var vm = new GameViewModel(d => new FakeAI(d, () => aiMoved.Set()));
+
+		vm.HumanColorIndex = 1; // 白に変更 → 再起動 → AI（黒）が先手
+		Assert.True(aiMoved.Wait(Timeout));
+		Thread.Sleep(300);
+
+		Assert.Single(vm.KifuMovesForTest); // 前提: AI の初手のみ 1 件記録されている
+
+		vm.UndoCommand.Execute(null);
+
+		Assert.Empty(vm.KifuMovesForTest);
+	}
+
+	/// <summary>
 	/// Undo を挟んだ複数手の対局後、KifuMovesForTest を KifuPlayer に渡して再生すると
 	/// 実際の盤面（EngineCurrentBoard）と完全一致することを確認する（結合テスト）。
 	/// パス条件: KifuPlayer.GoToEnd() が例外を投げず、全 64 マスが実際の盤面と一致すること。

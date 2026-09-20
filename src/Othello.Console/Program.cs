@@ -219,8 +219,7 @@ static Position? GetHumanMove(GameEngine engine, PlayerColor humanColor, List<Po
 		if (input == "undo")
 		{
 			// 1 手取り消す（AI のターンになった場合はさらに 1 手取り消す）
-			engine.Undo();
-			if (engine.CurrentPlayer != humanColor)
+			if (engine.Undo() && engine.CurrentPlayer != humanColor)
 				engine.Undo();
 			return null; // null を返すことで呼び出し元のループを継続させる
 		}
