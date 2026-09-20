@@ -152,7 +152,7 @@ Python プロセスのライフサイクル: `StartNewGame()` で起動 → `End
 
 ### テスト
 - `Othello.Core.csproj` に `InternalsVisibleTo("Othello.Tests")` を設定済み。`GameEngine.LoadStateForTest(board, player)` で任意の境界局面を再現できる
-- `Othello.Tests.csproj` は ViewModels 共有プロジェクト（`.projitems`）を直接取り込んでいるため `GameViewModel` をテスト対象にできる
+- `Othello.Tests.csproj` は `Othello.ViewModels.csproj` を `ProjectReference` し、`Othello.ViewModels.csproj` 側の `InternalsVisibleTo("Othello.Tests")` 経由で `GameViewModel` をテスト対象にできる
 - `ConsoleInputParser`（`Othello.Console` の `internal static`）は `InternalsVisibleTo` 経由でテスト可能
 - **単体テスト**: 変更した関数・クラスの正常系・異常系・境界値を網羅する
 - **結合テスト**: 変更が影響する他機能（例: GameEngine の変更なら UI の挙動、AI との連携など）についても結合テストを追加し、機能間の連携が壊れていないことを確認する

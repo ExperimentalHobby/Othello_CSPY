@@ -257,9 +257,9 @@ Othello_CSPY/
 │   │   ├── Settings/          # OthelloSettings, OthelloSettingsManager
 │   │   └── Stats/             # GameStats, DifficultyStats, IStatsRepository, StatsRepository
 │   │
-│   ├── Othello.ViewModels/    # 共有 ViewModel 層（.shproj 共有プロジェクト）
+│   ├── Othello.ViewModels/    # 共有 ViewModel 層（通常のクラスライブラリ）
 │   │   ├── ViewModelBase.cs
-│   │   ├── RelayCommand.cs    # #if WPF で CommandManager と手動通知を切り替え
+│   │   ├── RelayCommand.cs    # WPF/WinUI3 共通で RaiseCanExecuteChanged() による手動通知
 │   │   ├── BoardSquareViewModel.cs
 │   │   ├── GameViewModel.cs   # AI ファクトリ注入・C# フォールバック・AiEngineLabel
 │   │   ├── KifuViewModel.cs   # 棋譜再生ウィンドウ用 ViewModel
@@ -351,7 +351,7 @@ GameViewModel._aiFactory()
                    │ DataContext
 ┌──────────────────▼──────────────────────────┐
 │        ViewModel 層（共有）                  │
-│  Othello.ViewModels (.shproj)               │
+│  Othello.ViewModels（クラスライブラリ）       │
 │  GameViewModel / BoardSquareViewModel        │
 └──────────────────┬──────────────────────────┘
                    │

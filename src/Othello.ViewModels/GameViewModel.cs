@@ -516,7 +516,8 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 
 	/// <summary>
 	/// IsAIThinking / IsGameInProgress 変更時に Undo の CanExecute を再評価する。
-	/// WPF では CommandManager が担うが WinUI3 では手動通知が必要。
+	/// <see cref="RelayCommand"/> は CommandManager.RequerySuggested を購読しないため、
+	/// WPF/WinUI3 いずれでも呼び出し元（本メソッド）からの明示的な通知が必須。
 	/// </summary>
 	protected override void OnPropertyChanged(string? propertyName = null)
 	{
