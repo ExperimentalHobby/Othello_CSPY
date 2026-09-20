@@ -239,6 +239,57 @@ public class StatsTests
 		}
 	}
 
+	/// <summary>
+	/// Save() が一時ファイル経由のアトミック書き込みになっており、成功後に
+	/// 一時ファイル（&lt;path&gt;.tmp）が残らないことを確認する（Issue #165）。
+	/// 書き込み途中でプロセスが異常終了してもファイルが破損しないようにするための対策。
+	/// パス条件: Save() 後に "&lt;path&gt;.tmp" が存在しないこと。
+	/// </summary>
+	[Fact]
+	public void StatsRepository_Save_DoesNotLeaveTempFileBehind()
+	{
+		var path = Path.Combine(Path.GetTempPath(), $"stats_test_{Guid.NewGuid()}.json");
+		var tempPath = path + ".tmp";
+		var repo = new StatsRepository(path);
+		try
+		{
+			repo.Save(new GameStats());
+
+			Assert.False(File.Exists(tempPath));
+		}
+		finally
+		{
+			if (File.Exists(path)) File.Delete(path);
+			if (File.Exists(tempPath)) File.Delete(tempPath);
+		}
+	}
+
+	/// <summary>
+	/// 書き込み不可能な対象への保存に失敗した場合でも、一時ファイルが残らないことを確認する
+	/// （Issue #165）。
+	/// パス条件: Save() 後に一時ファイルが存在しないこと。
+	/// </summary>
+	[Fact]
+	public void StatsRepository_Save_WhenTargetIsDirectory_DoesNotLeaveTempFileBehind()
+	{
+		var directoryPath = Path.Combine(Path.GetTempPath(), $"stats_test_dir_{Guid.NewGuid():N}");
+		var tempPath = directoryPath + ".tmp";
+		Directory.CreateDirectory(directoryPath);
+		try
+		{
+			var repo = new StatsRepository(directoryPath);
+
+			repo.Save(new GameStats());
+
+			Assert.False(File.Exists(tempPath));
+		}
+		finally
+		{
+			Directory.Delete(directoryPath);
+			if (File.Exists(tempPath)) File.Delete(tempPath);
+		}
+	}
+
 	// ─── GameViewModel 統合 ───────────────────────────────────────────────────
 
 	private sealed class FakeAI : IAIStrategy
