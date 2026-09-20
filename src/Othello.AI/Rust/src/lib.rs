@@ -545,13 +545,16 @@ fn alpha_beta(
     if moves.is_empty() {
         // 現在のプレイヤーに有効手がない場合のみ相手の有効手を調べる
         if !has_any_valid_move(board, opponent(current)) {
-            // 両者パス → 終局評価（残り depth を渡して早い決着を選好）
-            let value = evaluate_final(board, ai_player, depth);
-            tt.insert(key, (value, depth, NodeType::Exact));
-            return value;
+            // 両者パス → 終局評価（残り depth を渡して早い決着を選好）。
+            // evaluate_final は depth 依存のタイブレーク値を返すが、TT キーは depth を
+            // 含まないため、パス回数が異なる経路で同じ局面に到達すると誤った値を
+            // 再利用しうる（Issue #155）。そのため終局ノードは TT に格納しない。
+            return evaluate_final(board, ai_player, depth);
         }
         // パス: 深さを 1 減らし is_maximizing を反転して相手にターンを渡す
-        // パスは分岐がなく窓の影響を受けないため、常に Exact として格納してよい。
+        // 子の呼び出しは同じ alpha/beta 窓をそのまま引き継ぐため、子側で fail-high/
+        // fail-low が起きれば境界値を返しうる。無条件に Exact とすると不正確な値を
+        // 正確値として再利用してしまうため、通常の分岐ノードと同じ判定式を使う（Issue #155）。
         // 盤面自体は変わらないため、ハッシュも h をそのまま渡す（再計算不要）。
         let value = alpha_beta(
             board,
@@ -563,7 +566,14 @@ fn alpha_beta(
             tt,
             Some(h),
         );
-        tt.insert(key, (value, depth, NodeType::Exact));
+        let node_type = if value <= alpha {
+            NodeType::UpperBound
+        } else if value >= beta {
+            NodeType::LowerBound
+        } else {
+            NodeType::Exact
+        };
+        tt.insert(key, (value, depth, node_type));
         return value;
     }
 
@@ -734,11 +744,11 @@ fn alpha_beta_timed(
 
     if moves.is_empty() {
         if !has_any_valid_move(board, opponent(current)) {
-            let value = evaluate_final(board, ctx.ai_player, depth);
-            tt.insert(key, (value, depth, NodeType::Exact));
-            return Ok(value);
+            // evaluate_final は depth 依存のタイブレーク値を返すため TT に格納しない（Issue #155）。
+            return Ok(evaluate_final(board, ctx.ai_player, depth));
         }
         // 盤面自体は変わらないため、ハッシュも h をそのまま渡す（再計算不要）。
+        // node_type の判定は alpha_beta のパス分岐と同じ理由（Issue #155）。
         let value = alpha_beta_timed(
             board,
             depth - 1,
@@ -749,7 +759,14 @@ fn alpha_beta_timed(
             tt,
             Some(h),
         )?;
-        tt.insert(key, (value, depth, NodeType::Exact));
+        let node_type = if value <= alpha {
+            NodeType::UpperBound
+        } else if value >= beta {
+            NodeType::LowerBound
+        } else {
+            NodeType::Exact
+        };
+        tt.insert(key, (value, depth, node_type));
         return Ok(value);
     }
 
@@ -1447,6 +1464,57 @@ mod tests {
         let score = alpha_beta(&board, 3, NEG_INF, cached_score, true, BLACK, &mut tt, None);
 
         assert_eq!(score, cached_score);
+    }
+
+    // ===== Issue #155: TT への不正確な Exact 格納 =====
+
+    /// (0,0)/(7,7) が空き、(0,1)/(7,6) が白、その他すべて黒の盤面を返す。
+    /// White は挟める石がなく有効手なし、Black は (0,0)・(7,7) に着手できる（強制パス局面）。
+    fn forced_pass_board() -> Board {
+        let mut board = filled_board(BLACK);
+        board[idx(0, 0)] = EMPTY;
+        board[idx(0, 1)] = WHITE;
+        board[idx(7, 7)] = EMPTY;
+        board[idx(7, 6)] = WHITE;
+        board
+    }
+
+    #[test]
+    fn tt_pass_node_with_fail_high_child_does_not_cache_as_exact() {
+        // White に有効手がなく Black にターンを渡すパスノードを直接呼び出す。
+        // 極端に狭い alpha/beta 窓（i32::MIN / i32::MIN+1）を渡すと、パス先の Black の探索は
+        // 最初の候補手で必ず fail-high し境界値を返す。この値がパスノード自身の TT エントリに
+        // そのまま Exact として保存されてしまうのが修正前のバグ。
+        let board = forced_pass_board();
+        let mut tt: TT = HashMap::new();
+
+        alpha_beta(
+            &board,
+            2,
+            i32::MIN,
+            i32::MIN + 1,
+            false, // White（opponent of BLACK）のターン = minimizing
+            BLACK,
+            &mut tt,
+            None,
+        );
+
+        let key = (zobrist_hash(&board), false);
+        let (_, _, node_type) = tt.get(&key).expect("pass node should be cached");
+        assert_ne!(*node_type, NodeType::Exact);
+    }
+
+    #[test]
+    fn tt_terminal_game_over_node_is_not_cached() {
+        // evaluate_final は depth 依存のタイブレーク値を返すため、depth を含まない TT キーで
+        // キャッシュすると、パス回数が異なる経路で同じ局面に到達した際に誤った値を再利用しうる。
+        let board = filled_board(BLACK); // 全マス黒 = 終局
+        let mut tt: TT = HashMap::new();
+
+        alpha_beta(&board, 3, NEG_INF, INF, true, BLACK, &mut tt, None);
+
+        let key = (zobrist_hash(&board), true);
+        assert!(!tt.contains_key(&key));
     }
 
     // ===== セル値検証（has_valid_cell_values）のテスト =====

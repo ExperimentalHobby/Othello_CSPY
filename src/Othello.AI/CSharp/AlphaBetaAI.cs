@@ -230,14 +230,19 @@ public class AlphaBetaAI : IAIStrategy
 	/// 深さ 0 またはゲーム終了時の終端評価を返す。非終端なら null。
 	/// depth==0 を終局判定より先に見る。Python の _alpha_beta / Rust の alpha_beta_timed と同じ順序
 	/// （depth==0 に達した葉は、たとえ終局していても通常の Evaluate を返す。Issue #95）。
+	///
+	/// Cacheable は呼び出し元が TT に格納してよいかを示す。EvaluateFinal は残り探索深さ depth に
+	/// 依存するタイブレーク値を返すが、TT キーは depth を含まないため、パス回数が異なる経路で
+	/// 同じ局面・同じ手番に到達すると誤った depth ボーナス値を再利用しうる（Issue #155）。
+	/// そのため終局ノードはキャッシュ対象から除外する。
 	/// </summary>
-	private static int? TryEvaluateTerminalNode(Board board, int depth, PlayerColor aiPlayer)
+	private static (int Value, bool Cacheable)? TryEvaluateTerminalNode(Board board, int depth, PlayerColor aiPlayer)
 	{
 		if (depth == 0)
-			return Evaluator.Evaluate(board, aiPlayer);
+			return (Evaluator.Evaluate(board, aiPlayer), true);
 
 		return OthelloRules.IsGameOver(board)
-			? Evaluator.EvaluateFinal(board, aiPlayer, depth)  // depth で早い勝ちを選好（F5）
+			? (Evaluator.EvaluateFinal(board, aiPlayer, depth), false)  // depth で早い勝ちを選好（F5）
 			: null;
 	}
 
@@ -323,11 +328,12 @@ public class AlphaBetaAI : IAIStrategy
 			if (alpha >= beta) return tt.Score;
 		}
 
-		var terminalValue = TryEvaluateTerminalNode(board, depth, aiPlayer);
-		if (terminalValue.HasValue)
+		var terminal = TryEvaluateTerminalNode(board, depth, aiPlayer);
+		if (terminal.HasValue)
 		{
-			_transpositionTable[hash] = new TTEntry(terminalValue.Value, depth, isMaximizing, NodeType.Exact);
-			return terminalValue.Value;
+			if (terminal.Value.Cacheable)
+				_transpositionTable[hash] = new TTEntry(terminal.Value.Value, depth, isMaximizing, NodeType.Exact);
+			return terminal.Value.Value;
 		}
 
 		var validMoves = OthelloRules.GetValidMoves(board, currentPlayer);
@@ -335,7 +341,14 @@ public class AlphaBetaAI : IAIStrategy
 		{
 			var noMoveScore = HandleNoValidMoves(board, depth, alpha, beta, isMaximizing,
 				currentPlayer, aiPlayer, deadline, hash);
-			_transpositionTable[hash] = new TTEntry(noMoveScore, depth, isMaximizing, NodeType.Exact);
+			// パスノードも通常の分岐ノードと同じ判定式で NodeType を決定する。
+			// 子の呼び出しは同じ alpha/beta 窓をそのまま引き継ぐため、子側で fail-high/fail-low が
+			// 起きれば境界値を返しうる。無条件に Exact とすると不正確な値を正確値として
+			// 再利用してしまう（Issue #155）。
+			var passNodeType = noMoveScore <= alpha ? NodeType.UpperBound
+							  : noMoveScore >= beta ? NodeType.LowerBound
+							  : NodeType.Exact;
+			_transpositionTable[hash] = new TTEntry(noMoveScore, depth, isMaximizing, passNodeType);
 			return noMoveScore;
 		}
 
@@ -372,4 +385,13 @@ public class AlphaBetaAI : IAIStrategy
 		_transpositionTable = new Dictionary<ulong, TTEntry>();
 		return AlphaBeta(board, depth, alpha, beta, isMaximizing, currentPlayer, aiPlayer, deadline);
 	}
+
+	/// <summary>
+	/// テスト専用: 指定 hash の TT エントリを検証用に公開する（Issue #155）。
+	/// NodeType は private な列挙型のため文字列化して返す。エントリが無ければ null。
+	/// </summary>
+	internal (int Score, int Depth, string NodeType)? PeekTranspositionTableEntryForTest(ulong hash) =>
+		_transpositionTable != null && _transpositionTable.TryGetValue(hash, out var entry)
+			? (entry.Score, entry.Depth, entry.Type.ToString())
+			: null;
 }
