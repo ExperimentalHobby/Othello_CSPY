@@ -62,6 +62,43 @@ public class PythonSubprocessAIFailureModeTests : IDisposable
 	}
 
 	/// <summary>
+	/// Python プロセスが大量の stderr 出力を伴って即座に終了した場合でも、GetBestMove が
+	/// 送出する例外メッセージに stderr の全内容（末尾の識別文字列まで）が含まれることを確認する
+	/// （Issue #188）。
+	///
+	/// <c>_process.HasExited</c> が true になるタイミングと、<c>BeginErrorReadLine</c> による
+	/// 非同期 stderr 読み取りが完了するタイミングは独立しており、大きな stderr ペイロードは
+	/// 複数回の非同期読み取りサイクルを要するため、この競合が再現しやすい状況を作る。
+	/// 複数回試行し、全試行で末尾の識別文字列が含まれることを確認する。
+	/// パス条件: 全 20 回の試行で例外メッセージに末尾の識別文字列が含まれること。
+	/// </summary>
+	[Fact]
+	public void GetBestMove_ProcessCrashesWithLargeStderrPayload_AlwaysIncludesFullStderrContent()
+	{
+		if (!File.Exists(AiPyPath)) return;
+
+		const string marker = "TRAILING_MARKER_intentional_crash_end";
+		var scriptPath = WriteFixtureScript(
+			$"""
+			import sys
+			sys.stderr.write('E' * 200000)
+			sys.stderr.write('\n{marker}\n')
+			sys.stderr.flush()
+			sys.exit(1)
+			""");
+
+		for (int i = 0; i < 20; i++)
+		{
+			using var ai = new PythonSubprocessAI(DifficultyLevel.Easy, scriptPath);
+
+			var ex = Assert.Throws<InvalidOperationException>(
+				() => ai.GetBestMove(TestBoardHelper.CreateInitialBoard(), PlayerColor.Black));
+
+			Assert.Contains(marker, ex.Message);
+		}
+	}
+
+	/// <summary>
 	/// Python プロセスがハンドシェイク後に応答を返さず無応答のまま固まった場合、
 	/// GetBestMove が TimeoutException を送出し、プロセスを強制終了することを確認する。
 	/// パス条件: TimeoutException がスローされ、その後 Python プロセスが終了していること。
