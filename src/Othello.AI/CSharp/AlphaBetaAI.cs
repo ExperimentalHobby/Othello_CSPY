@@ -1,5 +1,6 @@
 namespace Technopro.Othello.Core.AI;
 
+using System.Diagnostics;
 using Technopro.Othello.Core.Models;
 using Technopro.Othello.Core.Rules;
 
@@ -124,7 +125,9 @@ public class AlphaBetaAI : IAIStrategy
 		var sortedMoves = SortMovesByHeuristic(validMoves);
 		var bestMove = sortedMoves[0];
 		int maxDepth = Difficulty.GetSearchDepth();
-		var deadline = DateTime.UtcNow.AddMilliseconds(timeLimitMs);
+		// システム時刻（DateTime.UtcNow）は NTP 同期等で巻き戻り/進みうる非単調クロックのため、
+		// 単調な Stopwatch ベースの時刻（Python の time.monotonic() / Rust の Instant と同種）を使う（Issue #163）。
+		var deadline = Stopwatch.GetTimestamp() + MillisecondsToTicks(timeLimitMs);
 		// ルート盤面のハッシュは 1 回だけフル計算し、以降は各候補手について
 		// ComputeChildHash で差分更新する（Issue #121）。
 		var rootHash = ComputeBoardHash(board);
@@ -137,7 +140,7 @@ public class AlphaBetaAI : IAIStrategy
 
 		for (int depth = 1; depth <= maxDepth; depth++)
 		{
-			if (DateTime.UtcNow >= deadline)
+			if (Stopwatch.GetTimestamp() >= deadline)
 				break;
 
 			var currentBest = sortedMoves[0];
@@ -147,7 +150,7 @@ public class AlphaBetaAI : IAIStrategy
 
 			foreach (var move in sortedMoves)
 			{
-				if (DateTime.UtcNow >= deadline)
+				if (Stopwatch.GetTimestamp() >= deadline)
 				{
 					timedOut = true;
 					break;
@@ -262,12 +265,12 @@ public class AlphaBetaAI : IAIStrategy
 	/// 盤面自体は変わらないため、ハッシュも hash をそのまま渡す（再計算不要。Issue #121）。
 	/// </summary>
 	private int HandleNoValidMoves(Board board, int depth, int alpha, int beta,
-		bool isMaximizing, PlayerColor currentPlayer, PlayerColor aiPlayer, DateTime? deadline, ulong hash)
+		bool isMaximizing, PlayerColor currentPlayer, PlayerColor aiPlayer, long? deadline, ulong hash)
 		=> AlphaBeta(board, depth - 1, alpha, beta, !isMaximizing,
 			   currentPlayer.Opponent(), aiPlayer, deadline, hash);
 
 	private int EvaluateMaximizing(Board board, int depth, int alpha, int beta,
-		PlayerColor currentPlayer, PlayerColor aiPlayer, List<Position> sortedMoves, DateTime? deadline, ulong hash)
+		PlayerColor currentPlayer, PlayerColor aiPlayer, List<Position> sortedMoves, long? deadline, ulong hash)
 	{
 		var value = int.MinValue;
 		foreach (var move in sortedMoves)
@@ -284,7 +287,7 @@ public class AlphaBetaAI : IAIStrategy
 	}
 
 	private int EvaluateMinimizing(Board board, int depth, int alpha, int beta,
-		PlayerColor currentPlayer, PlayerColor aiPlayer, List<Position> sortedMoves, DateTime? deadline, ulong hash)
+		PlayerColor currentPlayer, PlayerColor aiPlayer, List<Position> sortedMoves, long? deadline, ulong hash)
 	{
 		var value = int.MaxValue;
 		foreach (var move in sortedMoves)
@@ -312,9 +315,9 @@ public class AlphaBetaAI : IAIStrategy
 	/// 渡す呼び出し向け。
 	/// </summary>
 	private int AlphaBeta(Board board, int depth, int alpha, int beta, bool isMaximizing,
-		PlayerColor currentPlayer, PlayerColor aiPlayer, DateTime? deadline = null, ulong? boardHash = null)
+		PlayerColor currentPlayer, PlayerColor aiPlayer, long? deadline = null, ulong? boardHash = null)
 	{
-		if (deadline.HasValue && DateTime.UtcNow >= deadline.Value)
+		if (deadline.HasValue && Stopwatch.GetTimestamp() >= deadline.Value)
 			throw new TimeoutException("AlphaBeta 探索が時間制限を超過しました");
 
 		var hash = boardHash ?? ComputeBoardHash(board);
@@ -376,6 +379,12 @@ public class AlphaBetaAI : IAIStrategy
 	}
 
 	/// <summary>
+	/// ミリ秒を Stopwatch.GetTimestamp() と同じ単位（タイマー刻み数）に変換する（Issue #163）。
+	/// </summary>
+	private static long MillisecondsToTicks(int milliseconds) =>
+		(long)(milliseconds / 1000.0 * Stopwatch.Frequency);
+
+	/// <summary>
 	/// 位置ウェイトだけでソート（クローンなし）。
 	/// 完全な盤面評価よりやや精度は落ちるが、クローンコストを排除して探索を高速化する（F6）。
 	/// </summary>
@@ -389,7 +398,7 @@ public class AlphaBetaAI : IAIStrategy
 	/// _transpositionTable の初期化も内部で行う。
 	/// </summary>
 	internal int AlphaBetaForTest(Board board, int depth, int alpha, int beta, bool isMaximizing,
-		PlayerColor currentPlayer, PlayerColor aiPlayer, DateTime? deadline = null)
+		PlayerColor currentPlayer, PlayerColor aiPlayer, long? deadline = null)
 	{
 		_transpositionTable = new Dictionary<ulong, TTEntry>();
 		return AlphaBeta(board, depth, alpha, beta, isMaximizing, currentPlayer, aiPlayer, deadline);
