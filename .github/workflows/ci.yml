@@ -123,6 +123,9 @@ jobs:
       - name: Test (C# - WPF Converters)
         run: dotnet test src/Othello.Tests.WPF/Othello.Tests.WPF.csproj --configuration Release
 
+      - name: Test (C# - WinUI3 Converters/Styles)
+        run: dotnet test src/Othello.Tests.WinUI3/Othello.Tests.WinUI3.csproj --configuration Release
+
       - name: Generate coverage report
         run: |
           dotnet tool restore
@@ -134,11 +137,12 @@ jobs:
           name: coverage-report
           path: coverage-report
 
-      - name: "C#: format check (WPF / WinUI3 / Tests.WPF)"
+      - name: "C#: format check (WPF / WinUI3 / Tests.WPF / Tests.WinUI3)"
         run: |
           dotnet format src/Othello.GUI/WPF/Othello.WPF.csproj --verify-no-changes
           dotnet format src/Othello.GUI/WinUI3/Othello.WinUI3.csproj --verify-no-changes
           dotnet format src/Othello.Tests.WPF/Othello.Tests.WPF.csproj --verify-no-changes
+          dotnet format src/Othello.Tests.WinUI3/Othello.Tests.WinUI3.csproj --verify-no-changes
 
       - name: "C#: build WinUI3 (analyzer warnings, excluded from slnx Any CPU build)"
         run: dotnet build src/Othello.GUI/WinUI3/Othello.WinUI3.csproj --configuration Release
