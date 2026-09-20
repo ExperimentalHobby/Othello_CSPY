@@ -14,7 +14,7 @@ public class DifficultyStats
 	/// <summary>引き分け数</summary>
 	public int Draws { get; set; }
 
-	/// <summary>累計着手数（全対局の合計）</summary>
+	/// <summary>累計着手数（この難易度の全対局の手数の合計。AverageMoves の算出元）</summary>
 	public int TotalMoves { get; set; }
 
 	/// <summary>総ゲーム数（勝+負+引き分け）</summary>

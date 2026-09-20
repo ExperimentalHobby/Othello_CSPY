@@ -224,6 +224,10 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
 		{
 			// タイムアウト: Python プロセスを強制終了する
 			try { if (!_process.HasExited) _process.Kill(); } catch { }
+			// Kill 後も readTask 自体は待機を続けており、いずれ完了/失敗するがここでは
+			// 観測しない。放置すると失敗時に UnobservedTaskException となりうるため、
+			// 結果を破棄する継続を付けて明示的に観測しておく。
+			readTask.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
 			throw new TimeoutException(
 				$"Python AI が {timeoutMs / 1000} 秒以内に応答しませんでした。Hard 難易度では数秒かかる場合があります。");
 		}

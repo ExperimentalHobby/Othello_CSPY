@@ -210,7 +210,7 @@ static Position? GetHumanMove(GameEngine engine, PlayerColor humanColor, List<Po
 	{
 		string turnLabel = humanColor.ToDisplayString();
 		Console.Write($"あなたの手（{turnLabel}、例: d4）: ");
-		string? input = Console.ReadLine()?.Trim().ToLower();
+		string? input = Console.ReadLine()?.Trim().ToLowerInvariant();
 
 		// 空入力は無視して再入力を促す
 		if (string.IsNullOrEmpty(input))
