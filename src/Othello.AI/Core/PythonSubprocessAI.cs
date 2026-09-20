@@ -177,8 +177,19 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
 		};
 
 		string json = JsonSerializer.Serialize(request);
-		_process.StandardInput.WriteLine(json);   // 改行を区切り記号として使用
-		_process.StandardInput.Flush();            // バッファをフラッシュして即座に Python 側へ届ける
+		try
+		{
+			_process.StandardInput.WriteLine(json);   // 改行を区切り記号として使用
+			_process.StandardInput.Flush();            // バッファをフラッシュして即座に Python 側へ届ける
+		}
+		catch (IOException)
+		{
+			// 直前の HasExited チェック後、書き込み前にプロセスが終了した場合（TOCTOU）。
+			// 閉じたパイプへの書き込みは IOException になるため、他の「プロセス終了」検知と
+			// 同じエラーメッセージ経路に統一する（Issue #188）。
+			DrainStderrIfExited();
+			throw new InvalidOperationException(ReadProcessError("Python プロセスが予期せず終了しました"));
+		}
 
 		// Python 側から 1 行（JSON）を読む（タイムアウト付き）
 		// ReadLine() はプロセスが応答しない場合に無限ブロックするため、スレッドで制限する
