@@ -71,6 +71,31 @@ public class CpuVsCpuTests
 		return vm;
 	}
 
+	// ========== Issue #160: 既定 AI（Rust/Python 優先）の使用 ==========
+
+	/// <summary>
+	/// cpuVsCpuAiFactory を省略（既定値）して CPU vs CPU を開始した場合、
+	/// AiEngineLabel が固定文字列 "AI vs AI" ではなく、Human vs CPU と同じ既定ファクトリ
+	/// （Rust/Python 優先、失敗時 C# フォールバック）による実際のエンジン名を反映することを確認する
+	/// （Issue #160）。
+	/// パス条件: AiEngineLabel が "AI vs AI" という固定文字列ではなく、
+	/// "AI: Rust" / "AI: Python" / "AI: C#" のいずれかを含むこと。
+	/// </summary>
+	[Fact]
+	public async Task CpuVsCpu_DefaultAiFactory_UsesActualEngineNamesNotHardcodedLabel()
+	{
+		using var vm = new GameViewModel(aiFactory: null, startDeferred: true);
+		vm.GameMode = GameMode.CpuVsCpu;
+		vm.CpuVsCpuDelayMs = 0;
+
+		await vm.StartNewGameAsync(); // 新規ゲームは IsPaused=true の状態で止まる（開始ボタン待ち）
+
+		Assert.NotEqual("AI vs AI", vm.AiEngineLabel);
+		Assert.True(
+			vm.AiEngineLabel.Contains("AI: Rust") || vm.AiEngineLabel.Contains("AI: Python") || vm.AiEngineLabel.Contains("AI: C#"),
+			$"予期しない AiEngineLabel: {vm.AiEngineLabel}");
+	}
+
 	/// <summary>
 	/// パス条件: CpuVsCpu モードでゲーム開始後、最終的に IsGameInProgress = false になること。
 	/// </summary>
