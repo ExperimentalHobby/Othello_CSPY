@@ -23,6 +23,16 @@ public class AlphaBetaAI : IAIStrategy
 	private record struct TTEntry(int Score, int Depth, bool IsMaximizing, NodeType Type);
 	private Dictionary<ulong, TTEntry>? _transpositionTable;
 
+	/// <summary>
+	/// TT のエントリ数上限の既定値。Expert 難易度（探索深さ12・時間制限15秒）のように
+	/// 探索空間が大きいケースでは無制限に増え続けるとメモリ圧迫のリスクがあるため、
+	/// 上限に到達したら全クリアする（Issue #164）。TT はあくまで探索高速化のためのキャッシュで
+	/// あり、クリアしても探索結果の正しさには影響しない（再計算が発生するだけ）。
+	/// </summary>
+	private const int DefaultMaxTranspositionTableEntries = 2_000_000;
+
+	private readonly int _maxTranspositionTableEntries;
+
 	public DifficultyLevel Difficulty { get; }
 	public string EngineName => "AI: C#";
 
@@ -31,8 +41,28 @@ public class AlphaBetaAI : IAIStrategy
 	/// </summary>
 	/// <param name="difficulty">探索深さ・時間制限を決定する難易度。既定は <see cref="DifficultyLevel.Medium"/>。</param>
 	public AlphaBetaAI(DifficultyLevel difficulty = DifficultyLevel.Medium)
+		: this(difficulty, DefaultMaxTranspositionTableEntries)
+	{
+	}
+
+	/// <summary>テスト専用: TT のエントリ数上限を上書きできるコンストラクタ（Issue #164）。</summary>
+	internal AlphaBetaAI(DifficultyLevel difficulty, int maxTranspositionTableEntries)
 	{
 		Difficulty = difficulty;
+		_maxTranspositionTableEntries = maxTranspositionTableEntries;
+	}
+
+	/// <summary>テスト専用: 現在の TT のエントリ数を返す（Issue #164）。</summary>
+	internal int TranspositionTableCountForTest => _transpositionTable?.Count ?? 0;
+
+	/// <summary>
+	/// TT へエントリを格納する。エントリ数が上限に達している場合は全クリアしてから格納する。
+	/// </summary>
+	private void StoreEntry(ulong hash, TTEntry entry)
+	{
+		if (_transpositionTable!.Count >= _maxTranspositionTableEntries)
+			_transpositionTable.Clear();
+		_transpositionTable[hash] = entry;
 	}
 
 	private static ulong[,,] InitZobristTable()
@@ -344,7 +374,7 @@ public class AlphaBetaAI : IAIStrategy
 		if (terminal.HasValue)
 		{
 			if (terminal.Value.Cacheable)
-				_transpositionTable[hash] = new TTEntry(terminal.Value.Value, depth, isMaximizing, NodeType.Exact);
+				StoreEntry(hash, new TTEntry(terminal.Value.Value, depth, isMaximizing, NodeType.Exact));
 			return terminal.Value.Value;
 		}
 
@@ -360,7 +390,7 @@ public class AlphaBetaAI : IAIStrategy
 			var passNodeType = noMoveScore <= alpha ? NodeType.UpperBound
 							  : noMoveScore >= beta ? NodeType.LowerBound
 							  : NodeType.Exact;
-			_transpositionTable[hash] = new TTEntry(noMoveScore, depth, isMaximizing, passNodeType);
+			StoreEntry(hash, new TTEntry(noMoveScore, depth, isMaximizing, passNodeType));
 			return noMoveScore;
 		}
 
@@ -374,7 +404,7 @@ public class AlphaBetaAI : IAIStrategy
 		var nodeType = result <= originalAlpha ? NodeType.UpperBound  // fail-low（上界値）
 					 : result >= beta ? NodeType.LowerBound  // fail-high（下界値）
 					 : NodeType.Exact;
-		_transpositionTable[hash] = new TTEntry(result, depth, isMaximizing, nodeType);
+		StoreEntry(hash, new TTEntry(result, depth, isMaximizing, nodeType));
 		return result;
 	}
 

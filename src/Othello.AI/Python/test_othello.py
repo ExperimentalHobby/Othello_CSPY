@@ -998,6 +998,20 @@ class TranspositionTableTests(unittest.TestCase):
 
         self.assertEqual(score, cached_score)
 
+    def test_tt_size_capped_clears_when_exceeding_limit(self):
+        """TT のエントリ数上限を小さい値に一時的に変更し、実際の探索で上限を
+        超えないことを確認する（Issue #164: Expert 難易度等で TT が無制限に
+        増え続けメモリを圧迫するリスクへの対策）。
+        パス条件: 探索後の len(tt) が上限以下であること。"""
+        original = alpha_beta_py._DEFAULT_MAX_TT_ENTRIES
+        alpha_beta_py._DEFAULT_MAX_TT_ENTRIES = 5
+        try:
+            tt = {}
+            self.ai._alpha_beta(self.board, 5, float('-inf'), float('inf'), True, BLACK, tt)
+            self.assertLessEqual(len(tt), 5)
+        finally:
+            alpha_beta_py._DEFAULT_MAX_TT_ENTRIES = original
+
     def test_forced_pass_returns_legal_move(self):
         """強制パス局面を含む探索で、TT 導入後も例外なく合法手が返ることを確認する。
         パス条件: get_best_move が黒の合法手（コーナー）を返すこと。"""

@@ -39,6 +39,25 @@ class _NodeType(IntEnum):
     UPPER_BOUND = 2  # αを改善できなかった（fail-low）上界値
 
 
+# TT のエントリ数上限の既定値。Expert 難易度（探索深さ12・時間制限15秒）のように探索空間が
+# 大きいケースでは無制限に増え続けるとメモリ圧迫のリスクがあるため、上限に到達したら全クリア
+# する（Issue #164）。TT はあくまで探索高速化のためのキャッシュであり、クリアしても探索結果の
+# 正しさには影響しない（再計算が発生するだけ）。C# 版 DefaultMaxTranspositionTableEntries と同じ値。
+_DEFAULT_MAX_TT_ENTRIES = 2_000_000
+
+
+def _store_entry(tt, key, entry, max_entries=None):
+    """TT へエントリを格納する。エントリ数が上限に達している場合は全クリアしてから格納する。
+    max_entries を省略した場合はモジュールレベルの _DEFAULT_MAX_TT_ENTRIES を都度参照する
+    （テストでモジュール属性を書き換えて上限を一時的に変更できるようにするため、
+    デフォルト引数として束縛せずここで動的に参照する）。"""
+    if max_entries is None:
+        max_entries = _DEFAULT_MAX_TT_ENTRIES
+    if len(tt) >= max_entries:
+        tt.clear()
+    tt[key] = entry
+
+
 # Zobrist ハッシュ用の乱数テーブル。固定シードでモジュール読み込み時に 1 回だけ生成する。
 # board[r][c] の値（0=Empty, 1=Black, 2=White）がそのまま添字になる。
 # 暗号用途ではなく、C#/Rust 版と同一ハッシュ列を得るための決定論的乱数のため nosec。
@@ -269,7 +288,7 @@ class AlphaBetaAI:
 
         if depth == 0:
             value = evaluate(board, ai_player)
-            tt[key] = (value, depth, _NodeType.EXACT)
+            _store_entry(tt, key, (value, depth, _NodeType.EXACT))
             return value
 
         current = ai_player if is_maximizing else opponent(ai_player)
@@ -295,7 +314,7 @@ class AlphaBetaAI:
             node_type = (_NodeType.UPPER_BOUND if value <= alpha
                          else _NodeType.LOWER_BOUND if value >= beta
                          else _NodeType.EXACT)
-            tt[key] = (value, depth, node_type)
+            _store_entry(tt, key, (value, depth, node_type))
             return value
 
         moves.sort(key=lambda m: WEIGHTS[m[0]][m[1]], reverse=True)
@@ -327,7 +346,7 @@ class AlphaBetaAI:
         node_type = (_NodeType.UPPER_BOUND if value <= original_alpha
                      else _NodeType.LOWER_BOUND if value >= original_beta
                      else _NodeType.EXACT)
-        tt[key] = (value, depth, node_type)
+        _store_entry(tt, key, (value, depth, node_type))
         return value
 
     def _alpha_beta(self, board, depth, alpha, beta, is_maximizing, ai_player, tt, board_hash=None):
@@ -374,7 +393,7 @@ class AlphaBetaAI:
         # get_valid_moves より前に判定することで、リーフノードでの無駄な手生成を回避する
         if depth == 0:
             value = evaluate(board, ai_player)
-            tt[key] = (value, depth, _NodeType.EXACT)
+            _store_entry(tt, key, (value, depth, _NodeType.EXACT))
             return value
 
         # 現在のターンのプレイヤーを決定する
@@ -402,7 +421,7 @@ class AlphaBetaAI:
             node_type = (_NodeType.UPPER_BOUND if value <= alpha
                          else _NodeType.LOWER_BOUND if value >= beta
                          else _NodeType.EXACT)
-            tt[key] = (value, depth, node_type)
+            _store_entry(tt, key, (value, depth, node_type))
             return value
 
         # ムーブオーダリング: 再帰内でも位置重みで手をソートして枝刈り効率を向上させる
@@ -440,5 +459,5 @@ class AlphaBetaAI:
         node_type = (_NodeType.UPPER_BOUND if value <= original_alpha
                      else _NodeType.LOWER_BOUND if value >= original_beta
                      else _NodeType.EXACT)
-        tt[key] = (value, depth, node_type)
+        _store_entry(tt, key, (value, depth, node_type))
         return value

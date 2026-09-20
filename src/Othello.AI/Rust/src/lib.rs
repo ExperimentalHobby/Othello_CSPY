@@ -86,9 +86,24 @@ enum NodeType {
 /// 衝突時の上書き合戦が起きず単純に正しい）。
 type TTKey = (u64, bool);
 
-/// TT 本体。1 回の探索呼び出し（best_move 1 回、または best_move_timed の深さ 1 段）ごとに
-/// 新規作成し、呼び出しをまたいで永続化しない（C# 版と同じ設計。eviction が不要になる）。
+/// TT 本体。1 回の探索呼び出し（best_move 1 回、または best_move_timed の反復深化全体）ごとに
+/// 新規作成し、呼び出しをまたいで永続化しない。
 type TT = HashMap<TTKey, (i32, i32, NodeType)>;
+
+/// TT のエントリ数上限の既定値。best_move_timed は反復深化の全深さで 1 つの TT を使い回すため、
+/// Expert 相当（探索深さ12・時間制限15秒）のように探索空間が大きいケースでは無制限に増え続け
+/// メモリを圧迫するリスクがある。上限に到達したら全クリアする（Issue #164）。TT はあくまで
+/// 探索高速化のためのキャッシュであり、クリアしても探索結果の正しさには影響しない
+/// （再計算が発生するだけ）。C# 版 DefaultMaxTranspositionTableEntries と同じ値。
+const DEFAULT_MAX_TT_ENTRIES: usize = 2_000_000;
+
+/// TT へエントリを格納する。エントリ数が上限に達している場合は全クリアしてから格納する。
+fn store_entry(tt: &mut TT, key: TTKey, entry: (i32, i32, NodeType), max_entries: usize) {
+    if tt.len() >= max_entries {
+        tt.clear();
+    }
+    tt.insert(key, entry);
+}
 
 /// splitmix64: 決定的な擬似乱数生成器。Zobrist テーブルの生成にのみ使う小さな実装。
 /// 外部クレート（rand 等）を追加せずに済ませるため自前実装する。
@@ -531,7 +546,12 @@ fn alpha_beta(
     // 深さ 0 → 評価関数で打ち切る（手生成より前に判定して無駄を省く）
     if depth == 0 {
         let value = evaluate(board, ai_player);
-        tt.insert(key, (value, depth, NodeType::Exact));
+        store_entry(
+            tt,
+            key,
+            (value, depth, NodeType::Exact),
+            DEFAULT_MAX_TT_ENTRIES,
+        );
         return value;
     }
 
@@ -573,7 +593,7 @@ fn alpha_beta(
         } else {
             NodeType::Exact
         };
-        tt.insert(key, (value, depth, node_type));
+        store_entry(tt, key, (value, depth, node_type), DEFAULT_MAX_TT_ENTRIES);
         return value;
     }
 
@@ -637,7 +657,7 @@ fn alpha_beta(
     } else {
         NodeType::Exact
     };
-    tt.insert(key, (value, depth, node_type));
+    store_entry(tt, key, (value, depth, node_type), DEFAULT_MAX_TT_ENTRIES);
     value
 }
 
@@ -731,7 +751,12 @@ fn alpha_beta_timed(
 
     if depth == 0 {
         let value = evaluate(board, ctx.ai_player);
-        tt.insert(key, (value, depth, NodeType::Exact));
+        store_entry(
+            tt,
+            key,
+            (value, depth, NodeType::Exact),
+            DEFAULT_MAX_TT_ENTRIES,
+        );
         return Ok(value);
     }
 
@@ -766,7 +791,7 @@ fn alpha_beta_timed(
         } else {
             NodeType::Exact
         };
-        tt.insert(key, (value, depth, node_type));
+        store_entry(tt, key, (value, depth, node_type), DEFAULT_MAX_TT_ENTRIES);
         return Ok(value);
     }
 
@@ -825,7 +850,7 @@ fn alpha_beta_timed(
     } else {
         NodeType::Exact
     };
-    tt.insert(key, (value, depth, node_type));
+    store_entry(tt, key, (value, depth, node_type), DEFAULT_MAX_TT_ENTRIES);
     Ok(value)
 }
 
@@ -1464,6 +1489,24 @@ mod tests {
         let score = alpha_beta(&board, 3, NEG_INF, cached_score, true, BLACK, &mut tt, None);
 
         assert_eq!(score, cached_score);
+    }
+
+    // ===== Issue #164: TT サイズ上限 =====
+
+    #[test]
+    fn store_entry_clears_when_exceeding_cap() {
+        let mut tt: TT = HashMap::new();
+        let cap = 2;
+        store_entry(&mut tt, (1, true), (10, 1, NodeType::Exact), cap);
+        store_entry(&mut tt, (2, true), (20, 1, NodeType::Exact), cap);
+        assert_eq!(tt.len(), 2);
+
+        // 上限に達している状態でもう1件格納 → 全クリアされてから格納されるため長さは1になる
+        store_entry(&mut tt, (3, true), (30, 1, NodeType::Exact), cap);
+        assert_eq!(tt.len(), 1);
+        assert!(!tt.contains_key(&(1, true)));
+        assert!(!tt.contains_key(&(2, true)));
+        assert!(tt.contains_key(&(3, true)));
     }
 
     // ===== Issue #155: TT への不正確な Exact 格納 =====
