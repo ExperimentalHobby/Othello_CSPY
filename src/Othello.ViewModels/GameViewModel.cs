@@ -731,7 +731,10 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 
 			var aiColor = AiColor;
 			var ai = _ai;
-			var bestMove = await Task.Run(() => ai.GetBestMove(_engine.CurrentBoard, aiColor), ct);
+			// _engine.CurrentBoard は可変な参照をそのまま返すため、RefreshHintAsync（Issue #117）と
+			// 同様に呼び出し前に Clone してからバックグラウンドスレッドへ渡す（Issue #166）。
+			var board = _engine.CurrentBoard.Clone();
+			var bestMove = await Task.Run(() => ai.GetBestMove(board, aiColor), ct);
 
 			ct.ThrowIfCancellationRequested();
 
@@ -815,7 +818,10 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 
 				var aiColor = currentColor;
 				var aiRef = ai;
-				var bestMove = await Task.Run(() => aiRef.GetBestMove(_engine.CurrentBoard, aiColor), ct);
+				// _engine.CurrentBoard は可変な参照をそのまま返すため、RefreshHintAsync（Issue #117）と
+				// 同様に呼び出し前に Clone してからバックグラウンドスレッドへ渡す（Issue #166）。
+				var board = _engine.CurrentBoard.Clone();
+				var bestMove = await Task.Run(() => aiRef.GetBestMove(board, aiColor), ct);
 
 				ct.ThrowIfCancellationRequested();
 				if (_engine.CurrentPlayer != currentColor) break;

@@ -30,6 +30,25 @@ public class CpuVsCpuTests
 		}
 	}
 
+	/// <summary>
+	/// GetBestMove に渡された Board 参照をそのまま記録するモック AI。
+	/// 呼び出し元が生の可変参照ではなく Clone を渡しているかを検証するために使う（Issue #166）。
+	/// </summary>
+	private sealed class BoardCapturingFakeAI : IAIStrategy
+	{
+		public Board? ReceivedBoard;
+		public DifficultyLevel Difficulty { get; }
+		public string EngineName => "AI: BoardCapturing";
+
+		public BoardCapturingFakeAI(DifficultyLevel difficulty) => Difficulty = difficulty;
+
+		public Position GetBestMove(Board board, PlayerColor playerColor)
+		{
+			ReceivedBoard ??= board; // 最初の呼び出しのみ記録する
+			return OthelloRules.GetValidMoves(board, playerColor)[0];
+		}
+	}
+
 	/// <summary>Dispose() の呼び出し回数を数えるためのカウンタ（複数インスタンス間で共有する）。</summary>
 	private sealed class DisposeCounter
 	{
@@ -85,6 +104,39 @@ public class CpuVsCpuTests
 
 		Assert.False(vm.IsGameInProgress);
 		Assert.True(vm.BlackScore + vm.WhiteScore > 4);
+	}
+
+	/// <summary>
+	/// ProcessCpuVsCpuTurnAsync が AI に渡す盤面が、_engine.CurrentBoard の可変な参照そのものではなく
+	/// Clone された独立コピーであることを確認する（Issue #166）。
+	/// パス条件: 黒 AI が最初に受け取った Board インスタンスが、後の _engine.CurrentBoard と
+	/// 異なるオブジェクト参照であること。
+	/// </summary>
+	[Fact]
+	public async Task CpuVsCpu_PassesClonedBoard_NotLiveEngineReference()
+	{
+		var capturedAis = new List<BoardCapturingFakeAI>();
+		var vm = new GameViewModel(
+			aiFactory: _ => new FakeAI(),
+			startDeferred: true,
+			cpuVsCpuAiFactory: d =>
+			{
+				var ai = new BoardCapturingFakeAI(d);
+				capturedAis.Add(ai);
+				return ai;
+			});
+		vm.GameMode = GameMode.CpuVsCpu;
+		vm.CpuVsCpuDelayMs = 0;
+		await vm.StartNewGameAsync(); // 新規ゲーム: IsPaused = true の状態
+		vm.PauseCommand.Execute(null); // 「開始」ボタン相当 → IsPaused = false
+
+		var deadline = DateTime.UtcNow.AddSeconds(10);
+		while (capturedAis.TrueForAll(a => a.ReceivedBoard == null) && DateTime.UtcNow < deadline)
+			await Task.Delay(20);
+
+		var blackAi = capturedAis[0]; // BlackDifficulty 用が先に生成される
+		Assert.NotNull(blackAi.ReceivedBoard);
+		Assert.NotSame(vm.EngineCurrentBoard, blackAi.ReceivedBoard);
 	}
 
 	/// <summary>

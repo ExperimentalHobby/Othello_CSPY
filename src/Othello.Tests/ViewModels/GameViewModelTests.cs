@@ -172,6 +172,34 @@ public class GameViewModelTests
 	}
 
 	/// <summary>
+	/// ProcessAIMoveAsync が AI（バックグラウンドスレッド上で動く GetBestMove）に渡す盤面が、
+	/// _engine.CurrentBoard の可変な参照そのものではなく Clone された独立コピーであることを確認する
+	/// （Issue #166）。GameEngine.MakeMove は盤面オブジェクトを in-place で書き換えるため、
+	/// 生の参照を渡すと、AI が着手を計算している間に別スレッドから盤面が書き換わる競合リスクがある。
+	/// パス条件: AI が受け取った Board インスタンスが、対局終了後の _engine.CurrentBoard と
+	/// 異なるオブジェクト参照であること（Clone されていれば、AI の着手適用後に同一参照に
+	/// なることはない）。
+	/// </summary>
+	[Fact]
+	public void ProcessAIMoveAsync_PassesClonedBoard_NotLiveEngineReference()
+	{
+		BoardCapturingFakeAI? capturingAi = null;
+		using var aiMoved = new ManualResetEventSlim(false);
+		using var vm = new GameViewModel(d =>
+		{
+			capturingAi = new BoardCapturingFakeAI(d, aiMoved);
+			return capturingAi;
+		});
+
+		vm.SquareClickedCommand.Execute(new Position(2, 3));
+		Assert.True(aiMoved.Wait(Timeout));
+		Thread.Sleep(200); // ProcessAIMoveAsync 内の MakeMove 完了を待つ
+
+		Assert.NotNull(capturingAi!.ReceivedBoard);
+		Assert.NotSame(vm.EngineCurrentBoard, capturingAi.ReceivedBoard);
+	}
+
+	/// <summary>
 	/// AI 思考中に新規ゲームを開始しても、古いタスクの例外が新しいゲームを壊さないことを確認する（#2 回帰）。
 	/// パス条件: 古い AI の強制終了後も IsGameInProgress が true のままであること。
 	/// </summary>
@@ -1074,6 +1102,25 @@ file sealed class HintFakeAI(DifficultyLevel difficulty, Position move, ManualRe
 	public Position GetBestMove(Board board, PlayerColor playerColor)
 	{
 		gate?.Wait();
+		return move;
+	}
+}
+
+/// <summary>
+/// GetBestMove に渡された Board 参照をそのまま記録するモック AI。
+/// 呼び出し元が生の可変参照ではなく Clone を渡しているかを検証するために使う（Issue #166）。
+/// </summary>
+file sealed class BoardCapturingFakeAI(DifficultyLevel difficulty, ManualResetEventSlim? moved = null) : IAIStrategy
+{
+	public Board? ReceivedBoard;
+	public DifficultyLevel Difficulty { get; } = difficulty;
+	public string EngineName => "AI: BoardCapturing";
+
+	public Position GetBestMove(Board board, PlayerColor playerColor)
+	{
+		ReceivedBoard = board;
+		var move = OthelloRules.GetValidMoves(board, playerColor)[0];
+		moved?.Set();
 		return move;
 	}
 }
