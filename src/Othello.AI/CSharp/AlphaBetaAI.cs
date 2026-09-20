@@ -185,7 +185,17 @@ public class AlphaBetaAI : IAIStrategy
 		return bestMove;
 	}
 
-	private Position GetBestMoveFixedDepth(Board board, PlayerColor playerColor)
+	private Position GetBestMoveFixedDepth(Board board, PlayerColor playerColor) =>
+		GetBestMoveAtDepth(board, playerColor, Difficulty.GetSearchDepth());
+
+	/// <summary>
+	/// テスト専用: DifficultyLevel を介さず、任意の探索深さで最善手を求める（Issue #162）。
+	/// Python/Rust の golden データ（局面×任意深さ→期待着手）と直接照合するために使う。
+	/// </summary>
+	internal Position GetBestMoveAtDepthForTest(Board board, PlayerColor playerColor, int depth) =>
+		GetBestMoveAtDepth(board, playerColor, depth);
+
+	private Position GetBestMoveAtDepth(Board board, PlayerColor playerColor, int depth)
 	{
 		var validMoves = OthelloRules.GetValidMoves(board, playerColor);
 
@@ -195,7 +205,6 @@ public class AlphaBetaAI : IAIStrategy
 		if (validMoves.Count == 1)
 			return validMoves[0];
 
-		int depth = Difficulty.GetSearchDepth();
 		_transpositionTable = new Dictionary<ulong, TTEntry>(capacity: 1 << 16);
 		// ルート盤面のハッシュは 1 回だけフル計算し、以降は各候補手について
 		// ComputeChildHash で差分更新する（Issue #121）。
