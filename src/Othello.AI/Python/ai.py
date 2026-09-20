@@ -25,10 +25,19 @@ import alpha_beta
 import opening_book
 from alpha_beta import AlphaBetaAI
 
+# 定石を参照する最低探索深さ（DifficultyLevel.Medium 相当。C# 側 GetSearchDepth() と対応）。
+# IPC では難易度そのものではなく depth のみが渡されるため、深さを難易度の代理指標として使う。
+# これ未満（Beginner=1 / Easy=2）では定石を参照せず、常に通常の探索にフォールバックする。
+_MIN_OPENING_BOOK_DEPTH = 5
+
 
 def decide_move(ai, board, player, depth, time_ms):
     """
-    定石（Opening Book）を優先的に参照し、ヒットしない場合は通常の探索にフォールバックする。
+    難易度が Medium 相当（depth >= 5）以上の場合のみ定石（Opening Book）を優先的に参照し、
+    それ以外（定石を参照しない、またはヒットしない）場合は通常の探索にフォールバックする。
+
+    Beginner/Easy でも定石を無条件に参照すると、低難易度を選んだユーザーが期待する
+    「弱い AI」の体験と序盤の強さに乖離が生じるため、低難易度では定石を参照しない（Issue #161）。
 
     Args:
         ai: get_best_move / get_best_move_timed を持つ AI インスタンス
@@ -40,9 +49,10 @@ def decide_move(ai, board, player, depth, time_ms):
     Returns:
         tuple[int, int] | None: 着手 (row, col)、有効手なしの場合は None
     """
-    book_move = opening_book.lookup(board, player)
-    if book_move is not None:
-        return book_move
+    if depth >= _MIN_OPENING_BOOK_DEPTH:
+        book_move = opening_book.lookup(board, player)
+        if book_move is not None:
+            return book_move
 
     if time_ms is not None:
         return ai.get_best_move_timed(board, player, depth, time_ms)
