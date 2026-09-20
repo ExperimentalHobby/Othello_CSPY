@@ -243,6 +243,26 @@ public class GameEngineTests
 		Assert.Equal(GameState.BlackWon, engine.GameState);
 	}
 
+	/// <summary>
+	/// 盤面が満杯で終局した場合（誰もパスしていない）に、架空のパスが
+	/// LastPassedPlayer に記録されないことを確認する（Issue #154 回帰）。
+	/// パス条件: 黒が最後のマスに着手して終局した後、LastPassedPlayer が null であること。
+	/// </summary>
+	[Fact]
+	public void MakeMove_FillingLastCellAndEndsGame_LastPassedPlayerIsNull()
+	{
+		var board = BuildBoard(
+			(0, 0, PlayerColor.Empty), (0, 1, PlayerColor.White));
+
+		var engine = new GameEngine();
+		engine.LoadStateForTest(board, PlayerColor.Black);
+
+		engine.MakeMove(new Position(0, 0));
+
+		Assert.True(engine.GameState.IsGameOver());
+		Assert.Null(engine.LastPassedPlayer);
+	}
+
 	// --- GetResult 勝敗ケース ---
 
 	/// <summary>
