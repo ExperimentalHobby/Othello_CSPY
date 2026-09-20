@@ -241,7 +241,8 @@ public class AlphaBetaAITests
 	{
 		var board = new Board();
 		var ai = new AlphaBetaAI(DifficultyLevel.Expert);
-		var pastDeadline = DateTime.UtcNow.AddSeconds(-1);
+		// Stopwatch.GetTimestamp() と同じ単位（タイマー刻み数）で1秒前を表す値（Issue #163）。
+		var pastDeadline = System.Diagnostics.Stopwatch.GetTimestamp() - System.Diagnostics.Stopwatch.Frequency;
 
 		Assert.Throws<TimeoutException>(() =>
 			ai.AlphaBetaForTest(board, depth: 8, alpha: int.MinValue, beta: int.MaxValue,
