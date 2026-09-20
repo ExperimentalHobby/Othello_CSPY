@@ -189,6 +189,27 @@ public class AlphaBetaAITests
 		Assert.Contains(move2, validMoves);
 	}
 
+	// ---- Issue #164: TT サイズ上限 -------------------------------------------
+
+	/// <summary>
+	/// TT のエントリ数が上限に達した場合に全クリアされ、上限を超えて増え続けないことを確認する。
+	/// 探索空間が大きいケース（Expert 難易度等）で TT が無制限に増え続けメモリを圧迫する
+	/// リスクへの対策（Issue #164）。
+	/// パス条件: 探索後の TranspositionTableCountForTest が上限以下であること。
+	/// </summary>
+	[Fact]
+	public void GetBestMove_WhenSearchExceedsCap_TranspositionTableStaysWithinCap()
+	{
+		var board = new Board();
+		const int cap = 5;
+		var ai = new AlphaBetaAI(DifficultyLevel.Medium, cap); // depth=5 fixed、cap を大幅に超えるノード数が生じる
+
+		ai.GetBestMove(board, PlayerColor.Black);
+
+		Assert.True(ai.TranspositionTableCountForTest <= cap,
+			$"TT のエントリ数が上限を超えています: {ai.TranspositionTableCountForTest} > {cap}");
+	}
+
 	// ---- Hard 反復深化 -------------------------------------------------------
 
 	/// <summary>
