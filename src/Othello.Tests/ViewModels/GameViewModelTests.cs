@@ -355,6 +355,32 @@ public class GameViewModelTests
 				Assert.Equal(actualBoard.GetPiece(r, c), player.CurrentBoard.GetPiece(r, c));
 	}
 
+	// ========== #154: 終局時の架空パス記録防止 ==========
+
+	/// <summary>
+	/// 盤面が満杯で終局する着手（誰もパスしていない）の場合、棋譜収集用リストに
+	/// 架空のパス記録が追加されず本手のみが記録されることを確認する（Issue #154 回帰）。
+	/// パス条件: KifuMovesForTest が本手 1 件のみで IsPass が false であること。
+	/// </summary>
+	[Fact]
+	public void MakeMove_FillingLastCellAndEndsGame_DoesNotRecordPhantomPass()
+	{
+		var board = new Board();
+		for (int r = 0; r < 8; r++)
+			for (int c = 0; c < 8; c++)
+				board.SetPiece(r, c, PlayerColor.Black);
+		board.SetPiece(0, 0, PlayerColor.Empty);
+		board.SetPiece(0, 1, PlayerColor.White);
+
+		using var vm = new GameViewModel(d => new FakeAI(d));
+		vm.LoadStateForTest(board, PlayerColor.Black); // 人間=黒（既定）
+
+		vm.SquareClickedCommand.Execute(new Position(0, 0)); // 盤面が埋まり終局。誰もパスしていない
+
+		Assert.Single(vm.KifuMovesForTest);
+		Assert.False(vm.KifuMovesForTest[0].IsPass);
+	}
+
 	// ========== #4: UndoCommand.CanExecute ==========
 
 	/// <summary>
