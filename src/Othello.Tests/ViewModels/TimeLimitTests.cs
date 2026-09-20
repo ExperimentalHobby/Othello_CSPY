@@ -130,6 +130,26 @@ public class TimeLimitTests
 		Assert.Equal(15, vm.RemainingSeconds);
 	}
 
+	/// <summary>
+	/// アプリ起動後の最初のゲーム開始（コンストラクタからの暗黙の StartNewGame() を発生させず、
+	/// IsGameInProgress が false のままの状態からの最初の StartNewGame() 呼び出し）でも
+	/// タイマーが起動することを確認する（Issue #152 回帰）。
+	/// パス条件: RemainingSeconds == TimeLimitSeconds。
+	/// </summary>
+	[Fact]
+	public void TimerOn_FirstGameEver_HumanTurn_RemainingSeconds_EqualsTimeLimitSeconds()
+	{
+		var vm = new GameViewModel(d => new FakeAI(d), startDeferred: true, settings: new OthelloSettings());
+		Assert.False(vm.IsGameInProgress);
+
+		vm.IsTimeLimitEnabled = true;
+		vm.TimeLimitSeconds = 15;
+		vm.StartNewGame();
+
+		// 黒が先手（人間）のとき StartNewGame() 直後に RemainingSeconds がセットされる
+		Assert.Equal(15, vm.RemainingSeconds);
+	}
+
 	// ===== 時間切れ強制着手 =====
 
 	/// <summary>

@@ -623,8 +623,10 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 	{
 		AiEngineLabel = IsCpuVsCpu ? "AI vs AI" : _ai!.EngineName;
 
-		ResetGameStateForNewGame();
+		// RestartTurnTimer()（RefreshBoardDisplay() 内で呼ばれる）が IsGameInProgress を見て
+		// 起動判定するため、ResetGameStateForNewGame() より前に true にしておく必要がある（Issue #152）
 		IsGameInProgress = true;
+		ResetGameStateForNewGame();
 
 		if (IsCpuVsCpu)
 		{
