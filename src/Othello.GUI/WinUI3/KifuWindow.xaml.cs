@@ -6,13 +6,10 @@ namespace Technopro.Othello.WinUI3;
 
 public sealed partial class KifuWindow : Window
 {
-	private readonly KifuViewModel _vm;
-
 	public KifuWindow(KifuViewModel vm)
 	{
 		this.InitializeComponent();
 		WindowBackdropHelper.Apply(this);
-		_vm = vm;
 
 		AppWindow.Resize(new Windows.Graphics.SizeInt32(800, 800));
 
