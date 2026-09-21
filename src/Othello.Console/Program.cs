@@ -98,12 +98,8 @@ Console.WriteLine("=== ゲーム終了 ===");
 Console.WriteLine($"黒: {blackScore}  白: {whiteScore}");
 
 // 勝敗を表示する（null は引き分けを意味する）
-if (winner == null)
-	Console.WriteLine("引き分け!");
-else if (winner == humanColor)
-	Console.WriteLine("あなたの勝利!");
-else
-	Console.WriteLine("AI の勝利!");
+// 文言生成本体は ConsoleGameFormatter に切り出し済み（Issue #193: テスト容易性のため）
+Console.WriteLine(ConsoleGameFormatter.FormatResultMessage(winner, humanColor));
 
 // --------------- ローカル関数 ---------------
 
@@ -122,14 +118,8 @@ static DifficultyLevel SelectDifficulty()
 	Console.WriteLine("  4. エキスパート");
 	Console.Write("選択 [0-4, デフォルト: 2]: ");
 
-	return Console.ReadLine()?.Trim() switch
-	{
-		"0" => DifficultyLevel.Beginner,
-		"1" => DifficultyLevel.Easy,
-		"3" => DifficultyLevel.Hard,
-		"4" => DifficultyLevel.Expert,
-		_ => DifficultyLevel.Medium  // 2 または不正入力はノーマルに統一する
-	};
+	// 入力解釈ロジック本体は ConsoleGameFormatter に切り出し済み（Issue #193: テスト容易性のため）
+	return ConsoleGameFormatter.ParseDifficultyChoice(Console.ReadLine());
 }
 
 /// <summary>
@@ -144,11 +134,8 @@ static PlayerColor SelectHumanColor()
 	Console.WriteLine("  2. 白（後手）");
 	Console.Write("選択 [1-2, デフォルト: 1]: ");
 
-	return Console.ReadLine()?.Trim() switch
-	{
-		"2" => PlayerColor.White,
-		_ => PlayerColor.Black  // 1 または不正入力は黒に統一する
-	};
+	// 入力解釈ロジック本体は ConsoleGameFormatter に切り出し済み（Issue #193: テスト容易性のため）
+	return ConsoleGameFormatter.ParseColorChoice(Console.ReadLine());
 }
 
 /// <summary>
@@ -158,8 +145,9 @@ static PlayerColor SelectHumanColor()
 /// <param name="engine">パス情報を取得するゲームエンジン</param>
 static void PrintPassNoticeIfAny(GameEngine engine)
 {
-	if (engine.LastPassedPlayer is { } passed)
-		Console.WriteLine($"{passed.ToDisplayString()} は打てる場所がないためパスしました");
+	// 通知文言の生成本体は ConsoleGameFormatter に切り出し済み（Issue #193: テスト容易性のため）
+	if (ConsoleGameFormatter.FormatPassNotice(engine.LastPassedPlayer) is { } message)
+		Console.WriteLine(message);
 }
 
 /// <summary>
@@ -170,29 +158,8 @@ static void PrintPassNoticeIfAny(GameEngine engine)
 /// <param name="engine">スコア取得のために使用するゲームエンジン</param>
 static void PrintBoard(Board board, GameEngine engine)
 {
-	// 列ヘッダー（a〜h）を出力する
-	Console.WriteLine("    a  b  c  d  e  f  g  h");
-	Console.WriteLine("  +------------------------+");
-
-	for (int r = 0; r < 8; r++)
-	{
-		Console.Write($"{r + 1} |"); // 行番号（1〜8）を左端に表示する
-		for (int c = 0; c < 8; c++)
-		{
-			// 石の種類に応じて記号を切り替える
-			string sym = board.GetPiece(r, c) switch
-			{
-				PlayerColor.Black => " ●",
-				PlayerColor.White => " ○",
-				_ => " ·" // Empty
-			};
-			Console.Write(sym);
-		}
-		Console.WriteLine(" |");
-	}
-
-	Console.WriteLine("  +------------------------+");
-	Console.WriteLine($"  黒: {engine.BlackScore}  白: {engine.WhiteScore}");
+	// 文字列生成本体は ConsoleGameFormatter に切り出し済み（Issue #193: テスト容易性のため）
+	Console.Write(ConsoleGameFormatter.FormatBoard(board, engine.BlackScore, engine.WhiteScore));
 }
 
 /// <summary>
