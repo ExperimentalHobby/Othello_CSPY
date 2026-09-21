@@ -2,6 +2,7 @@ namespace Technopro.Othello.Core.Kifu;
 
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Linq;
 
 /// <summary>
 /// KifuRecord を JSON 形式に変換・復元する静的クラス。
@@ -52,6 +53,12 @@ public static class KifuSerializer
 	private static bool IsPlayable(KifuRecord? record)
 	{
 		if (record is null || record.Moves is null || record.FinalScore is null)
+			return false;
+
+		// 配列自体は存在するが要素が null（例: "moves":[null]）というケースは、
+		// 上の null チェックをすり抜けて後続の KifuPlayer 構築で NullReferenceException を
+		// 起こしていたため、ここで明示的に弾く（Issue #190）。
+		if (record.Moves.Any(m => m is null))
 			return false;
 
 		try

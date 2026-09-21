@@ -152,4 +152,22 @@ public class KifuSerializerTests
 
 		Assert.Null(result);
 	}
+
+	/// <summary>
+	/// moves 配列に null 要素を含む JSON を渡すと Deserialize が null を返すことを確認する
+	/// （Issue #190: 手動編集等で moves:[null] のような JSON を渡すと NullReferenceException が
+	/// 送出されていた不具合の回帰テスト）。
+	/// パス条件: 例外をスローせず戻り値が null であること。
+	/// </summary>
+	[Fact]
+	public void Deserialize_MoveElementIsNull_ReturnsNull()
+	{
+		const string json = """
+			{"version":1,"playedAt":"2026-01-01T00:00:00+09:00","humanColor":"black","difficulty":"medium","result":"black","finalScore":{"black":33,"white":31},"moves":[null]}
+			""";
+
+		var result = KifuSerializer.Deserialize(json);
+
+		Assert.Null(result);
+	}
 }
