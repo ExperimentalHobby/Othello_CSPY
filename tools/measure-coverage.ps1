@@ -22,6 +22,7 @@ New-Item -ItemType Directory -Path $tmpDir -Force | Out-Null
 Write-Host ""
 Write-Host ">>> dotnet test (カバレッジ収集中)..."
 dotnet test src/Othello.Tests/Othello.Tests.csproj `
+    --settings .runsettings `
     --collect:"XPlat Code Coverage" `
     --results-directory $tmpDir `
     --verbosity quiet
