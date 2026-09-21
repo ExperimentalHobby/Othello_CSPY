@@ -590,7 +590,23 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 			(IAIStrategy Black, IAIStrategy White)? newCpuAis = null;
 			try
 			{
-				newCpuAis = await Task.Run(() => (_cpuVsCpuAiFactory(BlackDifficulty), _cpuVsCpuAiFactory(WhiteDifficulty)));
+				// 黒→白の順で生成する。白の生成が失敗した場合、既に生成済みの黒を
+				// Dispose してから例外を再送出する（Issue #191: タプル式の同時評価では
+				// 黒の生成成功後に白が失敗すると黒への参照が失われリークしていた）。
+				newCpuAis = await Task.Run(() =>
+				{
+					var black = _cpuVsCpuAiFactory(BlackDifficulty);
+					try
+					{
+						var white = _cpuVsCpuAiFactory(WhiteDifficulty);
+						return (black, white);
+					}
+					catch
+					{
+						(black as IDisposable)?.Dispose();
+						throw;
+					}
+				});
 			}
 			catch (Exception ex)
 			{
