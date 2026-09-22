@@ -1108,6 +1108,183 @@ public class GameViewModelTests
 
 		Assert.Null(exception);
 	}
+
+	// ===== Index プロパティ・補助プロパティ（Issue #202） =====
+
+	/// <summary>
+	/// GameModeIndex が GameMode と双方向に対応することを確認する。
+	/// パス条件: 0 → HumanVsCpu、1 → CpuVsCpu を get/set 双方で確認できること。
+	/// </summary>
+	[Fact]
+	public void GameModeIndex_RoundTrips_WithGameMode()
+	{
+		using var vm = new GameViewModel(d => new FakeAI(d), startDeferred: true);
+
+		vm.GameModeIndex = 1;
+		Assert.Equal(GameMode.CpuVsCpu, vm.GameMode);
+		Assert.Equal(1, vm.GameModeIndex);
+
+		vm.GameModeIndex = 0;
+		Assert.Equal(GameMode.HumanVsCpu, vm.GameMode);
+		Assert.Equal(0, vm.GameModeIndex);
+	}
+
+	/// <summary>
+	/// BlackDifficultyIndex / WhiteDifficultyIndex の get が設定値を正しく反映することを確認する。
+	/// パス条件: 設定した DifficultyLevel に対応する整数値が get で返ること。
+	/// </summary>
+	[Fact]
+	public void BlackAndWhiteDifficultyIndex_Get_ReflectsSetValue()
+	{
+		using var vm = new GameViewModel(d => new FakeAI(d), startDeferred: true);
+
+		vm.BlackDifficulty = DifficultyLevel.Expert;
+		vm.WhiteDifficulty = DifficultyLevel.Beginner;
+
+		Assert.Equal((int)DifficultyLevel.Expert, vm.BlackDifficultyIndex);
+		Assert.Equal((int)DifficultyLevel.Beginner, vm.WhiteDifficultyIndex);
+	}
+
+	/// <summary>
+	/// CpuVsCpuDelayIndex が範囲外の値を 0〜3 にクランプすることを確認する。
+	/// パス条件: -1 → 0、4 → 3 にクランプされ、CpuVsCpuDelayMs も対応する値になること。
+	/// </summary>
+	[Fact]
+	public void CpuVsCpuDelayIndex_OutOfRangeValues_AreClamped()
+	{
+		using var vm = new GameViewModel(d => new FakeAI(d), startDeferred: true);
+
+		vm.CpuVsCpuDelayIndex = -1;
+		Assert.Equal(0, vm.CpuVsCpuDelayIndex);
+		Assert.Equal(500, vm.CpuVsCpuDelayMs);
+
+		vm.CpuVsCpuDelayIndex = 4;
+		Assert.Equal(3, vm.CpuVsCpuDelayIndex);
+		Assert.Equal(3000, vm.CpuVsCpuDelayMs);
+	}
+
+	/// <summary>
+	/// CpuVsCpuDelayIndex に範囲内の値を設定すると、対応する CpuVsCpuDelayMs が反映されることを確認する。
+	/// パス条件: インデックス 2（2000ms）を設定すると CpuVsCpuDelayMs が 2000 になること。
+	/// </summary>
+	[Fact]
+	public void CpuVsCpuDelayIndex_InRangeValue_SetsCorrespondingDelayMs()
+	{
+		using var vm = new GameViewModel(d => new FakeAI(d), startDeferred: true);
+
+		vm.CpuVsCpuDelayIndex = 2;
+
+		Assert.Equal(2, vm.CpuVsCpuDelayIndex);
+		Assert.Equal(2000, vm.CpuVsCpuDelayMs);
+	}
+
+	/// <summary>
+	/// ゲーム開始前（未着手）は IsTimeLimitEditable が true であることを確認する。
+	/// パス条件: StartNewGame 直後（IsInitialState）で true であること。
+	/// </summary>
+	[Fact]
+	public void IsTimeLimitEditable_BeforeFirstMove_IsTrue()
+	{
+		using var vm = new GameViewModel(d => new FakeAI(d));
+
+		Assert.True(vm.IsTimeLimitEditable);
+	}
+
+	/// <summary>
+	/// 1 手打った後は IsTimeLimitEditable が false になることを確認する。
+	/// パス条件: 着手後（IsInitialState が false）で false であること。
+	/// </summary>
+	[Fact]
+	public void IsTimeLimitEditable_AfterFirstMove_IsFalse()
+	{
+		using var vm = new GameViewModel(d => new FakeAI(d));
+		var validMoves = OthelloRules.GetValidMoves(vm.EngineCurrentBoard, PlayerColor.Black);
+
+		vm.SquareClickedCommand.Execute(validMoves[0]);
+
+		Assert.False(vm.IsTimeLimitEditable);
+	}
+
+	/// <summary>
+	/// RemainingSeconds が 0 のとき IsTimerWarning が false、
+	/// 10 秒以下のとき true になることを確認する。
+	/// パス条件: 制限時間 OFF（RemainingSeconds=0）で false、
+	/// 制限時間 ON かつ TimeLimitSeconds=10 で true であること。
+	/// </summary>
+	[Fact]
+	public void IsTimerWarning_ReflectsRemainingSecondsThreshold()
+	{
+		using var vm = new GameViewModel(d => new FakeAI(d), startDeferred: true)
+		{
+			IsTimeLimitEnabled = false,
+		};
+		vm.StartNewGame();
+		Assert.False(vm.IsTimerWarning);
+
+		using var vmWarning = new GameViewModel(d => new FakeAI(d), startDeferred: true)
+		{
+			IsTimeLimitEnabled = true,
+			TimeLimitSeconds = 10,
+		};
+		vmWarning.StartNewGame();
+		Assert.True(vmWarning.IsTimerWarning);
+	}
+
+	/// <summary>
+	/// RemainingSecondsText が "{RemainingSeconds}秒" 形式の文字列を返すことを確認する。
+	/// パス条件: TimeLimitSeconds=15 で開始した直後、"15秒" を返すこと。
+	/// </summary>
+	[Fact]
+	public void RemainingSecondsText_FormatsWithSecondsSuffix()
+	{
+		using var vm = new GameViewModel(d => new FakeAI(d), startDeferred: true)
+		{
+			IsTimeLimitEnabled = true,
+			TimeLimitSeconds = 15,
+		};
+
+		vm.StartNewGame();
+
+		Assert.Equal("15秒", vm.RemainingSecondsText);
+	}
+
+	// ===== aiFactory 例外時のエラー経路（Issue #202） =====
+
+	/// <summary>
+	/// StartNewGame()（同期）で aiFactory が例外を投げると、StatusMessage にエラーが設定され
+	/// IsGameInProgress が false になることを確認する。
+	/// パス条件: StatusMessage に "AI の起動に失敗しました" を含み、IsGameInProgress が false であること。
+	/// </summary>
+	[Fact]
+	public void StartNewGame_AiFactoryThrows_SetsErrorStatusAndStopsGame()
+	{
+		using var vm = new GameViewModel(
+			_ => throw new InvalidOperationException("起動失敗"),
+			startDeferred: true);
+
+		vm.StartNewGame();
+
+		Assert.Contains("AI の起動に失敗しました", vm.StatusMessage);
+		Assert.False(vm.IsGameInProgress);
+	}
+
+	/// <summary>
+	/// StartNewGameAsync()（非同期、Human vs CPU）で aiFactory が例外を投げると、
+	/// StatusMessage にエラーが設定され IsGameInProgress が false になることを確認する。
+	/// パス条件: StatusMessage に "AI の起動に失敗しました" を含み、IsGameInProgress が false であること。
+	/// </summary>
+	[Fact]
+	public async Task StartNewGameAsync_AiFactoryThrows_SetsErrorStatusAndStopsGame()
+	{
+		using var vm = new GameViewModel(
+			_ => throw new InvalidOperationException("起動失敗"),
+			startDeferred: true);
+
+		await vm.StartNewGameAsync();
+
+		Assert.Contains("AI の起動に失敗しました", vm.StatusMessage);
+		Assert.False(vm.IsGameInProgress);
+	}
 }
 
 // ========== テスト専用 AI モック ==========
