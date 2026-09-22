@@ -477,4 +477,35 @@ public class CpuVsCpuTests
 
 		Assert.Equal(2, counter.Count);
 	}
+
+	// ===== CPU vs CPU の AI 生成が片方失敗した際のリーク（Issue #191） =====
+
+	/// <summary>
+	/// 黒 AI の生成に成功した直後に白 AI の生成が失敗した場合、
+	/// 生成済みの黒 AI が Dispose されることを確認する。
+	/// パス条件: counter.Count == 1（黒 AI が Dispose される）かつ IsGameInProgress == false。
+	/// </summary>
+	[Fact]
+	public async Task StartNewGameAsync_WhiteAiFactoryThrows_DisposesAlreadyCreatedBlackAi()
+	{
+		var counter = new DisposeCounter();
+		int callCount = 0;
+		var vm = new GameViewModel(
+			aiFactory: _ => new FakeAI(),
+			startDeferred: true,
+			cpuVsCpuAiFactory: d =>
+			{
+				callCount++;
+				// 1 回目（黒）は生成成功、2 回目（白）は起動失敗を模す
+				if (callCount == 1)
+					return new DisposableFakeAI(d, counter);
+				throw new InvalidOperationException("白 AI 起動失敗");
+			});
+		vm.GameMode = GameMode.CpuVsCpu;
+
+		await vm.StartNewGameAsync();
+
+		Assert.Equal(1, counter.Count); // 生成済みの黒 AI が Dispose されている
+		Assert.False(vm.IsGameInProgress);
+	}
 }
