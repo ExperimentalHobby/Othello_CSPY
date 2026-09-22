@@ -345,4 +345,92 @@ public class GameEngineTests
 		Assert.NotEmpty(result.FlippedPieces);
 		Assert.Contains(new Position(3, 3), result.FlippedPieces);
 	}
+
+	// --- 終局後の MakeMove（Issue #200） ---
+
+	/// <summary>
+	/// ゲーム終了後に MakeMove を呼ぶと、盤面の状態チェックより先に
+	/// 「ゲームが進行中ではありません」で失敗することを確認する。
+	/// パス条件: IsSuccess = false かつメッセージが「ゲームが進行中ではありません」であること。
+	/// </summary>
+	[Fact]
+	public void MakeMove_AfterGameOver_ReturnsFailure()
+	{
+		var board = BuildBoard((0, 0, PlayerColor.Empty), (0, 1, PlayerColor.White));
+		var engine = new GameEngine();
+		engine.LoadStateForTest(board, PlayerColor.Black);
+		engine.MakeMove(new Position(0, 0)); // 最後のマスを埋めて終局（BlackWon）させる
+
+		var result = engine.MakeMove(new Position(0, 0)); // 終局後の着手は内容を問わず失敗する
+
+		Assert.False(result.IsSuccess);
+		Assert.Equal("ゲームが進行中ではありません", result.Message);
+	}
+
+	// --- Pass 正常系（Issue #200） ---
+
+	/// <summary>
+	/// 有効手がないプレイヤーが Pass() を呼ぶと成功し、手番が相手に進むことを確認する。
+	/// パス条件: 例外を投げず、CurrentPlayer が相手（黒）に進み GameState が BlackTurn になること。
+	/// </summary>
+	[Fact]
+	public void Pass_WhenNoValidMoves_AdvancesToOpponent()
+	{
+		// (0,0)/(7,7) が空き、(0,1)/(7,6) が白、その他すべて黒。白には有効手がない。
+		var board = BuildBoard(
+			(0, 0, PlayerColor.Empty), (0, 1, PlayerColor.White),
+			(7, 7, PlayerColor.Empty), (7, 6, PlayerColor.White));
+		var engine = new GameEngine();
+		engine.LoadStateForTest(board, PlayerColor.White);
+
+		engine.Pass();
+
+		Assert.Equal(PlayerColor.Black, engine.CurrentPlayer);
+		Assert.Equal(GameState.BlackTurn, engine.GameState);
+	}
+
+	// --- 引き分け終局（Issue #200） ---
+
+	/// <summary>
+	/// 実際の着手（MakeMove）を通じて盤面が満杯になり、黒白同数で終局した場合に
+	/// GameState が Draw に遷移することを確認する（GetResult() 直接呼び出しではなく
+	/// EndGame() 経由での遷移を検証する）。
+	/// パス条件: 着手成功後、GameState が Draw であること。
+	/// </summary>
+	[Fact]
+	public void MakeMove_FillingLastCellWithEqualScore_EndsGameAsDraw()
+	{
+		// (0,0) のみ空き。それ以外の 63 マスは、黒が (0,0) に着手して (0,1) を反転させた後
+		// 黒 32・白 32 になるよう調整する（初期: 黒 30・白 33、(0,1)=白・(0,2)=黒で挟める）。
+		var board = new Board();
+		for (int r = 0; r < 8; r++)
+			for (int c = 0; c < 8; c++)
+				board.SetPiece(r, c, PlayerColor.White);
+
+		var blackCells = new List<(int Row, int Col)> { (0, 2) };
+		for (int r = 1; r <= 3; r++)
+			for (int c = 0; c < 8; c++)
+				blackCells.Add((r, c));
+		blackCells.Add((4, 0));
+		blackCells.Add((4, 1));
+		blackCells.Add((4, 2));
+		blackCells.Add((4, 3));
+		blackCells.Add((4, 4));
+		Assert.Equal(30, blackCells.Count); // 前提条件の確認（1 + 24 + 5）
+
+		foreach (var (r, c) in blackCells)
+			board.SetPiece(r, c, PlayerColor.Black);
+
+		board.SetPiece(0, 0, PlayerColor.Empty); // 唯一の空きマス
+
+		var engine = new GameEngine();
+		engine.LoadStateForTest(board, PlayerColor.Black);
+
+		var result = engine.MakeMove(new Position(0, 0)); // (0,1) の白を挟んで反転
+
+		Assert.True(result.IsSuccess);
+		Assert.Equal(32, engine.BlackScore);
+		Assert.Equal(32, engine.WhiteScore);
+		Assert.Equal(GameState.Draw, engine.GameState);
+	}
 }
