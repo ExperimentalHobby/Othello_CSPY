@@ -148,6 +148,38 @@ public class StatsTests
 		Assert.Equal(100, gs.Normal.TotalMoves);
 	}
 
+	// ─── GameStats.GetByDifficulty ────────────────────────────────────────────
+
+	/// <summary>
+	/// GetByDifficulty が各 DifficultyLevel に対応する DifficultyStats インスタンスを返すことを確認する
+	/// （Issue #199: Beginner/Expert が個別にテストされていなかった）。
+	/// パス条件: RecordResult で更新した値が対応するプロパティに反映されていること。
+	/// </summary>
+	[Fact]
+	public void GetByDifficulty_BeginnerAndExpert_ReturnsCorrespondingStats()
+	{
+		var gs = new GameStats();
+		gs.RecordResult(PlayerColor.Black, PlayerColor.Black, DifficultyLevel.Beginner, 10, 20);
+		gs.RecordResult(PlayerColor.White, PlayerColor.Black, DifficultyLevel.Expert, 30, 0);
+
+		Assert.Same(gs.Beginner, gs.GetByDifficulty(DifficultyLevel.Beginner));
+		Assert.Equal(1, gs.GetByDifficulty(DifficultyLevel.Beginner).Wins);
+		Assert.Same(gs.Expert, gs.GetByDifficulty(DifficultyLevel.Expert));
+		Assert.Equal(1, gs.GetByDifficulty(DifficultyLevel.Expert).Losses);
+	}
+
+	/// <summary>
+	/// 範囲外の DifficultyLevel 値を渡すと ArgumentOutOfRangeException を送出することを確認する。
+	/// パス条件: ArgumentOutOfRangeException が送出されること。
+	/// </summary>
+	[Fact]
+	public void GetByDifficulty_UndefinedValue_ThrowsArgumentOutOfRangeException()
+	{
+		var gs = new GameStats();
+
+		Assert.Throws<ArgumentOutOfRangeException>(() => gs.GetByDifficulty((DifficultyLevel)999));
+	}
+
 	// ─── StatsRepository ─────────────────────────────────────────────────────
 
 	/// <summary>パス条件: ファイルが存在しないとき Load() が空の GameStats を返すこと。</summary>
@@ -161,6 +193,30 @@ public class StatsTests
 
 		Assert.Equal(0, stats.Normal.Wins);
 		Assert.Equal(0, stats.CurrentStreak);
+	}
+
+	/// <summary>
+	/// 破損した（JSON として不正な）ファイルを読み込んだ場合、例外をスローせず
+	/// 既定の GameStats を返すことを確認する（Issue #199）。
+	/// パス条件: 例外が伝播せず、戻り値が既定値（Normal.Wins == 0）であること。
+	/// </summary>
+	[Fact]
+	public void StatsRepository_Load_ReturnsDefault_WhenFileIsCorrupted()
+	{
+		var path = Path.Combine(Path.GetTempPath(), $"stats_test_{Guid.NewGuid()}.json");
+		File.WriteAllText(path, "{ not valid json }}");
+		var repo = new StatsRepository(path);
+		try
+		{
+			var stats = repo.Load();
+
+			Assert.Equal(0, stats.Normal.Wins);
+			Assert.Equal(0, stats.CurrentStreak);
+		}
+		finally
+		{
+			if (File.Exists(path)) File.Delete(path);
+		}
 	}
 
 	/// <summary>パス条件: Save() → Load() でデータが正確に往復すること。</summary>

@@ -446,6 +446,19 @@ public class GameStateTests
 		Assert.Equal("白が勝ちました", GameState.WhiteWon.ToDisplayString());
 		Assert.Equal("引き分け", GameState.Draw.ToDisplayString());
 	}
+
+	/// <summary>
+	/// 定義されていない GameState 値（列挙外のキャスト）に対して ToDisplayString() が
+	/// フォールバック文字列を返すことを確認する（Issue #199: switch 式の default 分岐）。
+	/// パス条件: "不明な状態" が返ること。
+	/// </summary>
+	[Fact]
+	public void ToDisplayString_UndefinedValue_ReturnsFallbackText()
+	{
+		var undefined = (GameState)999;
+
+		Assert.Equal("不明な状態", undefined.ToDisplayString());
+	}
 }
 
 public class MoveResultTests
@@ -477,5 +490,20 @@ public class MoveResultTests
 
 		Assert.False(result.IsSuccess);
 		Assert.Empty(result.FlippedPieces);
+	}
+
+	/// <summary>
+	/// ToString() が成功/失敗それぞれで "[成功]"/"[失敗]" プレフィックス付きの文字列を返すことを確認する
+	/// （Issue #199）。
+	/// パス条件: 成功時は "[成功] " で、失敗時は "[失敗] " で始まり、メッセージが続くこと。
+	/// </summary>
+	[Fact]
+	public void ToString_SuccessAndFailure_ReturnsFormattedText()
+	{
+		var success = MoveResult.Success("移動に成功しました");
+		var failure = MoveResult.Failure("無効な移動");
+
+		Assert.Equal("[成功] 移動に成功しました", success.ToString());
+		Assert.Equal("[失敗] 無効な移動", failure.ToString());
 	}
 }
