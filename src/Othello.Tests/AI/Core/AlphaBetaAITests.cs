@@ -348,6 +348,68 @@ public class AlphaBetaAITests
 		Assert.Null(entry);
 	}
 
+	// ---- 有効手 0 件 / 1 件の境界値（Issue #201） -----------------------------
+
+	/// <summary>
+	/// 有効手が 1 つもない盤面で GetBestMove（固定深さ経路: Medium）を呼ぶと
+	/// InvalidOperationException を送出することを確認する。
+	/// パス条件: InvalidOperationException がスローされること。
+	/// </summary>
+	[Fact]
+	public void GetBestMove_NoValidMoves_FixedDepth_ThrowsInvalidOperationException()
+	{
+		var board = ForcedPassBoard(); // White has no valid moves
+		var ai = new AlphaBetaAI(DifficultyLevel.Medium);
+
+		Assert.Throws<InvalidOperationException>(() => ai.GetBestMove(board, PlayerColor.White));
+	}
+
+	/// <summary>
+	/// 有効手が 1 つもない盤面で GetBestMove（反復深化経路: Hard）を呼ぶと
+	/// InvalidOperationException を送出することを確認する。
+	/// パス条件: InvalidOperationException がスローされること。
+	/// </summary>
+	[Fact]
+	public void GetBestMove_NoValidMoves_IterativeDeepening_ThrowsInvalidOperationException()
+	{
+		var board = ForcedPassBoard(); // White has no valid moves
+		var ai = new AlphaBetaAI(DifficultyLevel.Hard);
+
+		Assert.Throws<InvalidOperationException>(() => ai.GetBestMove(board, PlayerColor.White));
+	}
+
+	/// <summary>
+	/// 有効手が 1 つだけの盤面で GetBestMove（固定深さ経路: Medium）が
+	/// 探索をスキップしてその手をそのまま返すことを確認する。
+	/// パス条件: 唯一の有効手 (0,0) が返ること。
+	/// </summary>
+	[Fact]
+	public void GetBestMove_SingleValidMove_FixedDepth_ReturnsThatMoveDirectly()
+	{
+		var board = SingleValidMoveBoard();
+		var ai = new AlphaBetaAI(DifficultyLevel.Medium);
+
+		var move = ai.GetBestMove(board, PlayerColor.Black);
+
+		Assert.Equal(new Position(0, 0), move);
+	}
+
+	/// <summary>
+	/// 有効手が 1 つだけの盤面で GetBestMove（反復深化経路: Hard）が
+	/// 探索をスキップしてその手をそのまま返すことを確認する。
+	/// パス条件: 唯一の有効手 (0,0) が返ること。
+	/// </summary>
+	[Fact]
+	public void GetBestMove_SingleValidMove_IterativeDeepening_ReturnsThatMoveDirectly()
+	{
+		var board = SingleValidMoveBoard();
+		var ai = new AlphaBetaAI(DifficultyLevel.Hard);
+
+		var move = ai.GetBestMove(board, PlayerColor.Black);
+
+		Assert.Equal(new Position(0, 0), move);
+	}
+
 	// ---- ヘルパー ----------------------------------------------------------
 
 	private static Board AllBlackBoard()
@@ -370,6 +432,18 @@ public class AlphaBetaAITests
 		board.SetPiece(0, 1, PlayerColor.White);
 		board.SetPiece(7, 7, PlayerColor.Empty);
 		board.SetPiece(7, 6, PlayerColor.White);
+		return board;
+	}
+
+	/// <summary>
+	/// (0,0) のみ空き、(0,1) が白、その他すべて黒の盤面を生成する。
+	/// Black は (0,0) の 1 手のみが有効手となる（Issue #201: 有効手 1 件の境界値テスト用）。
+	/// </summary>
+	private static Board SingleValidMoveBoard()
+	{
+		var board = AllBlackBoard();
+		board.SetPiece(0, 0, PlayerColor.Empty);
+		board.SetPiece(0, 1, PlayerColor.White);
 		return board;
 	}
 }
