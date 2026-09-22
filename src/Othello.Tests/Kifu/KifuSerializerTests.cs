@@ -170,4 +170,96 @@ public class KifuSerializerTests
 
 		Assert.Null(result);
 	}
+
+	// ===== SaveAsync / LoadAsync（ファイル I/O、Issue #197） =====
+
+	/// <summary>
+	/// SaveAsync で書き出したファイルを LoadAsync で読み込むと内容が一致することを確認する。
+	/// パス条件: LoadAsync の戻り値が元の KifuRecord と一致すること。
+	/// </summary>
+	[Fact]
+	public async Task SaveAsync_ThenLoadAsync_RoundTrips()
+	{
+		var original = new KifuRecord(1,
+			new DateTimeOffset(2026, 6, 28, 9, 0, 0, TimeSpan.FromHours(9)),
+			PlayerColor.Black, DifficultyLevel.Hard, PlayerColor.White,
+			Moves: [new KifuMove(PlayerColor.Black, Row: 2, Col: 3)],
+			FinalScore: new KifuFinalScore(20, 44));
+
+		var filePath = Path.Combine(Path.GetTempPath(), $"kifu_test_{Guid.NewGuid():N}.json");
+		try
+		{
+			await KifuSerializer.SaveAsync(original, filePath);
+			var restored = await KifuSerializer.LoadAsync(filePath);
+
+			Assert.NotNull(restored);
+			Assert.Equal(original.HumanColor, restored.HumanColor);
+			Assert.Equal(original.Difficulty, restored.Difficulty);
+			Assert.Equal(original.Result, restored.Result);
+			Assert.Single(restored.Moves);
+			Assert.Equal(2, restored.Moves[0].Row);
+			Assert.Equal(3, restored.Moves[0].Col);
+			Assert.Equal(original.FinalScore.Black, restored.FinalScore.Black);
+			Assert.Equal(original.FinalScore.White, restored.FinalScore.White);
+		}
+		finally
+		{
+			if (File.Exists(filePath))
+				File.Delete(filePath);
+		}
+	}
+
+	/// <summary>
+	/// SaveAsync が存在しないディレクトリへの保存でもディレクトリを自動作成することを確認する。
+	/// パス条件: 例外をスローせずファイルが作成されること。
+	/// </summary>
+	[Fact]
+	public async Task SaveAsync_CreatesDirectoryIfNotExists()
+	{
+		var dir = Path.Combine(Path.GetTempPath(), $"kifu_test_dir_{Guid.NewGuid():N}");
+		var filePath = Path.Combine(dir, "kifu.json");
+		try
+		{
+			Assert.False(Directory.Exists(dir));
+
+			await KifuSerializer.SaveAsync(MakeEmptyKifu(), filePath);
+
+			Assert.True(File.Exists(filePath));
+		}
+		finally
+		{
+			if (Directory.Exists(dir))
+				Directory.Delete(dir, recursive: true);
+		}
+	}
+
+	/// <summary>
+	/// 存在しないファイルパスを指定すると LoadAsync が null を返すことを確認する。
+	/// パス条件: 戻り値が null であること（例外をスローしないこと）。
+	/// </summary>
+	[Fact]
+	public async Task LoadAsync_FileDoesNotExist_ReturnsNull()
+	{
+		var filePath = Path.Combine(Path.GetTempPath(), $"kifu_nonexistent_{Guid.NewGuid():N}.json");
+
+		var result = await KifuSerializer.LoadAsync(filePath);
+
+		Assert.Null(result);
+	}
+
+	// ===== GetDefaultSaveDirectory（Issue #197） =====
+
+	/// <summary>
+	/// GetDefaultSaveDirectory が LocalApplicationData 配下の OthelloCspy\kifu を返すことを確認する。
+	/// パス条件: 戻り値に "OthelloCspy" と "kifu" のパス区切りが両方含まれること。
+	/// </summary>
+	[Fact]
+	public void GetDefaultSaveDirectory_ReturnsExpectedPathStructure()
+	{
+		var result = KifuSerializer.GetDefaultSaveDirectory();
+
+		var expectedBase = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+		Assert.StartsWith(expectedBase, result);
+		Assert.EndsWith(Path.Combine("OthelloCspy", "kifu"), result);
+	}
 }
