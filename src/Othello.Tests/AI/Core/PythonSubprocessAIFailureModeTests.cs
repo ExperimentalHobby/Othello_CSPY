@@ -99,6 +99,40 @@ public class PythonSubprocessAIFailureModeTests : IDisposable
 	}
 
 	/// <summary>
+	/// stdout が先に閉じ、プロセス終了（HasExited）と stderr 出力がその後に遅れて発生した場合でも、
+	/// GetBestMove が送出する例外メッセージに stderr の内容が含まれることを確認する（Issue #219）。
+	/// stdout の EOF（response == null 経路）が HasExited より先に観測されるため、
+	/// HasExited を条件にした待機では stderr を取りこぼす。
+	/// パス条件: 例外メッセージに遅延して書き出された識別文字列が含まれること。
+	/// </summary>
+	[Fact]
+	public void GetBestMove_StdoutClosedBeforeProcessExitsWithDelayedStderr_IncludesStderrContent()
+	{
+		if (!File.Exists(AiPyPath)) return;
+
+		const string marker = "DELAYED_STDERR_MARKER_after_stdout_closed";
+		var scriptPath = WriteFixtureScript(
+			$$"""
+			import json, os, sys, time
+			print(json.dumps({"backend": "python"}))
+			sys.stdout.flush()
+			sys.stdin.readline()
+			os.close(1)
+			time.sleep(0.5)
+			sys.stderr.write('{{marker}}\n')
+			sys.stderr.flush()
+			sys.exit(1)
+			""");
+
+		using var ai = new PythonSubprocessAI(DifficultyLevel.Easy, scriptPath);
+
+		var ex = Assert.Throws<InvalidOperationException>(
+			() => ai.GetBestMove(TestBoardHelper.CreateInitialBoard(), PlayerColor.Black));
+
+		Assert.Contains(marker, ex.Message);
+	}
+
+	/// <summary>
 	/// Python プロセスがハンドシェイク後に応答を返さず無応答のまま固まった場合、
 	/// GetBestMove が TimeoutException を送出し、プロセスを強制終了することを確認する。
 	/// パス条件: TimeoutException がスローされ、その後 Python プロセスが終了していること。

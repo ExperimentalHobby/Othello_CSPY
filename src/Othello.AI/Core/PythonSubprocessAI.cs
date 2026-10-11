@@ -32,6 +32,9 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
 	/// </summary>
 	private readonly int? _responseTimeoutMsOverride;
 
+	/// <summary>異常終了後に stderr の読み取り完了を待つ上限（ミリ秒）。</summary>
+	private const int StderrDrainTimeoutMs = 3000;
+
 	/// <summary>起動した Python プロセスの参照</summary>
 	private readonly Process _process;
 
@@ -253,14 +256,18 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
 	}
 
 	/// <summary>
-	/// プロセスが終了している場合、BeginErrorReadLine による非同期 stderr 読み取りが
-	/// 完了するまで待つ。<see cref="Process.HasExited"/> が true であることは、
-	/// リダイレクトされたストリームの読み取り完了を保証しない（.NET Process クラスの
-	/// 既知の注意点）ため、<see cref="ReadProcessError"/> の呼び出し前に使う（Issue #188）。
+	/// stderr の非同期読み取りが完了するまで、時間上限付きでプロセス終了を待つ。
+	/// <see cref="Process.HasExited"/> が true であることはリダイレクトされたストリームの読み取り完了を
+	/// 保証しない（.NET Process クラスの既知の注意点）うえ、パイプ切断（IOException・stdout の EOF）は
+	/// HasExited が true になるより先に観測されうる。そのため HasExited を条件にせず必ず待機する
+	/// （Issue #188 / #219）。<see cref="ReadProcessError"/> の呼び出し前に使う。
 	/// </summary>
 	private void DrainStderrIfExited()
 	{
-		if (_process.HasExited)
+		// タイムアウト付きの WaitForExit は非同期出力の読み取り完了を保証しないため、
+		// プロセス終了を確認できた場合に限り引数なし版で EOF まで待つ。
+		// 終了しない場合（stdout だけ閉じて生存し続ける等）でも固まらないよう上限を設ける。
+		if (_process.WaitForExit(StderrDrainTimeoutMs))
 			_process.WaitForExit();
 	}
 
