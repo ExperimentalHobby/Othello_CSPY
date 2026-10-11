@@ -1,0 +1,26 @@
+<Project>
+
+  <!--
+    NuGet パッケージのバージョンを一元管理する（Central Package Management, Issue #220）。
+    各 .csproj の PackageReference には Version を書かない。
+    複数 csproj で共有するパッケージ（WinUI3 系・テスト系）が Dependabot の PR で
+    片方だけ更新されて NU1605（ダウングレード検出）になるのを防ぐ。
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- アプリ / アナライザー -->
+    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
+    <PackageVersion Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2705" />
+    <PackageVersion Include="SecurityCodeScan.VS2019" Version="5.6.7" />
+
+    <!-- テスト -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.0" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
+    <PackageVersion Include="coverlet.collector" Version="10.1.0" />
+  </ItemGroup>
+
+</Project>
