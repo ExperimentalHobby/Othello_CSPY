@@ -17,7 +17,7 @@ public static class OthelloSettingsManager
 	/// <summary>
 	/// デフォルトの設定ファイルパスを返す（%LOCALAPPDATA%\OthelloCspy\settings.json）。
 	/// </summary>
-	public static string DefaultFilePath { get; } = Path.Combine(
+	public static string DefaultFilePath { get; internal set; } = Path.Combine(
 		Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
 		"OthelloCspy", "settings.json");
 
