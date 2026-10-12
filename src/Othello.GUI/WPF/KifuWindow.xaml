@@ -40,11 +40,14 @@
                     <DataTemplate>
                         <Border Background="{StaticResource BoardGreenBrush}"
                                 BorderBrush="Black" BorderThickness="1">
-                            <Ellipse Fill="{Binding Piece, Converter={StaticResource PlayerColorToBrushConverter}}"
-                                     Stroke="#2a2a2a" StrokeThickness="2"
-                                     Width="78" Height="78"
-                                     Visibility="{Binding HasPiece, Converter={StaticResource BoolToVisConverter}}"
-                                     Margin="4"/>
+                            <Viewbox Stretch="Uniform" Margin="4">
+                                <Grid Width="100" Height="100">
+                                    <Ellipse Fill="{Binding Piece, Converter={StaticResource PlayerColorToBrushConverter}}"
+                                             Stroke="#2a2a2a" StrokeThickness="2"
+                                             Width="88" Height="88"
+                                             Visibility="{Binding HasPiece, Converter={StaticResource BoolToVisConverter}}"/>
+                                </Grid>
+                            </Viewbox>
                         </Border>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
