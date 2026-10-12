@@ -20,8 +20,8 @@
         </Grid.RowDefinitions>
 
         <!-- メニューバー -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal"
-                    Background="{StaticResource MenuDarkGreenBrush}" Height="50">
+        <WrapPanel Grid.Row="0" Orientation="Horizontal" ItemHeight="50"
+                   Background="{StaticResource MenuDarkGreenBrush}">
             <!-- AI エンジン表示 -->
             <Border Background="{StaticResource AiBadgeBackgroundBrush}"
                     CornerRadius="4" Padding="8,4" Margin="8,0,4,0" VerticalAlignment="Center">
@@ -64,8 +64,8 @@
             <Separator Width="2" Background="{StaticResource SeparatorBrush}" Margin="5,0"/>
 
             <!-- 人間 vs CPU 専用コントロール -->
-            <StackPanel Orientation="Horizontal"
-                        Visibility="{Binding IsHumanVsCpu, Converter={StaticResource BoolToVisConverter}}">
+            <WrapPanel Orientation="Horizontal" ItemHeight="50"
+                       Visibility="{Binding IsHumanVsCpu, Converter={StaticResource BoolToVisConverter}}">
                 <TextBlock Text="難易度:" VerticalAlignment="Center" Margin="5,0" FontSize="12"/>
                 <ComboBox Width="100" Margin="4,0" VerticalAlignment="Center" FontSize="12"
                           Style="{StaticResource MenuComboBoxStyle}"
@@ -125,11 +125,11 @@
                     <ComboBoxItem Content="黒（先手）"/>
                     <ComboBoxItem Content="白（後手）"/>
                 </ComboBox>
-            </StackPanel>
+            </WrapPanel>
 
             <!-- CPU vs CPU 専用コントロール -->
-            <StackPanel Orientation="Horizontal"
-                        Visibility="{Binding IsCpuVsCpu, Converter={StaticResource BoolToVisConverter}}">
+            <WrapPanel Orientation="Horizontal" ItemHeight="50"
+                       Visibility="{Binding IsCpuVsCpu, Converter={StaticResource BoolToVisConverter}}">
                 <TextBlock Text="黒:" VerticalAlignment="Center" Margin="5,0,3,0" FontSize="12"/>
                 <ComboBox Width="90" Margin="3,4" VerticalAlignment="Center" FontSize="12"
                           Style="{StaticResource MenuComboBoxStyle}"
@@ -168,8 +168,8 @@
                     <ComboBoxItem Content="最遅 (3秒)"/>
                 </ComboBox>
 
-            </StackPanel>
-        </StackPanel>
+            </WrapPanel>
+        </WrapPanel>
 
         <!-- メインコンテンツ -->
         <Grid Grid.Row="1">
