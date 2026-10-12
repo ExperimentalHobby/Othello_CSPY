@@ -20,7 +20,7 @@
 
   <ItemGroup>
     <!-- セキュリティ特化のRoslynアナライザー（コマンドインジェクション等を検出） -->
-    <PackageReference Include="SecurityCodeScan.VS2019" Version="5.6.7">
+    <PackageReference Include="SecurityCodeScan.VS2019">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>

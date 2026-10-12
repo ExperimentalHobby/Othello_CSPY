@@ -5,6 +5,18 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+    # Directory.Packages.props（Central Package Management）で一元管理しているため、
+    # 関連パッケージを 1 PR にまとめて依存の取り残しを防ぐ（Issue #220）
+    groups:
+      test-tools:
+        patterns:
+          - "xunit*"
+          - "Microsoft.NET.Test.Sdk"
+          - "coverlet.*"
+      winui3:
+        patterns:
+          - "Microsoft.WindowsAppSDK"
+          - "Microsoft.Windows.SDK.BuildTools"
 
   - package-ecosystem: "cargo"
     directory: "/src/Othello.AI/Rust"
