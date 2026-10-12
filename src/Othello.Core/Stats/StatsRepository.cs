@@ -18,7 +18,7 @@ public class StatsRepository : IStatsRepository
 	private readonly string _filePath;
 
 	/// <summary>既定の保存先（%LOCALAPPDATA%\OthelloCspy\stats.json）。</summary>
-	public static string DefaultFilePath { get; } = Path.Combine(
+	public static string DefaultFilePath { get; internal set; } = Path.Combine(
 		Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
 		"OthelloCspy", "stats.json");
 
