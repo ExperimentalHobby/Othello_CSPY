@@ -63,14 +63,24 @@
             </Border>
             <Rectangle Width="2" Fill="#666666" Margin="4,5" VerticalAlignment="Stretch"/>
             <Button Content="新規ゲーム" Command="{Binding NewGameCommand}"
-                    Style="{StaticResource MenuButtonStyle}"/>
+                    ToolTipService.ToolTip="新規ゲーム (Ctrl+N)"
+                    Style="{StaticResource MenuButtonStyle}">
+                <Button.KeyboardAccelerators>
+                    <KeyboardAccelerator Key="N" Modifiers="Control"/>
+                </Button.KeyboardAccelerators>
+            </Button>
             <!-- CPU vs CPU 専用: 開始/一時停止（新規ゲームの直隣に配置） -->
             <Button Content="{Binding PauseButtonContent}"
                     Command="{Binding PauseCommand}"
                     Style="{StaticResource MenuButtonStyle}"
                     Visibility="{Binding IsCpuVsCpu, Converter={StaticResource BoolToVisConverter}}"/>
             <Button Content="戻す" Command="{Binding UndoCommand}"
-                    Style="{StaticResource MenuButtonStyle}"/>
+                    ToolTipService.ToolTip="戻す (Ctrl+Z)"
+                    Style="{StaticResource MenuButtonStyle}">
+                <Button.KeyboardAccelerators>
+                    <KeyboardAccelerator Key="Z" Modifiers="Control"/>
+                </Button.KeyboardAccelerators>
+            </Button>
             <ToggleButton Content="ヒント"
                           IsChecked="{Binding IsHintEnabled, Mode=TwoWay}"
                           Background="#4a7c2f" Foreground="White"
@@ -217,6 +227,7 @@
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate>
                             <Button Background="#4a7c2f" BorderBrush="Black" BorderThickness="1"
+                                    AutomationProperties.Name="{Binding AccessibleName}"
                                     HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                     Padding="0" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
                                     Click="OnSquareClick">

@@ -6,6 +6,12 @@
         Background="{StaticResource WindowBackgroundBrush}" Foreground="{StaticResource WhiteTextBrush}"
         WindowStartupLocation="CenterScreen" ResizeMode="CanResize">
 
+    <!-- キーボードショートカット: Ctrl+N = 新規ゲーム, Ctrl+Z = 戻す -->
+    <Window.InputBindings>
+        <KeyBinding Key="N" Modifiers="Ctrl" Command="{Binding NewGameCommand}"/>
+        <KeyBinding Key="Z" Modifiers="Ctrl" Command="{Binding UndoCommand}"/>
+    </Window.InputBindings>
+
     <Window.Resources>
         <conv:BoolToVisibilityConverter x:Key="BoolToVisConverter"/>
         <conv:InverseBooleanConverter x:Key="InverseBoolConverter"/>
@@ -30,6 +36,7 @@
             </Border>
             <Separator Width="2" Background="{StaticResource SeparatorBrush}" Margin="4,0"/>
             <Button Content="新規ゲーム" Command="{Binding NewGameCommand}"
+                    ToolTip="新規ゲーム (Ctrl+N)"
                     Style="{StaticResource ActionButtonStyle}"/>
             <!-- CPU vs CPU 専用: 開始/一時停止（新規ゲームの直隣に配置） -->
             <Button Content="{Binding PauseButtonContent}"
@@ -37,6 +44,7 @@
                     Style="{StaticResource ActionButtonStyle}"
                     Visibility="{Binding IsCpuVsCpu, Converter={StaticResource BoolToVisConverter}}"/>
             <Button Content="戻す" Command="{Binding UndoCommand}"
+                    ToolTip="戻す (Ctrl+Z)"
                     Style="{StaticResource ActionButtonStyle}"/>
             <ToggleButton Content="ヒント"
                           IsChecked="{Binding IsHintEnabled, Mode=TwoWay}"
@@ -192,6 +200,7 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Button Margin="0" Background="{StaticResource BoardGreenBrush}"
+                                    AutomationProperties.Name="{Binding AccessibleName}"
                                     BorderBrush="Black" BorderThickness="1"
                                     Padding="0" VerticalContentAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                     Command="{Binding RelativeSource={RelativeSource AncestorType=ItemsControl}, Path=DataContext.SquareClickedCommand}"

@@ -139,12 +139,12 @@ public class BoardSquareViewModelTests
 	public void IsValidMove_RaisesPropertyChanged()
 	{
 		var sq = new BoardSquareViewModel(new Position(0, 0));
-		string? changedProp = null;
-		((INotifyPropertyChanged)sq).PropertyChanged += (_, e) => changedProp = e.PropertyName;
+		var changed = new List<string?>();
+		((INotifyPropertyChanged)sq).PropertyChanged += (_, e) => changed.Add(e.PropertyName);
 
 		sq.IsValidMove = true;
 
-		Assert.Equal("IsValidMove", changedProp);
+		Assert.Contains("IsValidMove", changed);
 	}
 
 	/// <summary>
@@ -219,5 +219,62 @@ public class BoardSquareViewModelTests
 		sq.IsLastMove = true;
 
 		Assert.Equal("IsLastMove", changedProp);
+	}
+
+	// ========== AccessibleName（スクリーンリーダー向け名称, Issue #225） ==========
+
+	/// <summary>
+	/// 空きマスで着手不可の場合、座標と「空き」のみを読み上げることを確認する。
+	/// パス条件: Position(3,3) の初期状態で AccessibleName が "d4 空き" になること。
+	/// </summary>
+	[Fact]
+	public void AccessibleName_EmptySquare_ReturnsNotationAndEmpty()
+	{
+		var sq = new BoardSquareViewModel(new Position(3, 3));
+		Assert.Equal("d4 空き", sq.AccessibleName);
+	}
+
+	/// <summary>
+	/// 石があるマスでは石の色が読み上げられることを確認する。
+	/// パス条件: 黒石 → "a1 黒"、白石 → "h8 白" になること。
+	/// </summary>
+	[Fact]
+	public void AccessibleName_WithPiece_ReturnsNotationAndColor()
+	{
+		var black = new BoardSquareViewModel(new Position(0, 0));
+		black.SetPiece(PlayerColor.Black);
+		var white = new BoardSquareViewModel(new Position(7, 7));
+		white.SetPiece(PlayerColor.White);
+
+		Assert.Equal("a1 黒", black.AccessibleName);
+		Assert.Equal("h8 白", white.AccessibleName);
+	}
+
+	/// <summary>
+	/// 着手可能な空きマスでは「打てます」が付くことを確認する。
+	/// パス条件: IsValidMove = true で AccessibleName が "c4 空き 打てます" になること。
+	/// </summary>
+	[Fact]
+	public void AccessibleName_ValidMove_AppendsPlayable()
+	{
+		var sq = new BoardSquareViewModel(new Position(3, 2)) { IsValidMove = true };
+		Assert.Equal("c4 空き 打てます", sq.AccessibleName);
+	}
+
+	/// <summary>
+	/// 石の設定・着手可否の変更で AccessibleName の変更通知が発火することを確認する。
+	/// パス条件: SetPiece と IsValidMove の変更でそれぞれ "AccessibleName" の PropertyChanged が発火すること。
+	/// </summary>
+	[Fact]
+	public void AccessibleName_RaisesPropertyChanged_WhenPieceOrValidMoveChanges()
+	{
+		var sq = new BoardSquareViewModel(new Position(0, 0));
+		var names = new List<string?>();
+		sq.PropertyChanged += (_, e) => names.Add(e.PropertyName);
+
+		sq.SetPiece(PlayerColor.Black);
+		sq.IsValidMove = true;
+
+		Assert.Equal(2, names.Count(n => n == "AccessibleName"));
 	}
 }

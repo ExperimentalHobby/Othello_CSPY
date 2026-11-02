@@ -18,9 +18,35 @@ public class BoardSquareViewModel : ViewModelBase
 	private bool _isHint;
 	private bool _isLastMove;
 
-	public PlayerColor Piece { get => _piece; set => SetProperty(ref _piece, value); }
+	public PlayerColor Piece
+	{
+		get => _piece;
+		set { if (SetProperty(ref _piece, value)) OnPropertyChanged(nameof(AccessibleName)); }
+	}
 
-	public bool IsValidMove { get => _isValidMove; set => SetProperty(ref _isValidMove, value); }
+	public bool IsValidMove
+	{
+		get => _isValidMove;
+		set { if (SetProperty(ref _isValidMove, value)) OnPropertyChanged(nameof(AccessibleName)); }
+	}
+
+	/// <summary>
+	/// スクリーンリーダー用のマス名称（例: "d4 黒" / "c4 空き 打てます"）。
+	/// 座標・石の状態・着手可否を読み上げさせるため、UI の AutomationProperties.Name にバインドする。
+	/// </summary>
+	public string AccessibleName
+	{
+		get
+		{
+			var state = _piece switch
+			{
+				PlayerColor.Black => "黒",
+				PlayerColor.White => "白",
+				_ => _isValidMove ? "空き 打てます" : "空き",
+			};
+			return $"{Position.ToNotation()} {state}";
+		}
+	}
 
 	public bool HasPiece { get => _hasPiece; set => SetProperty(ref _hasPiece, value); }
 
