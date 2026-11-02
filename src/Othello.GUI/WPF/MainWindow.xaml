@@ -241,7 +241,7 @@
             </Border>
 
             <!-- サイドパネル -->
-            <ScrollViewer Grid.Column="1" Margin="10" VerticalScrollBarVisibility="Hidden">
+            <ScrollViewer Grid.Column="1" Margin="10" VerticalScrollBarVisibility="Auto">
                 <StackPanel>
                     <!-- ゲーム状態 -->
                     <Border Style="{StaticResource SidebarPanelStyle}">
