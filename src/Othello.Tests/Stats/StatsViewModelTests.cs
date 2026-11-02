@@ -179,4 +179,42 @@ public class StatsViewModelTests
 		Assert.NotNull(raised);
 		Assert.Equal(string.Empty, raised!.PropertyName);
 	}
+
+	/// <summary>
+	/// 確認ダイアログでキャンセルされた場合、リセットされないことを確認する（Issue #224）。
+	/// パス条件: ResetCalled が false のままで、EasyWins が維持されること。
+	/// </summary>
+	[Fact]
+	public async Task ResetAsync_WhenConfirmDeclined_DoesNotReset()
+	{
+		var repo = new InMemoryStatsRepository
+		{
+			Stats = new GameStats { Easy = new DifficultyStats { Wins = 3 } }
+		};
+		var vm = new StatsViewModel(repo) { ConfirmReset = () => Task.FromResult(false) };
+
+		await vm.ResetAsync();
+
+		Assert.False(repo.ResetCalled);
+		Assert.Equal(3, vm.EasyWins);
+	}
+
+	/// <summary>
+	/// 確認ダイアログで承認された場合、リセットされることを確認する（Issue #224）。
+	/// パス条件: ResetCalled が true、かつ EasyWins が 0 に戻ること。
+	/// </summary>
+	[Fact]
+	public async Task ResetAsync_WhenConfirmAccepted_Resets()
+	{
+		var repo = new InMemoryStatsRepository
+		{
+			Stats = new GameStats { Easy = new DifficultyStats { Wins = 3 } }
+		};
+		var vm = new StatsViewModel(repo) { ConfirmReset = () => Task.FromResult(true) };
+
+		await vm.ResetAsync();
+
+		Assert.True(repo.ResetCalled);
+		Assert.Equal(0, vm.EasyWins);
+	}
 }

@@ -34,6 +34,7 @@ public sealed partial class MainWindow : Window
 		WindowBackdropHelper.Apply(this);
 
 		_viewModel = new GameViewModel();
+		_viewModel.Stats.ConfirmReset = ConfirmStatsResetAsync;
 		// WinUI3 は Window に DataContext がないため、XAML ルート要素に設定する
 		if (this.Content is FrameworkElement root)
 		{
@@ -203,6 +204,21 @@ public sealed partial class MainWindow : Window
 			_viewModel.TimeLimitSeconds = seconds;
 		else
 			tb.Text = _viewModel.TimeLimitSeconds.ToString();
+	}
+
+	/// <summary>棋力統計リセットの確認ダイアログを表示し、「リセット」が選ばれたら true を返す。</summary>
+	private async Task<bool> ConfirmStatsResetAsync()
+	{
+		var dlg = new ContentDialog
+		{
+			Title = "棋力統計のリセット",
+			Content = "全難易度の勝敗・連勝記録・最大石差を消去します。この操作は元に戻せません。よろしいですか？",
+			PrimaryButtonText = "リセット",
+			CloseButtonText = "キャンセル",
+			DefaultButton = ContentDialogButton.Close,
+			XamlRoot = this.Content.XamlRoot,
+		};
+		return await dlg.ShowAsync() == ContentDialogResult.Primary;
 	}
 
 	private async void OnSaveKifu(object sender, RoutedEventArgs e)

@@ -17,7 +17,7 @@ public class StatsViewModel : ViewModelBase
 	{
 		_repo = repo;
 		_stats = repo.Load();
-		ResetCommand = new RelayCommand(OnReset);
+		ResetCommand = new RelayCommand(async () => await ResetAsync());
 	}
 
 	// ── Beginner ─────────────────────────────────────────────────────────────
@@ -109,8 +109,19 @@ public class StatsViewModel : ViewModelBase
 		OnPropertyChanged(string.Empty);
 	}
 
-	private void OnReset()
+	/// <summary>
+	/// リセット前にユーザーへ確認する処理。true を返すとリセットを実行する。
+	/// View 側がダイアログを表示して設定する。null の場合は確認なしでリセットする。
+	/// </summary>
+	public Func<Task<bool>>? ConfirmReset { get; set; }
+
+	/// <summary>
+	/// 統計をリセットする。<see cref="ConfirmReset"/> が設定されていて false を返した場合は何もしない。
+	/// </summary>
+	public async Task ResetAsync()
 	{
+		if (ConfirmReset is not null && !await ConfirmReset())
+			return;
 		_repo.Reset();
 		Refresh();
 	}
