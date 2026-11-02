@@ -32,10 +32,12 @@ if (Test-Path $cargoBin) { $env:Path = "$cargoBin;$env:Path" }
 # maturin の実行ファイルを解決する（PATH 上 → pip --user の Scripts ディレクトリの順）
 $maturin = (Get-Command maturin -ErrorAction SilentlyContinue).Source
 if (-not $maturin) {
-    $maturinCands = @(
-        (Join-Path $env:APPDATA  "Python\Python314\Scripts\maturin.exe"),
-        (Join-Path $env:APPDATA  "Python\Scripts\maturin.exe")
-    )
+    # pip --user は %APPDATA%\Python\Python3XX\Scripts に配置する。
+    # バージョンをハードコードせず、インストール済みの全バージョンを新しい順に探す（例: Python314 → 3.14）
+    $versionedCands = Get-ChildItem (Join-Path $env:APPDATA "Python\Python3*\Scripts\maturin.exe") -ErrorAction SilentlyContinue |
+        Sort-Object { [version]("3." + ($_.Directory.Parent.Name -replace '^Python3', '')) } -Descending |
+        ForEach-Object { $_.FullName }
+    $maturinCands = @($versionedCands) + (Join-Path $env:APPDATA "Python\Scripts\maturin.exe")
     $maturin = $maturinCands | Where-Object { Test-Path $_ } | Select-Object -First 1
 }
 if (-not $maturin) { throw "maturin が見つかりません。'py -m pip install --user maturin' を実行してください。" }
