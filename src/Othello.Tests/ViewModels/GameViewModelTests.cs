@@ -73,6 +73,30 @@ public class GameViewModelTests
 	private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
 
 	/// <summary>
+	/// 条件が真になるまで待つ（固定時間 Sleep ではなく条件ポーリング。Issue #222）。
+	/// Timeout 内に満たされなければ Assert で確実に失敗させる。
+	/// </summary>
+	private static void WaitUntil(Func<bool> condition, string failureMessage)
+		=> Assert.True(SpinWait.SpinUntil(condition, Timeout), failureMessage);
+
+	/// <summary><see cref="WaitUntil"/> の async 版。</summary>
+	private static async Task WaitUntilAsync(Func<bool> condition, string failureMessage)
+	{
+		var deadline = DateTime.UtcNow + Timeout;
+		while (!condition() && DateTime.UtcNow < deadline)
+			await Task.Delay(10);
+		Assert.True(condition(), failureMessage);
+	}
+
+	/// <summary>
+	/// 盤面の石の総数が指定数になるまで待つ。
+	/// 「AI の GetBestMove が呼ばれた」だけでは ProcessAIMoveAsync 内の MakeMove 反映が完了している保証がないため、
+	/// 反映後の石数（初期 4 + 着手ごとに 1）を完了シグナルとして使う。
+	/// </summary>
+	private static void WaitForPieceCount(GameViewModel vm, int total)
+		=> WaitUntil(() => vm.BlackScore + vm.WhiteScore == total, $"盤面の石数が {total} になりませんでした");
+
+	/// <summary>
 	/// 注入した AI ファクトリで構築すると、盤面 64 マス・初期スコア 2/2・進行中状態になることを確認する。
 	/// パス条件: BoardSquares が 64、BlackScore/WhiteScore が 2、IsGameInProgress が true、ファクトリ呼び出しが 1 回であること。
 	/// </summary>
@@ -193,7 +217,7 @@ public class GameViewModelTests
 
 		vm.SquareClickedCommand.Execute(new Position(2, 3));
 		Assert.True(aiMoved.Wait(Timeout));
-		Thread.Sleep(200); // ProcessAIMoveAsync 内の MakeMove 完了を待つ
+		WaitForPieceCount(vm, 6); // ProcessAIMoveAsync 内の MakeMove 完了を待つ
 
 		Assert.NotNull(capturingAi!.ReceivedBoard);
 		Assert.NotSame(vm.EngineCurrentBoard, capturingAi.ReceivedBoard);
@@ -217,7 +241,8 @@ public class GameViewModelTests
 		// 思考中に新規ゲーム開始（旧 cts をキャンセルし旧 AI を Dispose → GetBestMove が例外送出）
 		vm.StartNewGame();
 
-		// 旧タスクの catch が走る猶予を与える（修正前はここで IsGameInProgress=false にしていた）
+		// 旧タスクの catch が走る猶予を与える（修正前はここで IsGameInProgress=false にしていた）。
+		// 「何も起きないこと」の検証で観測できる完了シグナルが無いため、意図的に固定時間待ちとしている（Issue #222）
 		Thread.Sleep(500);
 
 		Assert.True(vm.IsGameInProgress); // 新しいゲームは壊れていない
@@ -264,7 +289,7 @@ public class GameViewModelTests
 
 		// AI の GetBestMove 後にエンジンへの MakeMove が非同期で完了するまで待機する
 		// （ProcessAIMoveAsync 内で await Task.Run 完了 → _engine.MakeMove の順で実行される）
-		Thread.Sleep(500);
+		WaitForPieceCount(vm, 6);
 
 		vm.UndoCommand.Execute(null);
 
@@ -305,7 +330,7 @@ public class GameViewModelTests
 		vm.SquareClickedCommand.Execute(new Position(2, 3));
 		Assert.True(aiMoved.Wait(Timeout));
 
-		Thread.Sleep(500);
+		WaitForPieceCount(vm, 6);
 
 		vm.UndoCommand.Execute(null);
 
@@ -361,7 +386,7 @@ public class GameViewModelTests
 
 		vm.HumanColorIndex = 1; // 白に変更 → 再起動 → AI（黒）が先手
 		Assert.True(aiMoved.Wait(Timeout));
-		Thread.Sleep(300);
+		WaitForPieceCount(vm, 5);
 
 		Assert.Single(vm.KifuMovesForTest); // 前提: AI の初手のみ 1 件記録されている
 
@@ -381,19 +406,22 @@ public class GameViewModelTests
 		using var aiMoved = new ManualResetEventSlim(false);
 		using var vm = new GameViewModel(d => new FakeAI(d, () => aiMoved.Set()));
 
+		int expectedPieces = vm.BlackScore + vm.WhiteScore;
 		void PlayHumanMoveAndWaitForAi()
 		{
 			aiMoved.Reset();
 			var move = vm.BoardSquares.First(sq => sq.IsValidMove).Position;
 			vm.SquareClickedCommand.Execute(move);
 			Assert.True(aiMoved.Wait(Timeout));
-			Thread.Sleep(300); // ProcessAIMoveAsync 内の MakeMove 完了を待つ
+			expectedPieces += 2; // 人間 1 手 + AI 1 手で石が 2 つ増える
+			WaitForPieceCount(vm, expectedPieces); // ProcessAIMoveAsync 内の MakeMove 完了を待つ
 		}
 
 		PlayHumanMoveAndWaitForAi(); // 1 手目（人間 + AI）
 		PlayHumanMoveAndWaitForAi(); // 2 手目（人間 + AI）
 
 		vm.UndoCommand.Execute(null); // 2 手目をまとめて取り消す
+		expectedPieces -= 2;          // Undo で石数も 2 手分戻る
 
 		PlayHumanMoveAndWaitForAi(); // 打ち直し（人間 + AI）
 
@@ -501,8 +529,8 @@ public class GameViewModelTests
 		vm.SquareClickedCommand.Execute(new Position(2, 3));
 		Assert.True(aiErrored.Wait(Timeout));
 
-		// ProcessAIMoveAsync の catch ブロックが走る猶予を与える
-		Thread.Sleep(200);
+		// ProcessAIMoveAsync の catch ブロックがゲームを停止するまで待つ
+		WaitUntil(() => !vm.IsGameInProgress, "AI エラー後にゲームが停止しませんでした");
 
 		Assert.False(vm.IsGameInProgress);
 		Assert.Contains("AI エラー", vm.StatusMessage);
@@ -625,10 +653,12 @@ public class GameViewModelTests
 		vm.SquareClickedCommand.Execute(new Position(2, 3));
 
 		// 遅延中（IsAIThinking=false）に Undo を実行する
-		await Task.Delay(50);
+		await Task.Delay(50); // 500ms 遅延の最中に Undo するための短い待ち（完了待ちではない）
 		vm.UndoCommand.Execute(null);
 
 		// 遅延完了 + ProcessAIMoveAsync の AI 待機（300ms）を過ぎるまで待機
+		// 「Undo 後に旧遅延タスクが盤面を変えないこと」の検証のため、遅延 + AI 待機を過ぎるまで固定時間待つ
+		// （観測できる完了シグナルが無い否定系。Issue #222）
 		await Task.Delay(900);
 
 		Assert.Equal(2, vm.BlackScore);
@@ -649,7 +679,7 @@ public class GameViewModelTests
 
 		vm.HumanColorIndex = 1; // 白に変更 → 再起動 → AI（黒）が先手
 		Assert.True(aiMoved.Wait(Timeout));
-		Thread.Sleep(300); // ProcessAIMoveAsync 内の MakeMove 完了を待つ
+		WaitForPieceCount(vm, 5); // ProcessAIMoveAsync 内の MakeMove 完了を待つ
 
 		aiMoved.Reset();
 		vm.UndoCommand.Execute(null); // 初期盤面に戻り、AI（黒）が再度着手を試みるはず
@@ -873,7 +903,7 @@ public class GameViewModelTests
 		// デフォルトは人間=黒（先手）で人間ターンから開始
 
 		vm.IsHintEnabled = true;
-		await Task.Delay(500); // ヒント計算完了を待つ
+		await WaitUntilAsync(() => vm.BoardSquares.Any(sq => sq.IsHint), "ヒントが表示されませんでした");
 
 		Assert.Single(vm.BoardSquares, sq => sq.IsHint);
 	}
@@ -888,10 +918,10 @@ public class GameViewModelTests
 		using var vm = new GameViewModel(d => new FakeAI(d));
 
 		vm.IsHintEnabled = true;
-		await Task.Delay(500);
+		await WaitUntilAsync(() => vm.BoardSquares.Any(sq => sq.IsHint), "ヒントが表示されませんでした");
 
 		vm.IsHintEnabled = false;
-		await Task.Delay(50); // クリア反映を待つ
+		await WaitUntilAsync(() => vm.BoardSquares.All(sq => !sq.IsHint), "ヒントがクリアされませんでした");
 
 		Assert.All(vm.BoardSquares, sq => Assert.False(sq.IsHint));
 	}
@@ -905,14 +935,16 @@ public class GameViewModelTests
 	{
 		using var vm = new GameViewModel(d => new FakeAI(d));
 		vm.IsHintEnabled = true;
-		await Task.Delay(300); // 初期ヒント計算待ち
+		await WaitUntilAsync(() => vm.BoardSquares.Any(sq => sq.IsHint), "初期ヒントが表示されませんでした");
 
 		// 人間（黒）が着手
 		var humanMove = vm.BoardSquares.First(sq => sq.IsValidMove).Position;
 		vm.SquareClickedCommand.Execute(humanMove);
 
-		// AI（白）が応答して再び人間ターンになるまで待つ
-		await Task.Delay(1500);
+		// AI（白）が応答して再び人間ターンになり、ヒントが更新されるまで待つ
+		await WaitUntilAsync(
+			() => vm.BlackScore + vm.WhiteScore == 6 && vm.BoardSquares.Count(sq => sq.IsHint) == 1,
+			"AI 着手後にヒントが更新されませんでした");
 
 		// 人間ターンに戻ったらヒントが更新されているはず
 		Assert.Single(vm.BoardSquares, sq => sq.IsHint);
@@ -947,7 +979,7 @@ public class GameViewModelTests
 
 		vm.SquareClickedCommand.Execute(new Position(2, 3));
 		Assert.True(aiMoved.Wait(Timeout));
-		Thread.Sleep(500); // ProcessAIMoveAsync 内の MakeMove 完了を待つ
+		WaitForPieceCount(vm, 6); // ProcessAIMoveAsync 内の MakeMove 完了を待つ
 
 		var lastMove = Assert.Single(vm.BoardSquares, sq => sq.IsLastMove);
 		Assert.NotEqual(new Position(2, 3), lastMove.Position);
@@ -966,7 +998,7 @@ public class GameViewModelTests
 
 		vm.SquareClickedCommand.Execute(new Position(2, 3)); // 1 手目（人間）
 		Assert.True(aiMoved.Wait(Timeout));
-		Thread.Sleep(500);
+		WaitForPieceCount(vm, 6);
 		aiMoved.Reset();
 
 		var secondMove = vm.BoardSquares.First(sq => sq.IsValidMove).Position;
@@ -988,7 +1020,7 @@ public class GameViewModelTests
 
 		vm.SquareClickedCommand.Execute(new Position(2, 3)); // 1 手目（人間）
 		Assert.True(aiMoved.Wait(Timeout));
-		Thread.Sleep(500);
+		WaitForPieceCount(vm, 6);
 		var aiMovePosition = Assert.Single(vm.BoardSquares, sq => sq.IsLastMove).Position;
 
 		aiMoved.Reset();
@@ -1013,7 +1045,7 @@ public class GameViewModelTests
 
 		vm.SquareClickedCommand.Execute(new Position(2, 3));
 		Assert.True(aiMoved.Wait(Timeout));
-		Thread.Sleep(500);
+		WaitForPieceCount(vm, 6);
 
 		vm.UndoCommand.Execute(null); // 人間+AI の 2 手がまとめて取り消され初期状態に戻る
 
@@ -1032,7 +1064,7 @@ public class GameViewModelTests
 
 		vm.SquareClickedCommand.Execute(new Position(2, 3));
 		Assert.True(aiMoved.Wait(Timeout));
-		Thread.Sleep(500);
+		WaitForPieceCount(vm, 6);
 
 		vm.StartNewGame();
 
@@ -1078,7 +1110,8 @@ public class GameViewModelTests
 
 		// 1 回目（古い要求）を解放して完了させる
 		gate.Set();
-		await Task.Delay(300); // 完了を確実に待つ猶予
+		// 古い要求が「結果を上書きしないこと」の否定系検証のため、固定時間待つ（Issue #222）
+		await Task.Delay(300);
 
 		Assert.False(vm.BoardSquares.Single(s => s.Position.Equals(staleMove)).IsHint);
 		Assert.True(vm.BoardSquares.Single(s => s.Position.Equals(freshMove)).IsHint);
@@ -1103,7 +1136,7 @@ public class GameViewModelTests
 				vm.IsHintEnabled = false;
 				vm.IsHintEnabled = true;
 			}
-			await Task.Delay(200);
+			await Task.Delay(200); // 非同期ヒント計算が例外を出さないことの否定系検証（Issue #222）
 		});
 
 		Assert.Null(exception);
