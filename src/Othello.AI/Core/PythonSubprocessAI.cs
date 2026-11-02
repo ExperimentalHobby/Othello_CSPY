@@ -95,8 +95,6 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
 		var startInfo = new ProcessStartInfo
 		{
 			FileName = pythonExe,
-			// -u: stdout/stdin をアンバッファードにして応答遅延を防ぐ
-			Arguments = $"-u \"{pythonScriptPath}\"",
 			WorkingDirectory = scriptDir,          // import 解決に必要
 			UseShellExecute = false,
 			RedirectStandardInput = true,         // C# から Python へ JSON を送る
@@ -107,6 +105,10 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
 			StandardOutputEncoding = utf8NoBom,
 			StandardErrorEncoding = utf8NoBom,
 		};
+		// -u: stdout/stdin をアンバッファードにして応答遅延を防ぐ。
+		// ArgumentList を使うことでスクリプトパスのクォート・エスケープを .NET に任せる
+		startInfo.ArgumentList.Add("-u");
+		startInfo.ArgumentList.Add(pythonScriptPath);
 		// Python の I/O エンコーディングを明示的に UTF-8 に設定する
 		startInfo.EnvironmentVariables["PYTHONIOENCODING"] = "utf-8";
 
@@ -308,7 +310,7 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
 	/// 非 Windows では python3 → python の順で試す。
 	/// 結果は <see cref="_pythonExeCache"/> でプロセス生存期間中キャッシュされる。
 	/// </summary>
-	/// <returns>使用可能な Python 3.x 実行ファイル名</returns>
+	/// <returns>使用可能な Python 3.x 実行ファイルのフルパス（PATH 上の絶対パスに解決済み）</returns>
 	/// <exception cref="InvalidOperationException">Python 3.x が見つからない場合</exception>
 	private static string FindPythonExecutable()
 	{
@@ -317,19 +319,27 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
 			? ["py", "python3", "python"]
 			: ["python3", "python"];
 
-		foreach (var exe in candidates)
+		var pathVar = Environment.GetEnvironmentVariable("PATH");
+
+		foreach (var name in candidates)
 		{
+			// 名前のみで起動すると Windows ではアプリのディレクトリやカレントディレクトリが
+			// PATH より先に検索されうる（search path hijacking）。PATH 上の絶対パスに解決してから起動する。
+			var exe = ResolveExecutableOnPath(name, pathVar);
+			if (exe == null) continue;
+
 			try
 			{
-				using var probe = Process.Start(new ProcessStartInfo
+				var probeInfo = new ProcessStartInfo
 				{
 					FileName = exe,
-					Arguments = "--version",
 					UseShellExecute = false,
 					RedirectStandardOutput = true,
 					RedirectStandardError = true,
 					CreateNoWindow = true
-				});
+				};
+				probeInfo.ArgumentList.Add("--version");
+				using var probe = Process.Start(probeInfo);
 
 				if (probe == null) continue;
 
@@ -356,6 +366,29 @@ public sealed class PythonSubprocessAI : IAIStrategy, IDisposable
 		}
 		throw new InvalidOperationException(
 			"Python 3.8 以上が見つかりません。インストールされているか確認してください。");
+	}
+
+	/// <summary>
+	/// 実行ファイル名を PATH 上のディレクトリから探し、見つかったフルパスを返す。
+	/// 相対パス・空の PATH 要素は（カレントディレクトリ経由の乗っ取りを避けるため）無視する。
+	/// Windows では <c>.exe</c> を補って検索する。
+	/// </summary>
+	/// <param name="name">実行ファイル名（拡張子なし。例: "py"）</param>
+	/// <param name="pathVar">PATH 環境変数の値</param>
+	/// <returns>見つかった絶対パス。見つからなければ null</returns>
+	internal static string? ResolveExecutableOnPath(string name, string? pathVar)
+	{
+		if (string.IsNullOrEmpty(pathVar)) return null;
+
+		var fileName = OperatingSystem.IsWindows() ? name + ".exe" : name;
+		foreach (var dir in pathVar.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+		{
+			if (!Path.IsPathRooted(dir)) continue;
+
+			var candidate = Path.Combine(dir.Trim().Trim('"'), fileName);
+			if (File.Exists(candidate)) return candidate;
+		}
+		return null;
 	}
 
 	/// <summary>

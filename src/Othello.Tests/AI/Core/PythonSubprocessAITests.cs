@@ -230,3 +230,99 @@ public class PythonSubprocessAIHandshakeTests
 			$"予期しない EngineName: {ai.EngineName}");
 	}
 }
+
+/// <summary>
+/// PythonSubprocessAI.ResolveExecutableOnPath の単体テスト（Issue #229）。
+/// 実行ファイル名を PATH 上の絶対パスへ解決し、カレントディレクトリ等の相対位置を拾わないことを検証する。
+/// </summary>
+public sealed class ResolveExecutableOnPathTests : IDisposable
+{
+	private readonly string _dirA = Path.Combine(Path.GetTempPath(), $"pathtest_{Guid.NewGuid():N}_a");
+	private readonly string _dirB = Path.Combine(Path.GetTempPath(), $"pathtest_{Guid.NewGuid():N}_b");
+	private static string FileNameOf(string name) => OperatingSystem.IsWindows() ? name + ".exe" : name;
+
+	public ResolveExecutableOnPathTests()
+	{
+		Directory.CreateDirectory(_dirA);
+		Directory.CreateDirectory(_dirB);
+	}
+
+	public void Dispose()
+	{
+		Directory.Delete(_dirA, recursive: true);
+		Directory.Delete(_dirB, recursive: true);
+	}
+
+	private static string Join(params string[] dirs) => string.Join(Path.PathSeparator, dirs);
+
+	/// <summary>
+	/// PATH 上のディレクトリにある実行ファイルのフルパスが返ることを確認する。
+	/// パス条件: 2 番目のディレクトリにだけあるファイルが、そのディレクトリの絶対パスで返ること。
+	/// </summary>
+	[Fact]
+	public void ResolveExecutableOnPath_FindsFileInPathDirectory_ReturnsFullPath()
+	{
+		var expected = Path.Combine(_dirB, FileNameOf("fakepy"));
+		File.WriteAllText(expected, "");
+
+		var result = PythonSubprocessAI.ResolveExecutableOnPath("fakepy", Join(_dirA, _dirB));
+
+		Assert.Equal(expected, result);
+	}
+
+	/// <summary>
+	/// 複数ディレクトリに存在する場合は PATH の先頭側が優先されることを確認する。
+	/// パス条件: _dirA と _dirB の両方にあるとき _dirA 側のパスが返ること。
+	/// </summary>
+	[Fact]
+	public void ResolveExecutableOnPath_MultipleMatches_ReturnsFirstInPathOrder()
+	{
+		File.WriteAllText(Path.Combine(_dirA, FileNameOf("fakepy")), "");
+		File.WriteAllText(Path.Combine(_dirB, FileNameOf("fakepy")), "");
+
+		var result = PythonSubprocessAI.ResolveExecutableOnPath("fakepy", Join(_dirB, _dirA));
+
+		Assert.Equal(Path.Combine(_dirB, FileNameOf("fakepy")), result);
+	}
+
+	/// <summary>
+	/// PATH 上に存在しない場合は null を返すことを確認する。
+	/// パス条件: どのディレクトリにも無いファイル名で null が返ること。
+	/// </summary>
+	[Fact]
+	public void ResolveExecutableOnPath_NotFound_ReturnsNull()
+	{
+		Assert.Null(PythonSubprocessAI.ResolveExecutableOnPath("fakepy", Join(_dirA, _dirB)));
+	}
+
+	/// <summary>
+	/// 相対パスの PATH 要素（カレントディレクトリ経由の乗っ取り経路）と空要素を無視することを確認する。
+	/// パス条件: PATH が相対要素・空要素のみのとき、カレントディレクトリにファイルがあっても null が返ること。
+	/// </summary>
+	[Fact]
+	public void ResolveExecutableOnPath_RelativeAndEmptyEntries_AreIgnored()
+	{
+		var cwdFile = Path.Combine(Directory.GetCurrentDirectory(), FileNameOf("fakepy_cwd"));
+		File.WriteAllText(cwdFile, "");
+		try
+		{
+			Assert.Null(PythonSubprocessAI.ResolveExecutableOnPath("fakepy_cwd", Join(".", "", "relative")));
+		}
+		finally
+		{
+			File.Delete(cwdFile);
+		}
+	}
+
+	/// <summary>
+	/// PATH が null や空文字列でも例外を投げず null を返すことを確認する。
+	/// パス条件: null / 空文字列のどちらでも null が返ること。
+	/// </summary>
+	[Theory]
+	[InlineData(null)]
+	[InlineData("")]
+	public void ResolveExecutableOnPath_NullOrEmptyPath_ReturnsNull(string? pathVar)
+	{
+		Assert.Null(PythonSubprocessAI.ResolveExecutableOnPath("fakepy", pathVar));
+	}
+}
