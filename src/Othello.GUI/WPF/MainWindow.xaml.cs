@@ -19,6 +19,9 @@ public partial class MainWindow : Window
 
 		_vm = new GameViewModel();
 		DataContext = _vm;
+		_vm.Stats.ConfirmReset = () => Task.FromResult(
+			MessageBox.Show(this, "全難易度の勝敗・連勝記録・最大石差を消去します。この操作は元に戻せません。よろしいですか？",
+				"棋力統計のリセット", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes);
 
 		Loaded += async (_, _) =>
 		{
