@@ -182,6 +182,58 @@ public class StatsTests
 
 	// ─── StatsRepository ─────────────────────────────────────────────────────
 
+	/// <summary>
+	/// 導出値（totalGames / winRate / averageMoves）を stats.json に書き出さない（Issue #230）。
+	/// パス条件: Save() 後のファイルに導出値のキーが含まれず、元データ（wins / totalMoves）は含まれること。
+	/// </summary>
+	[Fact]
+	public void StatsRepository_Save_DoesNotWriteDerivedValues()
+	{
+		var path = Path.Combine(Path.GetTempPath(), $"stats_test_{Guid.NewGuid()}.json");
+		try
+		{
+			var stats = new GameStats();
+			stats.RecordResult(PlayerColor.Black, PlayerColor.Black, DifficultyLevel.Medium, 30, 10);
+			new StatsRepository(path).Save(stats);
+
+			var json = File.ReadAllText(path);
+
+			Assert.DoesNotContain("totalGames", json);
+			Assert.DoesNotContain("winRate", json);
+			Assert.DoesNotContain("averageMoves", json);
+			Assert.Contains("\"wins\"", json);
+			Assert.Contains("\"totalMoves\"", json);
+		}
+		finally
+		{
+			File.Delete(path);
+		}
+	}
+
+	/// <summary>
+	/// 導出値を含む旧形式の stats.json も読み込めること（後方互換性、Issue #230）。
+	/// パス条件: 例外なく Load でき、元データから導出値が再計算されること。
+	/// </summary>
+	[Fact]
+	public void StatsRepository_Load_IgnoresDerivedValuesInLegacyFile()
+	{
+		var path = Path.Combine(Path.GetTempPath(), $"stats_test_{Guid.NewGuid()}.json");
+		try
+		{
+			File.WriteAllText(path, """{"normal":{"wins":1,"losses":1,"draws":0,"totalMoves":60,"totalGames":99,"winRate":0.9,"averageMoves":1.0}}""");
+
+			var stats = new StatsRepository(path).Load();
+
+			Assert.Equal(2, stats.Normal.TotalGames);
+			Assert.Equal(0.5, stats.Normal.WinRate);
+			Assert.Equal(30.0, stats.Normal.AverageMoves);
+		}
+		finally
+		{
+			File.Delete(path);
+		}
+	}
+
 	/// <summary>パス条件: ファイルが存在しないとき Load() が空の GameStats を返すこと。</summary>
 	[Fact]
 	public void StatsRepository_Load_ReturnsDefault_WhenFileNotExists()

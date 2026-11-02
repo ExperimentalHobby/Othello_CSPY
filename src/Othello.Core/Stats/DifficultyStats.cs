@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Technopro.Othello.Core.Stats;
 
 /// <summary>
@@ -17,17 +19,20 @@ public class DifficultyStats
 	/// <summary>累計着手数（この難易度の全対局の手数の合計。AverageMoves の算出元）</summary>
 	public int TotalMoves { get; set; }
 
-	/// <summary>総ゲーム数（勝+負+引き分け）</summary>
+	/// <summary>総ゲーム数（勝+負+引き分け）。導出値のため JSON には保存しない。</summary>
+	[JsonIgnore]
 	public int TotalGames => Wins + Losses + Draws;
 
 	/// <summary>
 	/// 勝率。引き分けを除いた勝利数 / (勝利数 + 敗北数)。
 	/// 勝負が 0 件の場合は 0.0 を返す。
 	/// </summary>
+	[JsonIgnore]
 	public double WinRate => (Wins + Losses) > 0 ? (double)Wins / (Wins + Losses) : 0.0;
 
 	/// <summary>
 	/// 平均着手数。TotalGames が 0 の場合は 0.0 を返す。
 	/// </summary>
+	[JsonIgnore]
 	public double AverageMoves => TotalGames > 0 ? (double)TotalMoves / TotalGames : 0.0;
 }
