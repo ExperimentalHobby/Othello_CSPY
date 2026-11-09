@@ -12,7 +12,7 @@
 
   <ItemGroup>
     <!-- アプリ / アナライザー -->
-    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.6.4" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.6.5" />
     <PackageVersion Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2957" />
     <PackageVersion Include="SecurityCodeScan.VS2019" Version="5.6.7" />
 
