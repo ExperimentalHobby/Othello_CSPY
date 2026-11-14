@@ -89,12 +89,17 @@ public class GameViewModelTests
 	}
 
 	/// <summary>
-	/// 盤面の石の総数が指定数になるまで待つ。
+	/// 盤面の石の総数が指定数になり、かつ AI の思考中フラグが下りるまで待つ。
 	/// 「AI の GetBestMove が呼ばれた」だけでは ProcessAIMoveAsync 内の MakeMove 反映が完了している保証がないため、
 	/// 反映後の石数（初期 4 + 着手ごとに 1）を完了シグナルとして使う。
+	/// ただし ProcessAIMoveAsync はスコア更新後の finally で IsAIThinking = false にするため、石数だけでは
+	/// 次の操作を受け付けられる状態まで待てない。IsAIThinking が true のまま次の SquareClicked を実行すると
+	/// ガードで無視されてしまうので、<c>!IsAIThinking</c> も待機条件に含める。
 	/// </summary>
 	private static void WaitForPieceCount(GameViewModel vm, int total)
-		=> WaitUntil(() => vm.BlackScore + vm.WhiteScore == total, $"盤面の石数が {total} になりませんでした");
+		=> WaitUntil(
+			() => vm.BlackScore + vm.WhiteScore == total && !vm.IsAIThinking,
+			$"盤面の石数が {total} になり、かつ IsAIThinking が false になる状態になりませんでした");
 
 	/// <summary>
 	/// 注入した AI ファクトリで構築すると、盤面 64 マス・初期スコア 2/2・進行中状態になることを確認する。
