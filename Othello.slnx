@@ -11,6 +11,7 @@
       <Build Solution="*|Any CPU" Project="false" />
     </Project>
     <Project Path="src/Othello.GUI/WPF/Othello.WPF.csproj" />
+    <Project Path="src/Othello.Tests.E2E.WPF/Othello.Tests.E2E.WPF.csproj" />
     <Project Path="src/Othello.Tests.WPF/Othello.Tests.WPF.csproj" />
     <Project Path="src/Othello.Tests.WinUI3/Othello.Tests.WinUI3.csproj">
       <Platform Project="x64" />
