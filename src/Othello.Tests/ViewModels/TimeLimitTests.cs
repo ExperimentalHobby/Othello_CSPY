@@ -160,12 +160,12 @@ public class TimeLimitTests
 	[Fact]
 	public async Task TimeUp_ForcesMove()
 	{
+		// 強制着手を直接呼ぶため、制限時間タイマーは有効化しない。
+		// 有効化すると AI 応答後に 1 秒タイマーが再び自動着手し、石数が 6 を超えて待機条件が成立しなくなり得る（Issue #222）
 		var vm = MakeVm(DifficultyLevel.Medium);
-		vm.IsTimeLimitEnabled = true;
-		vm.TimeLimitSeconds = 1;
 		vm.StartNewGame();
 
-		// 1 秒待てば自動着手が走るはずだが、テストの速度のため直接強制着手を呼ぶ
+		// 時間切れ時に呼ばれる強制着手を、タイマーを待たず直接呼ぶ
 		vm.ForcePlayFirstValidMove();
 		// 着手後にAIが非同期(fire-and-forget)で応答するため、応答の反映（石数 +2、処理中フラグ解除）を待つ
 		await TestWait.UntilAsync(
