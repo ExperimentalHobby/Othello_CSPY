@@ -18,8 +18,12 @@ public class InitialBoardTests
 	{
 		using var session = AppSession.Launch();
 
-		Assert.Equal("2", session.GetElement("BlackScoreText").Name);
-		Assert.Equal("2", session.GetElement("WhiteScoreText").Name);
+		// 盤面とスコアは AI 生成（Python 起動）完了後に反映されるため、初期値 2 になるまで待つ（レビュー指摘 PR #253）
+		var blackScore = session.GetElement("BlackScoreText");
+		var whiteScore = session.GetElement("WhiteScoreText");
+		WaitUntil(
+			() => blackScore.Name == "2" && whiteScore.Name == "2",
+			() => $"初期スコアが 2 対 2 になりませんでした: 黒=\"{blackScore.Name}\", 白=\"{whiteScore.Name}\"");
 
 		var occupied = Enumerable.Range(1, 8)
 			.SelectMany(row => Columns.Select(col => $"{col}{row}"))
@@ -37,12 +41,18 @@ public class InitialBoardTests
 	{
 		using var session = AppSession.Launch();
 
-		var validMoves = Enumerable.Range(1, 8)
-			.SelectMany(row => Columns.Select(col => $"{col}{row}"))
-			.Where(notation => session.GetElement(notation).Name.Contains("打てます"))
-			.ToList();
-
-		Assert.Equal(4, validMoves.Count);
+		// 有効手のハイライトも AI 生成完了後に反映されるため、4 マスになるまで待つ（レビュー指摘 PR #253）
+		List<string> validMoves = [];
+		WaitUntil(
+			() =>
+			{
+				validMoves = Enumerable.Range(1, 8)
+					.SelectMany(row => Columns.Select(col => $"{col}{row}"))
+					.Where(notation => session.GetElement(notation).Name.Contains("打てます"))
+					.ToList();
+				return validMoves.Count == 4;
+			},
+			() => $"有効手が 4 マスになりませんでした: {validMoves.Count} マス ({string.Join(",", validMoves)})");
 	}
 
 	/// <summary>
@@ -56,11 +66,18 @@ public class InitialBoardTests
 		using var session = AppSession.Launch();
 		var badge = session.GetElement("AiEngineBadge");
 
-		var result = Retry.WhileFalse(
+		WaitUntil(
 			() => IsKnownEngine(badge.Name),
-			TimeSpan.FromSeconds(10));
+			() => $"AI バッジが実エンジン名になりませんでした: \"{badge.Name}\"");
+	}
 
-		Assert.True(result.Result, $"AI バッジが実エンジン名になりませんでした: \"{badge.Name}\"");
+	/// <summary>条件が満たされるまで最大 10 秒ポーリングし、満たされなければテストを失敗させる。</summary>
+	/// <param name="condition">待機する条件。</param>
+	/// <param name="failureMessage">タイムアウト時に評価する失敗メッセージ（最終状態を含められるよう遅延評価）。</param>
+	private static void WaitUntil(Func<bool> condition, Func<string> failureMessage)
+	{
+		var result = Retry.WhileFalse(condition, TimeSpan.FromSeconds(10));
+		Assert.True(result.Result, failureMessage());
 	}
 
 	private static bool IsKnownEngine(string label)
