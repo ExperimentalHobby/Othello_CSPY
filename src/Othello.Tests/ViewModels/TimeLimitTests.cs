@@ -4,6 +4,7 @@ using Technopro.Othello.Core.AI;
 using Technopro.Othello.Core.Models;
 using Technopro.Othello.Core.Rules;
 using Technopro.Othello.Core.Settings;
+using Technopro.Othello.Tests.Helpers;
 using Technopro.Othello.ViewModels;
 
 /// <summary>
@@ -166,8 +167,10 @@ public class TimeLimitTests
 
 		// 1 秒待てば自動着手が走るはずだが、テストの速度のため直接強制着手を呼ぶ
 		vm.ForcePlayFirstValidMove();
-		// 着手後にAIが非同期(fire-and-forget)で応答するため、アサーション前に少し待つ
-		await Task.Delay(10);
+		// 着手後にAIが非同期(fire-and-forget)で応答するため、応答の反映（石数 +2、処理中フラグ解除）を待つ
+		await TestWait.UntilAsync(
+			() => vm.BlackScore + vm.WhiteScore == 6 && !vm.IsAIThinking,
+			"強制着手後の AI 応答が反映されませんでした");
 
 		// 人間（黒）が着手したので黒石が増えているはず
 		Assert.True(vm.BlackScore > 2);
@@ -192,8 +195,10 @@ public class TimeLimitTests
 		var validMoves = OthelloRules.GetValidMoves(vm.EngineCurrentBoard, PlayerColor.Black);
 		vm.SquareClickedCommand.Execute(validMoves[0]);
 
-		// AI の応答を待つ
-		await Task.Delay(800);
+		// AI の応答（石数 +2、処理中フラグ解除）を待つ。Undo は AI 思考中は受け付けられないため完了まで待つ必要がある
+		await TestWait.UntilAsync(
+			() => vm.BlackScore + vm.WhiteScore == 6 && !vm.IsAIThinking,
+			"AI の応答が反映されませんでした");
 
 		vm.UndoCommand.Execute(null);
 
@@ -247,7 +252,9 @@ public class TimeLimitTests
 		int remainingAtDispose = vm.RemainingSeconds;
 		vm.Dispose();
 
-		await Task.Delay(1500); // 1 秒ティックを跨いで待つ
+		// 「Dispose 後にタイマーが動き続けないこと」の否定系検証のため、観測できる完了シグナルが無く
+		// 1 秒ティックを跨ぐ固定時間を待つ（Issue #222）
+		await Task.Delay(1500);
 
 		Assert.Equal(remainingAtDispose, vm.RemainingSeconds);
 	}

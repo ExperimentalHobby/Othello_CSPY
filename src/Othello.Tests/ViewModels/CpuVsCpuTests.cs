@@ -3,6 +3,7 @@ namespace Technopro.Othello.Tests.ViewModels;
 using Technopro.Othello.Core.AI;
 using Technopro.Othello.Core.Models;
 using Technopro.Othello.Core.Rules;
+using Technopro.Othello.Tests.Helpers;
 using Technopro.Othello.ViewModels;
 
 /// <summary>
@@ -90,6 +91,15 @@ public class CpuVsCpuTests
 		return vm;
 	}
 
+	/// <summary>
+	/// ゲームが少し進む（石が初期 4 個から増える）か、既に終局するまで待つ。
+	/// 固定時間の Delay ではなく進行状況を条件にすることで、CI の負荷に依らず「進んだ後」の状態を保証する（Issue #222）。
+	/// </summary>
+	private static Task WaitForProgressAsync(GameViewModel vm)
+		=> TestWait.UntilAsync(
+			() => vm.BlackScore + vm.WhiteScore > 4 || !vm.IsGameInProgress,
+			"CPU vs CPU のゲームが進行しませんでした");
+
 	// ========== Issue #160: 既定 AI（Rust/Python 優先）の使用 ==========
 
 	/// <summary>
@@ -172,8 +182,8 @@ public class CpuVsCpuTests
 	{
 		var vm = await CreateCpuVsCpuViewModelAsync();
 
-		// ゲームが少し進むのを待つ
-		await Task.Delay(100);
+		// ゲームが少し進む（初期 4 個から石が増える）のを待つ
+		await WaitForProgressAsync(vm);
 
 		Assert.False(vm.UndoCommand.CanExecute(null));
 	}
@@ -211,17 +221,20 @@ public class CpuVsCpuTests
 	{
 		var vm = await CreateCpuVsCpuViewModelAsync();
 
-		// 少し待ってから一時停止
-		await Task.Delay(50);
+		// ゲームが進んでから一時停止
+		await WaitForProgressAsync(vm);
 		vm.PauseCommand.Execute(null);
 		Assert.True(vm.IsPaused);
 
-		// 一時停止後は IsGameInProgress が true のまま変化しないこと
-		bool wasInProgress = vm.IsGameInProgress;
+		// 一時停止の瞬間に処理中だった 1 手の完了を待ってから、以降の石数を記録する
+		await TestWait.UntilAsync(() => !vm.IsAIThinking, "一時停止後も AI の処理中フラグが下りませんでした");
+		var scoreAtPause = vm.BlackScore + vm.WhiteScore;
+
+		// 「それ以上進まないこと」の否定系検証のため、観測できる完了シグナルが無く固定時間待つ（Issue #222）
 		await Task.Delay(200);
-		// ゲームが終了していなければ一時停止が有効
-		if (wasInProgress)
-			Assert.True(vm.IsPaused);
+
+		Assert.True(vm.IsPaused);
+		Assert.Equal(scoreAtPause, vm.BlackScore + vm.WhiteScore);
 	}
 
 	/// <summary>
@@ -232,17 +245,22 @@ public class CpuVsCpuTests
 	{
 		var vm = await CreateCpuVsCpuViewModelAsync();
 
-		// 少し待ってから一時停止
-		await Task.Delay(50);
+		// ゲームが進んでから一時停止し、処理中だった 1 手の完了を待つ
+		await WaitForProgressAsync(vm);
 		vm.PauseCommand.Execute(null);
 		Assert.True(vm.IsPaused);
+		await TestWait.UntilAsync(() => !vm.IsAIThinking, "一時停止後も AI の処理中フラグが下りませんでした");
 
 		var scoreBefore = vm.BlackScore + vm.WhiteScore;
-		await Task.Delay(200);
 
 		// 再開
 		vm.PauseCommand.Execute(null);
 		Assert.False(vm.IsPaused);
+
+		// 再開後に石数が増える（または既に終局している）ことを確認する
+		await TestWait.UntilAsync(
+			() => vm.BlackScore + vm.WhiteScore > scoreBefore || !vm.IsGameInProgress,
+			"再開後にゲームが進行しませんでした");
 
 		// ゲームが進行するまで待つ
 		var deadline = DateTime.UtcNow.AddSeconds(30);

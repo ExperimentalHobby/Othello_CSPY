@@ -5,6 +5,7 @@ using Technopro.Othello.Core.Kifu;
 using Technopro.Othello.Core.Models;
 using Technopro.Othello.Core.Rules;
 using Technopro.Othello.Core.Stats;
+using Technopro.Othello.Tests.Helpers;
 using Technopro.Othello.ViewModels;
 
 /// <summary>
@@ -125,12 +126,16 @@ public class EndToEndGameTests
 
 			var validSquare = vm.BoardSquares.FirstOrDefault(sq => sq.IsValidMove);
 			if (validSquare == null) break;
+			var historyCountBeforeClick = vm.ScoreHistory.Count;
 			vm.SquareClickedCommand.Execute(validSquare.Position);
-			await Task.Delay(50);
+			// 着手が履歴に反映されるまで待つ（固定時間の Delay ではなく反映状態を条件にする。Issue #222）
+			await TestWait.UntilAsync(
+				() => vm.ScoreHistory.Count > historyCountBeforeClick,
+				"人間の着手が ScoreHistory に反映されませんでした");
 		}
 
+		// Undo は同期的に反映されるため、固定時間の待機なしで続行できる
 		vm.UndoCommand.Execute(null);
-		await Task.Delay(50);
 
 		await PlayFullGameAsync(vm);
 
