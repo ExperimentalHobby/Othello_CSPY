@@ -214,6 +214,31 @@ py -m unittest discover -s src/Othello.AI/Python -p "test_*.py"
 
 ---
 
+### 4. GUI 自動テスト（FlaUI）— 予定
+
+> **ステータス: 未実装（計画中、Issue #250）**  
+> 学習目的も兼ねて、[FlaUI](https://github.com/FlaUI/FlaUI)（UI Automation）による GUI 自動テストを追加する予定です。
+
+既存の C# テストは ViewModel 層（`FakeAI` 注入）までを対象としています。そのため次の動作は手動確認に頼っています。
+
+- XAML バインディング（盤面クリック → 着手、ComboBox 連携、有効手ハイライト）
+- Python サブプロセスを含む実アプリの動作（`.py` の出力ディレクトリへのコピー、IPC、ウィンドウを閉じたときのプロセス停止）
+
+FlaUI テストは、この部分を自動化することを目的とします。
+
+| 項目 | 方針（予定） |
+|---|---|
+| 対象 | まず WPF 版のみ（WinUI3 は UIA での安定化コストが高いため後回し） |
+| ライブラリ | FlaUI.UIA3 ＋ xUnit |
+| テスト範囲 | スモークテスト数本（起動時の初期盤面、有効手クリックによる着手、AI 応答後に手番が戻ること、新規ゲーム / Undo、終了時に Python プロセスが残らないこと） |
+| 難易度 | ビギナー固定（Hard / Expert の思考待ち（最大 8〜15 秒）を避けるため） |
+| 前提作業 | 盤面マス・ボタン・ComboBox に `AutomationProperties.AutomationId` を付与 |
+| 実行タイミング | ローカル実行、CI では手動 / 定期実行の別ジョブとする（デスクトップセッションに依存し不安定になりやすいため、PR の必須チェックにはしない） |
+
+> プロジェクト名・構成などの詳細は実装時に決定します。
+
+---
+
 ## 操作方法
 
 ### WPF 版 / WinUI3 版
@@ -303,7 +328,9 @@ Othello_CSPY/
 │   │       └── build_rust.ps1 # ビルド & .pyd/.so 配置ヘルパー
 │   │
 │   ├── Othello.Tests/         # xUnit テスト（.NET 10、クロスプラットフォーム）
-│   └── Othello.Tests.WPF/     # xUnit テスト（WPF 依存。Converter 等 System.Windows 型を使うテストのみ）
+│   ├── Othello.Tests.E2E.WPF/ # FlaUI による GUI 自動テスト（WPF 版 exe を起動。OTHELLO_UI_TESTS=1 のときのみ実行）
+│   ├── Othello.Tests.WPF/     # xUnit テスト（WPF 依存。Converter 等 System.Windows 型を使うテストのみ）
+│   └── Othello.Tests.WinUI3/  # xUnit テスト（WinUI3 依存。Converter・Style の TargetType 検証。x64 ビルドのみ）
 │
 ├── .claude/commands/          # Claude Code スラッシュコマンド
 │   ├── debug-ai.md            # /debug-ai           : AI デバッグ手順

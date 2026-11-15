@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    FlaUI（UIA3）による WPF 版の GUI 自動テスト（Issue #250）。
+    実際の Othello.WPF.exe を別プロセスで起動して操作するため、ウィンドウが表示される。
+    [UiFact] のテストは環境変数 OTHELLO_UI_TESTS=1 のときのみ実行される（未設定時は Skip）。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>Technopro.Othello.Tests.E2E.WPF</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="FlaUI.UIA3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 起動対象。参照することで Othello.WPF.exe と Othello.Python/（AI スクリプト）が出力先にコピーされる -->
+    <ProjectReference Include="..\Othello.GUI\WPF\Othello.WPF.csproj" />
+  </ItemGroup>
+
+</Project>
