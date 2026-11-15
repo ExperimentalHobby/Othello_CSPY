@@ -32,6 +32,47 @@ public class CpuVsCpuTests
 	}
 
 	/// <summary>
+	/// GetBestMove の呼び出しをゲートで止められるモック AI。
+	/// 「処理中の 1 手」を確実に捕まえた状態で一時停止・解放できるため、固定時間待ちや
+	/// IsAIThinking の一瞬の値に頼らず、停止・再開を決定的に検証できる（Issue #222）。
+	/// 黒・白の両方で同一インスタンスを共有して使う。
+	/// </summary>
+	private sealed class GatedFakeAI : IAIStrategy
+	{
+		private readonly SemaphoreSlim _gate = new(0);
+		private volatile bool _open;
+		private int _callCount;
+
+		/// <summary>GetBestMove が呼ばれる（ゲート待ちに入る）たびにセットされる。</summary>
+		public ManualResetEventSlim Entered { get; } = new(false);
+
+		/// <summary>GetBestMove が呼ばれた累計回数。</summary>
+		public int CallCount => Volatile.Read(ref _callCount);
+
+		public DifficultyLevel Difficulty => DifficultyLevel.Easy;
+		public string EngineName => "AI: Gated";
+
+		/// <summary>ゲート待ち中の GetBestMove を 1 回分だけ通す。</summary>
+		public void ReleaseOne() => _gate.Release();
+
+		/// <summary>以降の GetBestMove をゲート待ちなしで通す（待機中の 1 手も解放する）。</summary>
+		public void OpenGate()
+		{
+			_open = true;
+			_gate.Release();
+		}
+
+		public Position GetBestMove(Board board, PlayerColor playerColor)
+		{
+			Interlocked.Increment(ref _callCount);
+			Entered.Set();
+			if (!_open && !_gate.Wait(TestWait.DefaultTimeout))
+				throw new TimeoutException("GatedFakeAI のゲートが解放されませんでした");
+			return OthelloRules.GetValidMoves(board, playerColor)[0];
+		}
+	}
+
+	/// <summary>
 	/// GetBestMove に渡された Board 参照をそのまま記録するモック AI。
 	/// 呼び出し元が生の可変参照ではなく Clone を渡しているかを検証するために使う（Issue #166）。
 	/// </summary>
@@ -78,12 +119,12 @@ public class CpuVsCpuTests
 		public void Dispose() => Interlocked.Increment(ref _counter.Count);
 	}
 
-	private static async Task<GameViewModel> CreateCpuVsCpuViewModelAsync()
+	private static async Task<GameViewModel> CreateCpuVsCpuViewModelAsync(IAIStrategy? sharedAi = null)
 	{
 		var vm = new GameViewModel(
-			aiFactory: _ => new FakeAI(),
+			aiFactory: _ => sharedAi ?? new FakeAI(),
 			startDeferred: true,
-			cpuVsCpuAiFactory: _ => new FakeAI());
+			cpuVsCpuAiFactory: _ => sharedAi ?? new FakeAI());
 		vm.GameMode = GameMode.CpuVsCpu;
 		vm.CpuVsCpuDelayMs = 0;
 		await vm.StartNewGameAsync(); // 新規ゲーム: IsPaused = true の状態
@@ -214,60 +255,72 @@ public class CpuVsCpuTests
 	}
 
 	/// <summary>
-	/// パス条件: IsPaused = true にすると AI の思考が止まること（IsAIThinking が false のまま遷移しないこと）。
+	/// 一時停止すると、処理中だった 1 手の完了後は AI が呼ばれず、石数も増えないことを確認する。
+	/// ゲート付き AI で 1 手目の処理中を捕まえてから一時停止するため、対局が先に終わって
+	/// 空振りで合格することも、手と手の間のタイミングで判定がずれることもない。
+	/// パス条件: 一時停止後、処理中の 1 手のみ完了して石数 5（初期 4 + 1）となり、
+	/// その後 AI が追加で呼ばれず（CallCount == 1）石数も変わらないこと。
 	/// </summary>
 	[Fact]
 	public async Task CpuVsCpu_PauseStopsAutoPlay()
 	{
-		var vm = await CreateCpuVsCpuViewModelAsync();
+		var ai = new GatedFakeAI();
+		var vm = await CreateCpuVsCpuViewModelAsync(ai);
 
-		// ゲームが進んでから一時停止
-		await WaitForProgressAsync(vm);
+		// 1 手目の処理中（GetBestMove がゲート待ち）を捕まえてから一時停止する
+		Assert.True(ai.Entered.Wait(TestWait.DefaultTimeout), "1 手目の AI 処理が始まりませんでした");
 		vm.PauseCommand.Execute(null);
 		Assert.True(vm.IsPaused);
 
-		// 一時停止の瞬間に処理中だった 1 手の完了を待ってから、以降の石数を記録する
-		await TestWait.UntilAsync(() => !vm.IsAIThinking, "一時停止後も AI の処理中フラグが下りませんでした");
-		var scoreAtPause = vm.BlackScore + vm.WhiteScore;
+		// 処理中だった 1 手だけを完了させる
+		ai.ReleaseOne();
+		await TestWait.UntilAsync(
+			() => vm.BlackScore + vm.WhiteScore == 5 && !vm.IsAIThinking,
+			"一時停止時に処理中だった 1 手が完了しませんでした");
 
 		// 「それ以上進まないこと」の否定系検証のため、観測できる完了シグナルが無く固定時間待つ（Issue #222）
 		await Task.Delay(200);
 
 		Assert.True(vm.IsPaused);
-		Assert.Equal(scoreAtPause, vm.BlackScore + vm.WhiteScore);
+		Assert.Equal(1, ai.CallCount);
+		Assert.Equal(5, vm.BlackScore + vm.WhiteScore);
 	}
 
 	/// <summary>
-	/// パス条件: 一時停止後に再開するとゲームが続くこと。
+	/// 一時停止後に再開すると、新しい着手が行われてゲームが最後まで進むことを確認する。
+	/// 再開後は「終局しているから」ではなく、AI が再び呼ばれ石数が増えたことで進行を確認する。
+	/// パス条件: 再開後に AI が追加で呼ばれて石数が 5 を超え、最終的にゲームが終了すること。
 	/// </summary>
 	[Fact]
 	public async Task CpuVsCpu_ResumeAfterPause_GameContinues()
 	{
-		var vm = await CreateCpuVsCpuViewModelAsync();
+		var ai = new GatedFakeAI();
+		var vm = await CreateCpuVsCpuViewModelAsync(ai);
 
-		// ゲームが進んでから一時停止し、処理中だった 1 手の完了を待つ
-		await WaitForProgressAsync(vm);
+		// 1 手目の処理中を捕まえて一時停止し、その 1 手だけ完了させる
+		Assert.True(ai.Entered.Wait(TestWait.DefaultTimeout), "1 手目の AI 処理が始まりませんでした");
 		vm.PauseCommand.Execute(null);
 		Assert.True(vm.IsPaused);
-		await TestWait.UntilAsync(() => !vm.IsAIThinking, "一時停止後も AI の処理中フラグが下りませんでした");
+		ai.ReleaseOne();
+		await TestWait.UntilAsync(
+			() => vm.BlackScore + vm.WhiteScore == 5 && !vm.IsAIThinking,
+			"一時停止時に処理中だった 1 手が完了しませんでした");
 
-		var scoreBefore = vm.BlackScore + vm.WhiteScore;
-
-		// 再開
+		// 再開（以降はゲートを開けて通常どおり進行させる）
+		ai.OpenGate();
 		vm.PauseCommand.Execute(null);
 		Assert.False(vm.IsPaused);
 
-		// 再開後に石数が増える（または既に終局している）ことを確認する
+		// 再開後に新しい着手が行われる（AI が再び呼ばれ、石数が増える）ことを確認する
 		await TestWait.UntilAsync(
-			() => vm.BlackScore + vm.WhiteScore > scoreBefore || !vm.IsGameInProgress,
-			"再開後にゲームが進行しませんでした");
+			() => ai.CallCount >= 2 && vm.BlackScore + vm.WhiteScore > 5,
+			"再開後に新しい着手が行われませんでした");
 
-		// ゲームが進行するまで待つ
-		var deadline = DateTime.UtcNow.AddSeconds(30);
-		while (vm.IsGameInProgress && DateTime.UtcNow < deadline)
-			await Task.Delay(20);
-
-		Assert.False(vm.IsGameInProgress);
+		// ゲームが最後まで進む
+		await TestWait.UntilAsync(
+			() => !vm.IsGameInProgress,
+			"再開後にゲームが終了しませんでした",
+			TimeSpan.FromSeconds(30));
 	}
 
 	/// <summary>
