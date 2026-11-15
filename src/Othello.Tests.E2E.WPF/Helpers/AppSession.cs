@@ -81,9 +81,23 @@ public sealed class AppSession : IDisposable
 			return;
 		_disposed = true;
 
-		if (!_app.HasExited)
-			_app.Close(killIfCloseFails: true);
-		_app.Dispose();
-		_automation.Dispose();
+		// Close / Dispose のいずれかが例外を出しても、後続の解放（プロセスハンドル・Automation）は必ず実行する。
+		// _disposed は既に true のため、ここで取りこぼすと再度 Dispose しても解放されない。
+		try
+		{
+			if (!_app.HasExited)
+				_app.Close(killIfCloseFails: true);
+		}
+		finally
+		{
+			try
+			{
+				_app.Dispose();
+			}
+			finally
+			{
+				_automation.Dispose();
+			}
+		}
 	}
 }
