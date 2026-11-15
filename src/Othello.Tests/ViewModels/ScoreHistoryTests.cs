@@ -4,6 +4,7 @@ using Technopro.Othello.Core.AI;
 using Technopro.Othello.Core.Models;
 using Technopro.Othello.Core.Rules;
 using Technopro.Othello.Core.Settings;
+using Technopro.Othello.Tests.Helpers;
 using Technopro.Othello.ViewModels;
 
 /// <summary>
@@ -22,6 +23,15 @@ public class ScoreHistoryTests
 
 	private static GameViewModel MakeVm()
 		=> new(d => new FakeAI(), settings: new OthelloSettings());
+
+	/// <summary>
+	/// 人間の着手に対する AI の応答が反映される（ScoreHistory が初期 + 人間 + AI の 3 件になり、
+	/// AI の処理中フラグが下りる）まで待つ。固定時間の Delay ではなく反映状態を条件にする（Issue #222）。
+	/// </summary>
+	private static Task WaitForAiReplyAsync(GameViewModel vm)
+		=> TestWait.UntilAsync(
+			() => vm.ScoreHistory.Count == 3 && !vm.IsAIThinking,
+			"AI の応答が ScoreHistory に反映されませんでした");
 
 	/// <summary>
 	/// 新規ゲーム開始直後に ScoreHistory に 1 件の初期エントリが入ることを確認する。
@@ -60,10 +70,10 @@ public class ScoreHistoryTests
 		vm.SquareClickedCommand.Execute(validMoves[0]);
 
 		// AI 応答を待つ
-		await Task.Delay(200);
+		await WaitForAiReplyAsync(vm);
 
-		// 人間 1 手 + AI 1 手 = 3 件（初期 + 2）または人間のみ = 2 件
-		Assert.True(vm.ScoreHistory.Count >= 2);
+		// 初期 1 件 + 人間 1 手 + AI 1 手 = 3 件
+		Assert.Equal(3, vm.ScoreHistory.Count);
 	}
 
 	/// <summary>
@@ -77,7 +87,7 @@ public class ScoreHistoryTests
 		var validMoves = OthelloRules.GetValidMoves(vm.EngineCurrentBoard, PlayerColor.Black);
 		vm.SquareClickedCommand.Execute(validMoves[0]);
 
-		await Task.Delay(200);
+		await WaitForAiReplyAsync(vm);
 
 		Assert.True(vm.ScoreHistory[1].BlackCount > 2);
 	}
@@ -94,7 +104,7 @@ public class ScoreHistoryTests
 		vm.SquareClickedCommand.Execute(validMoves[0]);
 
 		// AI 応答を待ってから Undo
-		await Task.Delay(500);
+		await WaitForAiReplyAsync(vm);
 
 		vm.UndoCommand.Execute(null);
 

@@ -4,6 +4,7 @@ using Technopro.Othello.Core.AI;
 using Technopro.Othello.Core.Kifu;
 using Technopro.Othello.Core.Models;
 using Technopro.Othello.Core.Rules;
+using Technopro.Othello.Tests.Helpers;
 using Technopro.Othello.ViewModels;
 
 /// <summary>
@@ -70,23 +71,7 @@ public class GameViewModelTests
 		}
 	}
 
-	private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
-
-	/// <summary>
-	/// 条件が真になるまで待つ（固定時間 Sleep ではなく条件ポーリング。Issue #222）。
-	/// Timeout 内に満たされなければ Assert で確実に失敗させる。
-	/// </summary>
-	private static void WaitUntil(Func<bool> condition, string failureMessage)
-		=> Assert.True(SpinWait.SpinUntil(condition, Timeout), failureMessage);
-
-	/// <summary><see cref="WaitUntil"/> の async 版。</summary>
-	private static async Task WaitUntilAsync(Func<bool> condition, string failureMessage)
-	{
-		var deadline = DateTime.UtcNow + Timeout;
-		while (!condition() && DateTime.UtcNow < deadline)
-			await Task.Delay(10);
-		Assert.True(condition(), failureMessage);
-	}
+	private static readonly TimeSpan Timeout = TestWait.DefaultTimeout;
 
 	/// <summary>
 	/// 盤面の石の総数が指定数になり、かつ AI の思考中フラグが下りるまで待つ。
@@ -97,7 +82,7 @@ public class GameViewModelTests
 	/// ガードで無視されてしまうので、<c>!IsAIThinking</c> も待機条件に含める。
 	/// </summary>
 	private static void WaitForPieceCount(GameViewModel vm, int total)
-		=> WaitUntil(
+		=> TestWait.Until(
 			() => vm.BlackScore + vm.WhiteScore == total && !vm.IsAIThinking,
 			$"盤面の石数が {total} になり、かつ IsAIThinking が false になる状態になりませんでした");
 
@@ -162,7 +147,7 @@ public class GameViewModelTests
 		vm.DifficultyIndex = 3; // Hard へ変更（index 3 = Hard）→ 初期状態なので非同期再起動
 
 		// 非同期再起動の完了を待機（FakeAI の生成は瞬時なので短時間で確認できる）
-		Assert.True(SpinWait.SpinUntil(() => Volatile.Read(ref created) == 2, Timeout));
+		TestWait.Until(() => Volatile.Read(ref created) == 2, "難易度変更後に AI ファクトリが再度呼ばれませんでした");
 		Assert.Equal(DifficultyLevel.Hard, last!.Difficulty); // 新しい難易度が反映されている
 		Assert.True(vm.IsGameInProgress);
 	}
@@ -535,7 +520,7 @@ public class GameViewModelTests
 		Assert.True(aiErrored.Wait(Timeout));
 
 		// ProcessAIMoveAsync の catch ブロックがゲームを停止するまで待つ
-		WaitUntil(() => !vm.IsGameInProgress, "AI エラー後にゲームが停止しませんでした");
+		TestWait.Until(() => !vm.IsGameInProgress, "AI エラー後にゲームが停止しませんでした");
 
 		Assert.False(vm.IsGameInProgress);
 		Assert.Contains("AI エラー", vm.StatusMessage);
@@ -557,9 +542,7 @@ public class GameViewModelTests
 		// 人間（黒）が着手 → AI（白）が無効な (0,0) を返す
 		vm.SquareClickedCommand.Execute(new Position(2, 3));
 
-		var deadline = DateTime.UtcNow.AddSeconds(5);
-		while (vm.IsGameInProgress && DateTime.UtcNow < deadline)
-			Thread.Sleep(20);
+		TestWait.Until(() => !vm.IsGameInProgress, "AI が無効手を返してもゲームが停止しませんでした");
 
 		Assert.False(vm.IsGameInProgress);
 		Assert.Contains("AI の手が無効でした", vm.StatusMessage);
@@ -582,9 +565,7 @@ public class GameViewModelTests
 		await vm.StartNewGameAsync(); // IsPaused = true（開始ボタン待ち）
 		vm.PauseCommand.Execute(null); // 開始
 
-		var deadline = DateTime.UtcNow.AddSeconds(5);
-		while (vm.IsGameInProgress && DateTime.UtcNow < deadline)
-			await Task.Delay(20);
+		await TestWait.UntilAsync(() => !vm.IsGameInProgress, "AI が無効手を返してもゲームが停止しませんでした");
 
 		Assert.False(vm.IsGameInProgress);
 		Assert.Contains("AI の手が無効でした", vm.StatusMessage);
@@ -908,7 +889,7 @@ public class GameViewModelTests
 		// デフォルトは人間=黒（先手）で人間ターンから開始
 
 		vm.IsHintEnabled = true;
-		await WaitUntilAsync(() => vm.BoardSquares.Any(sq => sq.IsHint), "ヒントが表示されませんでした");
+		await TestWait.UntilAsync(() => vm.BoardSquares.Any(sq => sq.IsHint), "ヒントが表示されませんでした");
 
 		Assert.Single(vm.BoardSquares, sq => sq.IsHint);
 	}
@@ -923,10 +904,10 @@ public class GameViewModelTests
 		using var vm = new GameViewModel(d => new FakeAI(d));
 
 		vm.IsHintEnabled = true;
-		await WaitUntilAsync(() => vm.BoardSquares.Any(sq => sq.IsHint), "ヒントが表示されませんでした");
+		await TestWait.UntilAsync(() => vm.BoardSquares.Any(sq => sq.IsHint), "ヒントが表示されませんでした");
 
 		vm.IsHintEnabled = false;
-		await WaitUntilAsync(() => vm.BoardSquares.All(sq => !sq.IsHint), "ヒントがクリアされませんでした");
+		await TestWait.UntilAsync(() => vm.BoardSquares.All(sq => !sq.IsHint), "ヒントがクリアされませんでした");
 
 		Assert.All(vm.BoardSquares, sq => Assert.False(sq.IsHint));
 	}
@@ -940,14 +921,14 @@ public class GameViewModelTests
 	{
 		using var vm = new GameViewModel(d => new FakeAI(d));
 		vm.IsHintEnabled = true;
-		await WaitUntilAsync(() => vm.BoardSquares.Any(sq => sq.IsHint), "初期ヒントが表示されませんでした");
+		await TestWait.UntilAsync(() => vm.BoardSquares.Any(sq => sq.IsHint), "初期ヒントが表示されませんでした");
 
 		// 人間（黒）が着手
 		var humanMove = vm.BoardSquares.First(sq => sq.IsValidMove).Position;
 		vm.SquareClickedCommand.Execute(humanMove);
 
 		// AI（白）が応答して再び人間ターンになり、ヒントが更新されるまで待つ
-		await WaitUntilAsync(
+		await TestWait.UntilAsync(
 			() => vm.BlackScore + vm.WhiteScore == 6 && vm.BoardSquares.Count(sq => sq.IsHint) == 1,
 			"AI 着手後にヒントが更新されませんでした");
 
@@ -1108,10 +1089,9 @@ public class GameViewModelTests
 		vm.IsHintEnabled = true;  // 2 回目のヒント要求発火（即完了）
 
 		// 2 回目（新しい要求）の完了を待つ
-		var deadline = DateTime.UtcNow + Timeout;
-		while (!vm.BoardSquares.Single(s => s.Position.Equals(freshMove)).IsHint && DateTime.UtcNow < deadline)
-			await Task.Delay(10);
-		Assert.True(vm.BoardSquares.Single(s => s.Position.Equals(freshMove)).IsHint);
+		await TestWait.UntilAsync(
+			() => vm.BoardSquares.Single(s => s.Position.Equals(freshMove)).IsHint,
+			"新しいヒント要求の結果が表示されませんでした");
 
 		// 1 回目（古い要求）を解放して完了させる
 		gate.Set();
