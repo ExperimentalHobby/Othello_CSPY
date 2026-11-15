@@ -42,6 +42,16 @@ public class EndToEndGameTests
 	}
 
 	/// <summary>
+	/// 人間の手番（有効手が表示され、かつ AI の処理中フラグが解除されている状態）または終局まで待つ。
+	/// 着手直後は ScoreHistory が同期的に増えるため履歴件数では AI 応答の完了を判定できず、
+	/// IsAIThinking の解除前にクリックすると着手が無視されるため、両方を条件にする（Issue #222）。
+	/// </summary>
+	private static Task WaitForHumanTurnAsync(GameViewModel vm)
+		=> TestWait.UntilAsync(
+			() => !vm.IsGameInProgress || (!vm.IsAIThinking && vm.BoardSquares.Any(sq => sq.IsValidMove)),
+			"人間の手番（有効手の表示かつ AI 処理完了）になりませんでした");
+
+	/// <summary>
 	/// 人間・AI とも「最初の有効手」を選ぶ決定的な対局を初手から終局まで駆動する。
 	/// BoardSquares の IsValidMove は人間のターンのみ立つ（RefreshBoardDisplay の仕様）ため、
 	/// これを「人間の手番かどうか」の目印として使い、人間のクリックと AI の応答を交互に進める。
@@ -120,9 +130,7 @@ public class EndToEndGameTests
 		// 数手進めてから 1 回 Undo する
 		for (int i = 0; i < 4 && vm.IsGameInProgress; i++)
 		{
-			var moveDeadline = DateTime.UtcNow.AddSeconds(5);
-			while (vm.BoardSquares.All(sq => !sq.IsValidMove) && DateTime.UtcNow < moveDeadline)
-				await Task.Delay(20);
+			await WaitForHumanTurnAsync(vm);
 
 			var validSquare = vm.BoardSquares.FirstOrDefault(sq => sq.IsValidMove);
 			if (validSquare == null) break;
@@ -134,7 +142,8 @@ public class EndToEndGameTests
 				"人間の着手が ScoreHistory に反映されませんでした");
 		}
 
-		// Undo は同期的に反映されるため、固定時間の待機なしで続行できる
+		// AI の応答が反映され人間の手番に戻る（IsAIThinking 解除）まで待ってから Undo する
+		await WaitForHumanTurnAsync(vm);
 		vm.UndoCommand.Execute(null);
 
 		await PlayFullGameAsync(vm);
