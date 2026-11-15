@@ -31,11 +31,11 @@
             <!-- AI エンジン表示 -->
             <Border Background="{StaticResource AiBadgeBackgroundBrush}"
                     CornerRadius="4" Padding="8,4" Margin="8,0,4,0" VerticalAlignment="Center">
-                <TextBlock Text="{Binding AiEngineLabel}" FontSize="11" FontWeight="Bold"
+                <TextBlock AutomationProperties.AutomationId="AiEngineBadge" Text="{Binding AiEngineLabel}" FontSize="11" FontWeight="Bold"
                            Foreground="{StaticResource AiBadgeForegroundBrush}" VerticalAlignment="Center"/>
             </Border>
             <Separator Width="2" Background="{StaticResource SeparatorBrush}" Margin="4,0"/>
-            <Button Content="新規ゲーム" Command="{Binding NewGameCommand}"
+            <Button AutomationProperties.AutomationId="NewGameButton" Content="新規ゲーム" Command="{Binding NewGameCommand}"
                     ToolTip="新規ゲーム (Ctrl+N)"
                     Style="{StaticResource ActionButtonStyle}"/>
             <!-- CPU vs CPU 専用: 開始/一時停止（新規ゲームの直隣に配置） -->
@@ -43,7 +43,7 @@
                     Command="{Binding PauseCommand}"
                     Style="{StaticResource ActionButtonStyle}"
                     Visibility="{Binding IsCpuVsCpu, Converter={StaticResource BoolToVisConverter}}"/>
-            <Button Content="戻す" Command="{Binding UndoCommand}"
+            <Button AutomationProperties.AutomationId="UndoButton" Content="戻す" Command="{Binding UndoCommand}"
                     ToolTip="戻す (Ctrl+Z)"
                     Style="{StaticResource ActionButtonStyle}"/>
             <ToggleButton Content="ヒント"
@@ -78,6 +78,7 @@
                 <ComboBox Width="100" Margin="4,0" VerticalAlignment="Center" FontSize="12"
                           Style="{StaticResource MenuComboBoxStyle}"
                           ItemContainerStyle="{StaticResource MenuComboBoxItemStyle}"
+                          AutomationProperties.AutomationId="DifficultyComboBox"
                           SelectedIndex="{Binding DifficultyIndex, Mode=TwoWay}"
                           IsEnabled="{Binding IsSettingsEditable}">
                     <ComboBoxItem Content="ビギナー"/>
@@ -200,6 +201,7 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Button Margin="0" Background="{StaticResource BoardGreenBrush}"
+                                    AutomationProperties.AutomationId="{Binding Notation}"
                                     AutomationProperties.Name="{Binding AccessibleName}"
                                     BorderBrush="Black" BorderThickness="1"
                                     Padding="0" VerticalContentAlignment="Stretch" HorizontalContentAlignment="Stretch"
@@ -256,7 +258,7 @@
                     <Border Style="{StaticResource SidebarPanelStyle}">
                         <StackPanel Margin="10">
                             <TextBlock Text="ゲーム状態" FontSize="14" FontWeight="Bold" Margin="0,0,0,10"/>
-                            <TextBlock Text="{Binding CurrentPlayerDisplay}" FontSize="13" Margin="0,0,0,5" TextWrapping="Wrap"/>
+                            <TextBlock AutomationProperties.AutomationId="CurrentPlayerText" Text="{Binding CurrentPlayerDisplay}" FontSize="13" Margin="0,0,0,5" TextWrapping="Wrap"/>
                             <!-- 固定高で囲むことで Collapsed/Visible 切替時のレイアウトシフトを防ぐ（WinUI3版と同じ対応） -->
                             <Grid Height="30">
                                 <TextBlock Text="AI が考え中..." FontSize="11" Foreground="Yellow"
@@ -272,12 +274,12 @@
                             <TextBlock Text="スコア" FontSize="14" FontWeight="Bold" Margin="0,0,0,10"/>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
                                 <Ellipse Fill="Black" Width="15" Height="15" Margin="0,0,10,0" VerticalAlignment="Center"/>
-                                <TextBlock Text="{Binding BlackScore}" FontSize="13" VerticalAlignment="Center"/>
+                                <TextBlock AutomationProperties.AutomationId="BlackScoreText" Text="{Binding BlackScore}" FontSize="13" VerticalAlignment="Center"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal">
                                 <Ellipse Fill="White" Width="15" Height="15" Margin="0,0,10,0"
                                          VerticalAlignment="Center" Stroke="Black" StrokeThickness="1"/>
-                                <TextBlock Text="{Binding WhiteScore}" FontSize="13" VerticalAlignment="Center"/>
+                                <TextBlock AutomationProperties.AutomationId="WhiteScoreText" Text="{Binding WhiteScore}" FontSize="13" VerticalAlignment="Center"/>
                             </StackPanel>
                         </StackPanel>
                     </Border>
@@ -457,7 +459,7 @@
 
         <!-- ステータスバー -->
         <Grid Grid.Row="2" Background="{StaticResource MenuDarkGreenBrush}" Height="40">
-            <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource WhiteTextBrush}"
+            <TextBlock AutomationProperties.AutomationId="StatusMessageText" Text="{Binding StatusMessage}" Foreground="{StaticResource WhiteTextBrush}"
                        FontSize="12" VerticalAlignment="Center" Margin="10,0"/>
         </Grid>
     </Grid>

@@ -11,6 +11,12 @@ public class BoardSquareViewModel : ViewModelBase
 {
 	public Position Position { get; }
 
+	/// <summary>
+	/// 盤面表記の座標（列 a〜h + 行 1〜8。例: "d4"）。
+	/// UI 自動テストがマスを特定するための AutomationId として使う（Issue #250）。
+	/// </summary>
+	public string Notation => Position.ToNotation();
+
 	private PlayerColor _piece = PlayerColor.Empty;
 	private bool _isValidMove;
 	private bool _hasPiece;
@@ -44,7 +50,7 @@ public class BoardSquareViewModel : ViewModelBase
 				PlayerColor.White => "白",
 				_ => _isValidMove ? "空き 打てます" : "空き",
 			};
-			return $"{Position.ToNotation()} {state}";
+			return $"{Notation} {state}";
 		}
 	}
 
