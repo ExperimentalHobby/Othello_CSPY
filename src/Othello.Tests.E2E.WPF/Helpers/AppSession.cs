@@ -46,20 +46,28 @@ public sealed class AppSession : IDisposable
 		{
 			WorkingDirectory = AppContext.BaseDirectory,
 		});
-		app.CloseTimeout = CloseTimeout;
-		var automation = new UIA3Automation();
+		// UIA3Automation の生成（COM 初期化）も失敗しうるため、起動済みの app を閉じられるよう try 内で生成する
+		UIA3Automation? automation = null;
 		try
 		{
+			app.CloseTimeout = CloseTimeout;
+			automation = new UIA3Automation();
 			var mainWindow = app.GetMainWindow(automation, LaunchTimeout)
 				?? throw new TimeoutException($"{LaunchTimeout.TotalSeconds} 秒以内にメインウィンドウが表示されませんでした。");
 			return new AppSession(app, automation, mainWindow);
 		}
 		catch
 		{
-			// 起動途中で失敗してもプロセスを残さない
-			app.Close(killIfCloseFails: true);
-			app.Dispose();
-			automation.Dispose();
+			// 起動途中で失敗してもプロセスを残さない（終了処理自体が失敗しても automation の解放は行う）
+			try
+			{
+				app.Close(killIfCloseFails: true);
+			}
+			finally
+			{
+				app.Dispose();
+				automation?.Dispose();
+			}
 			throw;
 		}
 	}
