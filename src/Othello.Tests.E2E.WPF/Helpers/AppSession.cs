@@ -3,6 +3,7 @@ namespace Technopro.Othello.Tests.E2E.WPF.Helpers;
 using System.Diagnostics;
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Tools;
 using FlaUI.UIA3;
 
 /// <summary>
@@ -16,6 +17,9 @@ public sealed class AppSession : IDisposable
 
 	/// <summary>ウィンドウを閉じてから正常終了を待つ上限。超えた場合は強制終了する。</summary>
 	private static readonly TimeSpan CloseTimeout = TimeSpan.FromSeconds(10);
+
+	/// <summary>要素が見つかるまでの待機上限。</summary>
+	private static readonly TimeSpan ElementTimeout = TimeSpan.FromSeconds(10);
 
 	private readonly Application _app;
 	private readonly UIA3Automation _automation;
@@ -70,6 +74,20 @@ public sealed class AppSession : IDisposable
 			}
 			throw;
 		}
+	}
+
+	/// <summary>
+	/// AutomationId で要素を取得する。表示直後で見つからない場合は <see cref="ElementTimeout"/> まで再試行する。
+	/// </summary>
+	/// <param name="automationId">取得する要素の AutomationId（マスは "d4" などの盤面表記）。</param>
+	/// <exception cref="TimeoutException">待機上限までに要素が見つからなかった場合。</exception>
+	public AutomationElement GetElement(string automationId)
+	{
+		var result = Retry.WhileNull(
+			() => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId)),
+			ElementTimeout);
+		return result.Result
+			?? throw new TimeoutException($"{ElementTimeout.TotalSeconds} 秒以内に AutomationId \"{automationId}\" の要素が見つかりませんでした。");
 	}
 
 	/// <summary>

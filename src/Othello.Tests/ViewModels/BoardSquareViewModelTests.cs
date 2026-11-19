@@ -24,6 +24,23 @@ public class BoardSquareViewModelTests
 		Assert.Equal(pos, sq.Position);
 	}
 
+	// ========== Notation ==========
+
+	/// <summary>
+	/// 座標が盤面表記（列 a〜h + 行 1〜8）として公開されることを確認する。
+	/// UI 自動テストが AutomationId としてマスを特定するために使う（Issue #250）。
+	/// パス条件: (row, col) = (3,3) → "d4"、(0,0) → "a1"、(7,7) → "h8" であること。
+	/// </summary>
+	[Theory]
+	[InlineData(3, 3, "d4")]
+	[InlineData(0, 0, "a1")]
+	[InlineData(7, 7, "h8")]
+	public void Notation_ReturnsBoardNotation(int row, int col, string expected)
+	{
+		var sq = new BoardSquareViewModel(new Position(row, col));
+		Assert.Equal(expected, sq.Notation);
+	}
+
 	// ========== 初期値 ==========
 
 	/// <summary>
