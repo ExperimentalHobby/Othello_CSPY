@@ -57,10 +57,7 @@ public class InitialBoardTests
 		var badge = session.GetElement("AiEngineBadge");
 
 		UiWait.Until(
-			() => IsKnownEngine(badge.Name),
+			() => AiBadge.IsKnownEngine(badge.Name),
 			() => $"AI バッジが実エンジン名になりませんでした: \"{badge.Name}\"");
 	}
-
-	private static bool IsKnownEngine(string label)
-		=> label.Contains("AI: Rust") || label.Contains("AI: Python") || label.Contains("AI: C#");
 }
