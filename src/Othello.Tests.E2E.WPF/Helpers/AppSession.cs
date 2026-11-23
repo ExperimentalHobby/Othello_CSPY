@@ -35,6 +35,9 @@ public sealed class AppSession : IDisposable
 	/// <summary>メインウィンドウ。</summary>
 	public Window MainWindow { get; }
 
+	/// <summary>起動した Othello.WPF.exe のプロセス ID。</summary>
+	public int ProcessId => _app.ProcessId;
+
 	/// <summary>
 	/// テストの出力ディレクトリにある Othello.WPF.exe を起動し、メインウィンドウが表示されるまで待つ。
 	/// </summary>
@@ -88,6 +91,18 @@ public sealed class AppSession : IDisposable
 			ElementTimeout);
 		return result.Result
 			?? throw new TimeoutException($"{ElementTimeout.TotalSeconds} 秒以内に AutomationId \"{automationId}\" の要素が見つかりませんでした。");
+	}
+
+	/// <summary>
+	/// メインウィンドウを閉じ、アプリが自力で終了するのを待つ。<see cref="Dispose"/> と異なり強制終了はしない
+	/// （終了処理の不具合を強制終了で隠さないため）。
+	/// </summary>
+	/// <param name="timeout">終了を待つ上限。</param>
+	/// <returns>上限までにアプリが終了したら true。</returns>
+	public bool CloseWindow(TimeSpan timeout)
+	{
+		MainWindow.Close();
+		return Retry.WhileFalse(() => _app.HasExited, timeout).Result;
 	}
 
 	/// <summary>
