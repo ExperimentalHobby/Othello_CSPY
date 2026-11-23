@@ -168,6 +168,7 @@ dotnet run --project src/Othello.Console/Othello.Console.csproj
 | カバレッジ計測 + レポート生成 | `Ctrl+Shift+P` → `Tasks: Run Task` → `test: Report`（`test: Coverage` に依存する2段階タスクで、計測→レポート生成まで自動実行） |
 | Rust テスト | `Ctrl+Shift+P` → `Tasks: Run Task` → `test: Rust` |
 | Python テスト | `Ctrl+Shift+P` → `Tasks: Run Task` → `test: Python` |
+| GUI 自動テスト（WPF） | `Ctrl+Shift+P` → `Tasks: Run Task` → `test: UI (WPF)`（実際にウィンドウが開き、操作中はマウス・キーボードを使わないこと。詳細は「GUI 自動テスト（FlaUI）」節） |
 | WPF 版を起動 | `Ctrl+Shift+P` → `Tasks: Run Task` → `run: WPF` |
 | WinUI3 版を起動 | `Ctrl+Shift+P` → `Tasks: Run Task` → `run: WinUI3` |
 | コンソール版を起動 | `Ctrl+Shift+P` → `Tasks: Run Task` → `run: Console` |
@@ -214,28 +215,49 @@ py -m unittest discover -s src/Othello.AI/Python -p "test_*.py"
 
 ---
 
-### 4. GUI 自動テスト（FlaUI）— 予定
+### 4. GUI 自動テスト（FlaUI）
 
-> **ステータス: 未実装（計画中、Issue #250）**  
-> 学習目的も兼ねて、[FlaUI](https://github.com/FlaUI/FlaUI)（UI Automation）による GUI 自動テストを追加する予定です。
+> **ステータス: 実装済み（WPF 版のみ、Issue #250）**
 
-既存の C# テストは ViewModel 層（`FakeAI` 注入）までを対象としています。そのため次の動作は手動確認に頼っています。
+[FlaUI](https://github.com/FlaUI/FlaUI)（UI Automation）で、実際の `Othello.WPF.exe` を別プロセスで起動して操作する GUI 自動テストです。
+既存の C# テストは ViewModel 層（`FakeAI` 注入）までが対象のため、次の動作はこのテストで検証します。
 
 - XAML バインディング（盤面クリック → 着手、ComboBox 連携、有効手ハイライト）
 - Python サブプロセスを含む実アプリの動作（`.py` の出力ディレクトリへのコピー、IPC、ウィンドウを閉じたときのプロセス停止）
 
-FlaUI テストは、この部分を自動化することを目的とします。
+**実行方法**（Windows のデスクトップセッションが必要。実行中はウィンドウが開くため、マウス・キーボードを操作しないこと）:
 
-| 項目 | 方針（予定） |
+```powershell
+$env:OTHELLO_UI_TESTS = "1"
+dotnet test src/Othello.Tests.E2E.WPF
+```
+
+VS Code では `Tasks: Run Task` → `test: UI (WPF)` でも実行できます。
+環境変数 `OTHELLO_UI_TESTS=1` がないとウィンドウを起動するテストは Skip されるため、`dotnet test Othello.slnx` では実行されません。
+
+**テスト一覧**（`src/Othello.Tests.E2E.WPF/`）:
+
+| # | テスト | 検証内容 |
+|---|---|---|
+| T1 | 起動 | メインウィンドウが表示され、タイトルが `Othello (オセロ) - WPF` であること |
+| T2 | 初期盤面 | 黒・白のスコアがともに 2 で、中央 4 マスにだけ石があること |
+| T3 | 有効手の表示 | 人間が黒のとき、有効手が 4 マス表示されること |
+| T4 | AI バッジ | `AI: Rust` / `AI: Python` / `AI: C#` のいずれかが表示されること |
+| T5 | 着手と AI 応答 | ビギナーで 1 手打つと AI が応答し、石数・表示スコアが 6 になって手番が人間に戻ること（AI が Python 連携であることも確認） |
+| T6 | Undo | 着手後に戻すと初期盤面（2 対 2）に戻ること |
+| T7 | 新規ゲーム | 着手後に新規ゲームを押すと初期盤面に戻ること |
+| T8 | 終了処理 | ウィンドウを閉じると exe が終了し、子孫の Python プロセスが残らないこと |
+| — | 出力構成 | 出力ディレクトリに `Othello.WPF.exe` と `Othello.Python/ai.py` が配置されること（ウィンドウを起動しないため常に実行） |
+
+| 項目 | 方針 |
 |---|---|
-| 対象 | まず WPF 版のみ（WinUI3 は UIA での安定化コストが高いため後回し） |
-| ライブラリ | FlaUI.UIA3 ＋ xUnit |
-| テスト範囲 | スモークテスト数本（起動時の初期盤面、有効手クリックによる着手、AI 応答後に手番が戻ること、新規ゲーム / Undo、終了時に Python プロセスが残らないこと） |
-| 難易度 | ビギナー固定（Hard / Expert の思考待ち（最大 8〜15 秒）を避けるため） |
-| 前提作業 | 盤面マス・ボタン・ComboBox に `AutomationProperties.AutomationId` を付与 |
-| 実行タイミング | ローカル実行、CI では手動 / 定期実行の別ジョブとする（デスクトップセッションに依存し不安定になりやすいため、PR の必須チェックにはしない） |
-
-> プロジェクト名・構成などの詳細は実装時に決定します。
+| 対象 | WPF 版のみ（WinUI3 は UIA での安定化コストが高いため対象外）。ただし AutomationId は WPF / WinUI3 の両方に付与 |
+| ライブラリ | FlaUI.UIA3 ＋ xUnit（`System.Management` で子孫プロセスを確認） |
+| 操作・待機 | マウスクリックではなく InvokePattern で操作し、`Thread.Sleep` ではなく条件が満たされるまでのポーリングで待つ |
+| 難易度 | 毎回 ComboBox でビギナーを選ぶ（思考待ちの短縮とバインディング検証を兼ねる） |
+| データ保護 | 実データ（`%LOCALAPPDATA%\OthelloCspy`）に書き込む操作（終局・制限時間の変更・統計リセット）はテストしない |
+| 並列実行 | デスクトップとフォーカスを共有するため、アセンブリ単位で無効 |
+| CI | 現状は含めない（デスクトップセッションに依存して不安定になりやすいため、PR の必須チェックにはしない） |
 
 ---
 

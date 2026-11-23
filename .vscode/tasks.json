@@ -142,6 +142,22 @@
 			"problemMatcher": []
 		},
 		{
+			"label": "test: UI (WPF)",
+			"type": "shell",
+			"command": "dotnet test src/Othello.Tests.E2E.WPF",
+			"options": {
+				"env": {
+					"OTHELLO_UI_TESTS": "1"
+				}
+			},
+			"group": "test",
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			},
+			"problemMatcher": "$msCompile"
+		},
+		{
 			"label": "publish: WPF → dist/WPF",
 			"dependsOn": ["build: Rust AI"],
 			"dependsOrder": "sequence",
