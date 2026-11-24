@@ -24,7 +24,7 @@
     <!-- GUI 自動テスト（UI Automation）。Othello.Tests.E2E.WPF のみで使用（Issue #250） -->
     <PackageVersion Include="FlaUI.UIA3" Version="5.0.0" />
     <!-- プロセスの親子関係（WMI）の取得用。FlaUI.Core の推移的依存と同じ 8.0.0 に揃える（Issue #250 T8） -->
-    <PackageVersion Include="System.Management" Version="8.0.0" />
+    <PackageVersion Include="System.Management" Version="11.0.0" />
   </ItemGroup>
 
 </Project>
