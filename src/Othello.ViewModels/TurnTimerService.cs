@@ -58,6 +58,8 @@ public class TurnTimerService : IDisposable
 			while (remaining > 0)
 			{
 				await Task.Delay(1000, ct);
+				// 待機完了後、再開するまでの間に Stop された場合は例外が出ないため、ここで確認する
+				ct.ThrowIfCancellationRequested();
 				remaining--;
 				Tick?.Invoke(remaining);
 			}

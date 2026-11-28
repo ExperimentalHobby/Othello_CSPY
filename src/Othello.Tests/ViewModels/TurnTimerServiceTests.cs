@@ -1,5 +1,6 @@
 namespace Technopro.Othello.Tests.ViewModels;
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using Technopro.Othello.ViewModels;
 
@@ -98,6 +99,59 @@ public class TurnTimerServiceTests
 		// Start(5) に対して十分短い（1/5 未満の）固定待機で「発火していないこと」を確認する。
 		await Task.Delay(1000);
 
+		Assert.False(expired);
+	}
+
+	/// <summary>
+	/// Post された継続を即時実行せず保持する SynchronizationContext。
+	/// 「待機は完了したが、継続はまだ実行されていない」状態をテストで作るために使う。
+	/// </summary>
+	private sealed class QueuedSynchronizationContext : SynchronizationContext
+	{
+		private readonly ConcurrentQueue<(SendOrPostCallback Callback, object? State)> _queue = new();
+
+		public bool HasPending => !_queue.IsEmpty;
+
+		public override void Post(SendOrPostCallback d, object? state) => _queue.Enqueue((d, state));
+
+		public void RunPending()
+		{
+			while (_queue.TryDequeue(out var item))
+				item.Callback(item.State);
+		}
+	}
+
+	/// <summary>
+	/// 待機完了後、継続が実行される前に Stop した場合、古いタイマーが通知しないことを確認する（Issue #260）。
+	/// パス条件: Stop の Tick(0) より後に Tick が発火せず、Expired も発火しないこと。
+	/// </summary>
+	[Fact]
+	public void Stop_AfterDelayCompletedBeforeContinuation_DoesNotNotify()
+	{
+		var context = new QueuedSynchronizationContext();
+		var original = SynchronizationContext.Current;
+		var timer = new TurnTimerService();
+		var ticks = new List<int>();
+		bool expired = false;
+		timer.Tick += ticks.Add;
+		timer.Expired += () => expired = true;
+
+		try
+		{
+			SynchronizationContext.SetSynchronizationContext(context);
+			timer.Start(1);
+			Assert.True(SpinWait.SpinUntil(() => context.HasPending, 5000), "待機が完了しませんでした");
+
+			timer.Stop();
+			context.RunPending();
+		}
+		finally
+		{
+			SynchronizationContext.SetSynchronizationContext(original);
+		}
+
+		// 先頭の 0 は Start 内部の Stop によるもの
+		Assert.Equal(new[] { 0, 1, 0 }, ticks);
 		Assert.False(expired);
 	}
 

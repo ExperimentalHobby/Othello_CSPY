@@ -25,6 +25,14 @@ public class TimeLimitTests
 	private static GameViewModel MakeVm(DifficultyLevel diff = DifficultyLevel.Medium)
 		=> new(d => new FakeAI(d), settings: new OthelloSettings()) { DifficultyIndex = (int)diff };
 
+	/// <summary>gate が閉じている間 AI 生成が完了しない ViewModel を作る（準備中の状態を再現する）。</summary>
+	private static GameViewModel MakeGatedVm(ManualResetEventSlim gate)
+		=> new(d =>
+		{
+			gate.Wait(TimeSpan.FromSeconds(10));
+			return new FakeAI(d);
+		}, startDeferred: true, settings: new OthelloSettings());
+
 	// ===== IsTimeLimitEnabled の難易度連動 =====
 
 	/// <summary>
@@ -149,6 +157,161 @@ public class TimeLimitTests
 
 		// 黒が先手（人間）のとき StartNewGame() 直後に RemainingSeconds がセットされる
 		Assert.Equal(15, vm.RemainingSeconds);
+	}
+
+	// ===== #260: 設定変更の即時反映 =====
+
+	/// <summary>
+	/// 制限時間 ON でタイマー起動中に OFF にすると、タイマーが停止することを確認する。
+	/// パス条件: RemainingSeconds == 0 かつ IsTimerRunning == false。
+	/// </summary>
+	[Fact]
+	public void DisableTimeLimit_BeforeFirstMove_StopsTimer()
+	{
+		using var vm = MakeVm(DifficultyLevel.Medium);
+		vm.IsTimeLimitEnabled = true;
+		vm.StartNewGame();
+		Assert.True(vm.IsTimerRunning); // 前提条件確認
+
+		vm.IsTimeLimitEnabled = false;
+
+		Assert.Equal(0, vm.RemainingSeconds);
+		Assert.False(vm.IsTimerRunning);
+	}
+
+	/// <summary>
+	/// 初手前に制限時間を OFF から ON にすると、その場でカウントダウンが始まることを確認する。
+	/// パス条件: RemainingSeconds == TimeLimitSeconds。
+	/// </summary>
+	[Fact]
+	public void EnableTimeLimit_BeforeFirstMove_StartsTimer()
+	{
+		using var vm = MakeVm(DifficultyLevel.Medium);
+		vm.TimeLimitSeconds = 15;
+		vm.StartNewGame();
+		Assert.False(vm.IsTimerRunning); // 前提条件確認
+
+		vm.IsTimeLimitEnabled = true;
+
+		Assert.Equal(15, vm.RemainingSeconds);
+	}
+
+	/// <summary>
+	/// 初手前に秒数を変更すると、起動中のタイマーが新しい秒数で数え直されることを確認する。
+	/// パス条件: RemainingSeconds == 変更後の TimeLimitSeconds。
+	/// </summary>
+	[Fact]
+	public void ChangeTimeLimitSeconds_BeforeFirstMove_RestartsTimerWithNewValue()
+	{
+		using var vm = MakeVm(DifficultyLevel.Medium);
+		vm.IsTimeLimitEnabled = true;
+		vm.StartNewGame();
+		Assert.Equal(30, vm.RemainingSeconds); // 前提条件確認
+
+		vm.TimeLimitSeconds = 45;
+
+		Assert.Equal(45, vm.RemainingSeconds);
+	}
+
+	/// <summary>
+	/// カウントダウン中に同じ秒数を再設定しても、残り時間が巻き戻らないことを確認する。
+	/// パス条件: 再設定の前後で RemainingSeconds が TimeLimitSeconds 未満のままであること。
+	/// </summary>
+	[Fact]
+	public async Task SetSameTimeLimitSeconds_DoesNotResetCountdown()
+	{
+		using var vm = MakeVm(DifficultyLevel.Medium);
+		vm.IsTimeLimitEnabled = true;
+		vm.StartNewGame();
+		await TestWait.UntilAsync(() => vm.RemainingSeconds < 30, "カウントダウンが進みませんでした");
+
+		vm.TimeLimitSeconds = 30;
+
+		Assert.True(vm.RemainingSeconds < 30);
+	}
+
+	/// <summary>
+	/// 制限時間が OFF のとき時間切れ処理が呼ばれても、自動着手されないことを確認する。
+	/// パス条件: 石の合計が初期状態の 4 のままであること。
+	/// </summary>
+	[Fact]
+	public void TurnTimerExpired_WhenTimeLimitDisabled_DoesNotPlay()
+	{
+		using var vm = MakeVm(DifficultyLevel.Medium);
+		vm.StartNewGame();
+		Assert.False(vm.IsTimeLimitEnabled); // 前提条件確認
+
+		vm.ExpireTurnTimerForTest();
+
+		Assert.Equal(4, vm.BlackScore + vm.WhiteScore);
+	}
+
+	/// <summary>
+	/// 起動中のタイマーを OFF にした後は、元の制限時間が過ぎても自動着手されないことを確認する（結合）。
+	/// パス条件: 1.5 秒後も石の合計が 4 のままであること。
+	/// </summary>
+	[Fact]
+	public async Task DisableTimeLimit_AfterOriginalLimitElapses_DoesNotPlay()
+	{
+		using var vm = MakeVm(DifficultyLevel.Medium);
+		vm.TimeLimitSeconds = 1;
+		vm.IsTimeLimitEnabled = true;
+		vm.StartNewGame();
+
+		vm.IsTimeLimitEnabled = false;
+
+		// 「着手されないこと」の否定系検証のため、制限時間を超える固定時間を待つ
+		await Task.Delay(1500);
+
+		Assert.Equal(4, vm.BlackScore + vm.WhiteScore);
+	}
+
+	// ===== #260: 新規ゲーム準備中のタイマー =====
+
+	/// <summary>
+	/// 新規ゲームの AI 生成を待っている間、前のゲームのタイマーが停止していることを確認する。
+	/// パス条件: 準備中は RemainingSeconds == 0。
+	/// </summary>
+	[Fact]
+	public async Task StartNewGameAsync_WhilePreparingAI_StopsTimer()
+	{
+		using var gate = new ManualResetEventSlim(initialState: true);
+		using var vm = MakeGatedVm(gate);
+		vm.IsTimeLimitEnabled = true;
+		vm.StartNewGame();
+		Assert.True(vm.IsTimerRunning); // 前提条件確認
+
+		gate.Reset();
+		var starting = vm.StartNewGameAsync();
+		int remainingWhilePreparing = vm.RemainingSeconds;
+		gate.Set();
+		await starting;
+
+		Assert.Equal(0, remainingWhilePreparing);
+	}
+
+	/// <summary>
+	/// 新規ゲームの準備中に制限時間を切り替えてもタイマーは起動せず、準備完了後に起動することを確認する。
+	/// パス条件: 準備中は RemainingSeconds == 0、完了後は TimeLimitSeconds と等しいこと。
+	/// </summary>
+	[Fact]
+	public async Task ToggleTimeLimit_WhilePreparingAI_StartsTimerOnlyAfterReady()
+	{
+		using var gate = new ManualResetEventSlim(initialState: true);
+		using var vm = MakeGatedVm(gate);
+		vm.IsTimeLimitEnabled = true;
+		vm.StartNewGame();
+
+		gate.Reset();
+		var starting = vm.StartNewGameAsync();
+		vm.IsTimeLimitEnabled = false;
+		vm.IsTimeLimitEnabled = true;
+		int remainingWhilePreparing = vm.RemainingSeconds;
+		gate.Set();
+		await starting;
+
+		Assert.Equal(0, remainingWhilePreparing);
+		Assert.Equal(30, vm.RemainingSeconds);
 	}
 
 	// ===== 時間切れ強制着手 =====
