@@ -19,6 +19,11 @@ public partial class GameViewModel
 	internal IReadOnlyList<KifuMove> KifuMovesForTest => _kifuMoves;
 
 	/// <summary>
+	/// タイマーを経由せず時間切れ処理を実行する。
+	/// </summary>
+	internal void ExpireTurnTimerForTest() => OnTurnTimerExpired();
+
+	/// <summary>
 	/// 任意の盤面・手番状態をエンジンに直接ロードする。
 	/// 両者に有効手がない終局局面をセットすると EndGame を誘発できる。
 	/// </summary>

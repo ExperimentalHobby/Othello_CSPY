@@ -110,21 +110,27 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 		private set => SetProperty(ref _lastKifuRecord, value);
 	}
 
-	/// <summary>制限時間モードが有効かどうか。ゲーム開始前のみ変更可能。</summary>
+	/// <summary>制限時間モードが有効かどうか。ゲーム開始前のみ変更可能。変更はタイマーへ即時反映する。</summary>
 	public bool IsTimeLimitEnabled
 	{
 		get => _isTimeLimitEnabled;
-		set => SetProperty(ref _isTimeLimitEnabled, value);
+		set
+		{
+			if (SetProperty(ref _isTimeLimitEnabled, value))
+				RestartTurnTimer();
+		}
 	}
 
-	/// <summary>1 手あたりの制限時間（秒）。ゲーム開始前のみ変更可能。</summary>
+	/// <summary>1 手あたりの制限時間（秒）。ゲーム開始前のみ変更可能。変更はタイマーへ即時反映する。</summary>
 	public int TimeLimitSeconds
 	{
 		get => _timeLimitSeconds;
 		set
 		{
 			if (value < 1) value = 1;
-			SetProperty(ref _timeLimitSeconds, value);
+			// 入力欄はフォーカスを失うたびに値を書き戻すため、変化がなければカウントダウンを維持する
+			if (SetProperty(ref _timeLimitSeconds, value))
+				RestartTurnTimer();
 		}
 	}
 
@@ -575,6 +581,8 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 		// ローカルに保持して「自分のCTS」として後で再入チェックに使う（F3）
 		var cts = new CancellationTokenSource();
 		_cts = cts;
+		// AI 生成を待つ間に時間切れとなり、前の盤面へ自動着手されないようにする
+		StopTurnTimer();
 		IsAIThinking = false;
 		IsPaused = false;
 		LastKifuRecord = null;
@@ -1035,13 +1043,13 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 
 	/// <summary>
 	/// 人間ターン開始時にカウントダウンタイマーを起動する。
-	/// 制限時間 OFF または AI ターンの場合は起動しない。
+	/// 制限時間 OFF、AI ターン、または新規ゲームの AI 準備中（_ai が未生成）の場合は起動しない。
 	/// </summary>
 	private void RestartTurnTimer()
 	{
 		_turnTimer.Stop();
 
-		if (!IsTimeLimitEnabled || !IsGameInProgress || _engine.CurrentPlayer != HumanColor || IsCpuVsCpu)
+		if (!IsTimeLimitEnabled || !IsGameInProgress || _engine.CurrentPlayer != HumanColor || IsCpuVsCpu || _ai == null)
 			return;
 
 		_turnTimer.Start(TimeLimitSeconds);
@@ -1067,7 +1075,7 @@ public partial class GameViewModel : ViewModelBase, IDisposable
 	/// </summary>
 	private void OnTurnTimerExpired()
 	{
-		if (IsGameInProgress && _engine.CurrentPlayer == HumanColor)
+		if (IsTimeLimitEnabled && IsGameInProgress && _engine.CurrentPlayer == HumanColor)
 		{
 			StatusMessage = "時間切れ！自動着手します";
 			ForcePlayFirstValidMove();
